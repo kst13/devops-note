@@ -16,7 +16,19 @@
 docker ps -a
 docker logs <container>
 docker inspect <container>
+docker inspect <container> --format '{{json .State}}'
 ```
+
+`State.ExitCode`, `State.Error`, `State.OOMKilled`, health 상태를 함께 확인합니다. 자주 보는 종료 코드는 다음과 같습니다.
+
+| 코드 | 일반적인 의미 |
+| --- | --- |
+| `125` | Docker가 컨테이너 실행 자체에 실패 |
+| `126` | 명령은 있지만 실행 권한 또는 형식 문제 |
+| `127` | 실행할 명령을 찾지 못함 |
+| `137` | `SIGKILL`, OOM 또는 강제 종료 가능성 |
+
+종료 코드만으로 원인을 확정하지 말고 로그와 `OOMKilled`를 같이 봅니다.
 
 ## 해결 방법
 
@@ -27,3 +39,5 @@ docker inspect <container>
 ```bash
 docker run -it --entrypoint sh <image>
 ```
+
+distroless나 scratch 기반 이미지에는 `sh`가 없을 수 있습니다. 그때는 debug 이미지, `docker cp`, 애플리케이션 자체 진단 endpoint를 사용합니다.

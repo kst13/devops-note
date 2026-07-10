@@ -15,6 +15,8 @@
 ```bash
 docker ps
 docker ps -a
+docker ps --filter publish=8080
+docker compose port <service> <container-port>
 lsof -i :8080
 ```
 
@@ -26,3 +28,5 @@ lsof -i :8080
 ```bash
 docker run -p 8081:80 nginx
 ```
+
+포트를 바꾼 뒤에는 애플리케이션의 callback URL, 방화벽, healthcheck, 문서화된 접속 주소도 함께 수정됐는지 확인합니다. 로컬 전용 서비스라면 `127.0.0.1:8081:80`처럼 바인딩 범위를 제한합니다.

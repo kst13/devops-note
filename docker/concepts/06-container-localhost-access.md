@@ -1,5 +1,11 @@
 # 컨테이너에서 localhost로 다른 서비스 접근하기
 
+## 학습 목표
+
+- 컨테이너 안의 `localhost`가 가리키는 대상을 설명합니다.
+- 호스트, 같은 Docker 네트워크의 서비스, 공유 네트워크 네임스페이스에 맞는 주소를 선택합니다.
+- host network의 편의성과 격리·이식성 비용을 함께 판단합니다.
+
 ## 핵심 개념
 
 컨테이너 안에서 `localhost`는 호스트 서버가 아니라 컨테이너 자기 자신입니다.
@@ -85,6 +91,8 @@ services:
       - "8080"
 ```
 
+`expose`는 컨테이너가 사용하는 포트를 설명하지만 같은 네트워크의 접근을 허용하거나 차단하는 보안 규칙은 아닙니다. 서비스가 실제로 해당 포트에서 리슨하면 같은 네트워크의 다른 컨테이너가 접근할 수 있습니다.
+
 이때 `app` 컨테이너는 `http://api:8080`으로 `api` 컨테이너에 접근합니다. 여기서 사용하는 포트는 호스트에 공개한 포트가 아니라 컨테이너 내부에서 서비스가 실제로 리슨하는 포트입니다.
 
 ## 예시: host network Spring Boot에서 Compose PostgreSQL 접속하기
@@ -107,7 +115,7 @@ services:
     environment:
       POSTGRES_DB: appdb
       POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: apppass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
       - "127.0.0.1:5432:5432"
 
@@ -115,7 +123,7 @@ services:
     image: adminer
     container_name: local-adminer
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 ```
 
 PostgreSQL 설정에서 중요한 부분은 `ports`입니다.
@@ -143,7 +151,7 @@ Spring Boot container (--network host)
 ```properties
 spring.datasource.url=jdbc:postgresql://localhost:5432/appdb
 spring.datasource.username=appuser
-spring.datasource.password=apppass
+spring.datasource.password=${POSTGRES_PASSWORD}
 ```
 
 환경 변수로 넘긴다면 다음처럼 실행할 수 있습니다.
@@ -152,7 +160,7 @@ spring.datasource.password=apppass
 docker run --network host \
   -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/appdb \
   -e SPRING_DATASOURCE_USERNAME=appuser \
-  -e SPRING_DATASOURCE_PASSWORD=apppass \
+  -e SPRING_DATASOURCE_PASSWORD="${POSTGRES_PASSWORD}" \
   my-spring-app
 ```
 
@@ -195,8 +203,9 @@ Spring Boot 컨테이너와 같은 조건에서 접속을 테스트하려면 hos
 
 ```bash
 docker run --rm --network host \
+  -e PGPASSWORD="${POSTGRES_PASSWORD}" \
   postgres:16 \
-  psql postgresql://appuser:apppass@localhost:5432/appdb
+  psql -h localhost -U appuser -d appdb
 ```
 
 ### 주의할 점
@@ -228,9 +237,9 @@ services:
     network_mode: host
 ```
 
-이 경우 컨테이너 안의 `localhost`는 호스트 서버의 `localhost`와 같은 네트워크를 바라봅니다. 따라서 컨테이너에서 `http://localhost:8080`으로 요청하면 호스트 서버의 8080 포트로 접근할 수 있습니다.
+이 경우 컨테이너 안의 `localhost`는 호스트 서버의 `localhost`와 같은 네트워크를 바라봅니다. 따라서 컨테이너에서 `http://localhost:8080`으로 요청하면 호스트 서버의 8080 포트로 접근할 수 있습니다. host mode에서는 `-p` 또는 `ports` 포트 매핑이 무시되며 경고가 발생합니다.
 
-다만 host network는 포트 격리가 약해지고, 같은 포트를 여러 컨테이너가 동시에 사용할 수 없으며, Docker Desktop 환경과 Linux 서버 환경의 동작 차이가 있을 수 있습니다. 운영 환경에서는 필요한 경우에만 제한적으로 사용하는 것이 좋습니다.
+다만 host network는 포트 격리가 약해지고 같은 포트를 여러 컨테이너가 동시에 사용할 수 없습니다. Docker Desktop 4.34 이상은 설정에서 host networking을 활성화한 Linux 컨테이너에 한해 이 기능을 지원하지만, Linux Docker Engine과 세부 동작이 같다고 가정하지 말고 대상 환경에서 검증해야 합니다. 운영 환경에서는 필요한 경우에만 제한적으로 사용합니다.
 
 ### 2. 다른 컨테이너의 네트워크 네임스페이스 공유
 
@@ -315,3 +324,9 @@ services:
     image: my-app
     network_mode: "service:api"
 ```
+
+## 참고한 공식 문서
+
+- [Networking overview](https://docs.docker.com/engine/network/)
+- [Host network driver](https://docs.docker.com/engine/network/drivers/host/)
+- [Control Compose startup order](https://docs.docker.com/compose/how-tos/startup-order/)

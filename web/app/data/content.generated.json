@@ -1,0 +1,647 @@
+{
+  "generatedAt": "2026-07-10T14:16:31.299Z",
+  "topics": [
+    {
+      "id": "docker",
+      "title": "Docker",
+      "kicker": "CONTAINER RUNTIME",
+      "description": "이미지와 컨테이너의 기초부터 네트워크, Compose, 운영 트러블슈팅까지 익힙니다.",
+      "accent": "#2f7cf6",
+      "accentSoft": "#e8f1ff",
+      "order": 1,
+      "tags": [
+        "Container",
+        "Image",
+        "Network"
+      ],
+      "documents": [
+        {
+          "id": "docker/concepts/00-getting-started",
+          "topicId": "docker",
+          "sourcePath": "docker/concepts/00-getting-started.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "Docker 시작하기",
+          "summary": "Docker Desktop 또는 Docker Engine과 Compose v2가 필요합니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Network",
+            "Storage",
+            "CLI"
+          ],
+          "sections": [
+            "학습 목표",
+            "사전 확인",
+            "Docker가 동작하는 흐름",
+            "첫 컨테이너 실행",
+            "생명주기 확인",
+            "확인 질문",
+            "다음 문서",
+            "참고한 공식 문서"
+          ],
+          "order": 0,
+          "body": "# Docker 시작하기\n\n## 학습 목표\n\n- Docker CLI, Docker daemon, registry의 역할을 구분합니다.\n- 이미지로 컨테이너를 만들고 상태를 확인한 뒤 안전하게 정리합니다.\n- 명령이 실패했을 때 가장 먼저 확인할 위치를 익힙니다.\n\n## 사전 확인\n\nDocker Desktop 또는 Docker Engine과 Compose v2가 필요합니다.\n\n```bash\ndocker version\ndocker info\ndocker compose version\n```\n\n`docker version`에서 Client와 Server가 모두 보여야 합니다. Client만 보인다면 CLI는 설치됐지만 Docker daemon에 연결하지 못한 상태입니다.\n\n## Docker가 동작하는 흐름\n\n```text\nDocker CLI\n  -> Docker daemon\n     -> registry에서 이미지 pull\n     -> 이미지로 컨테이너 생성\n     -> 호스트 커널에서 프로세스 실행\n```\n\n- **CLI**는 `docker run`, `docker ps` 같은 요청을 보냅니다.\n- **daemon**은 이미지, 컨테이너, 네트워크, 볼륨을 실제로 관리합니다.\n- **registry**는 이미지를 저장하고 배포합니다. Docker Hub가 대표적인 공개 registry입니다.\n- **컨테이너**는 별도 가상 머신이 아니라 호스트 커널 위에서 격리된 프로세스로 실행됩니다.\n\n## 첫 컨테이너 실행\n\n```bash\ndocker run -d \\\n  --name hello-nginx \\\n  -p 127.0.0.1:8080:80 \\\n  nginx:alpine\n```\n\n명령은 이미지가 로컬에 없으면 먼저 내려받고, 컨테이너를 생성한 뒤 백그라운드에서 실행합니다. `127.0.0.1:8080:80`은 호스트의 로컬 8080 포트를 컨테이너의 80 포트에 연결합니다.\n\n```bash\ndocker ps\ncurl http://127.0.0.1:8080\ndocker logs hello-nginx\ndocker inspect hello-nginx\n```\n\n`curl` 결과에 Nginx HTML이 보이고 `docker ps`의 상태가 `Up`이면 정상입니다.\n\n## 생명주기 확인\n\n```bash\ndocker stop hello-nginx\ndocker ps -a\ndocker start hello-nginx\ndocker rm -f hello-nginx\ndocker images nginx\n```\n\n컨테이너를 삭제해도 이미지는 남습니다. 같은 이미지에서 컨테이너를 다시 만들 수 있기 때문입니다. 이미지까지 지우려면 사용 중인 컨테이너가 없는지 확인한 뒤 실행합니다.\n\n```bash\ndocker image rm nginx:alpine\n```\n\n## 확인 질문\n\n1. `docker run`과 `docker start`는 어떤 점이 다른가요?\n2. 컨테이너를 삭제해도 이미지가 남는 이유는 무엇인가요?\n3. `docker version`에 Server 정보가 없으면 어느 계층부터 확인해야 하나요?\n\n## 다음 문서\n\n- [컨테이너와 이미지](01-container-image.md)\n- [Dockerfile](02-dockerfile.md)\n\n## 참고한 공식 문서\n\n- [Docker architecture](https://docs.docker.com/get-started/docker-overview/)\n- [Run containers](https://docs.docker.com/guides/golang/run-containers/)\n"
+        },
+        {
+          "id": "docker/concepts/01-container-image",
+          "topicId": "docker",
+          "sourcePath": "docker/concepts/01-container-image.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "컨테이너와 이미지",
+          "summary": "같은 이미지에서 여러 컨테이너를 만들 수 있으며 각 컨테이너의 writable layer는 서로 공유되지 않습니다. 영속 데이터는 writable layer에 의존하지 말고 볼륨이나 외부 저장소로 분리합니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Storage",
+            "Operations",
+            "CLI"
+          ],
+          "sections": [
+            "학습 목표",
+            "핵심 개념",
+            "명령의 관계",
+            "이미지 레이어 확인",
+            "태그와 digest",
+            "확인 질문",
+            "다음 문서",
+            "참고한 공식 문서"
+          ],
+          "order": 1,
+          "body": "# 컨테이너와 이미지\n\n## 학습 목표\n\n- 이미지, 컨테이너, 컨테이너 writable layer를 구분합니다.\n- `create`, `start`, `run`, `rm`의 관계를 설명합니다.\n- 태그가 고정된 식별자가 아니라는 점을 이해합니다.\n\n## 핵심 개념\n\n| 대상 | 역할 | 변경 가능 여부 | 수명 |\n| --- | --- | --- | --- |\n| 이미지 | 실행 파일, 라이브러리, 기본 설정을 묶은 템플릿 | 읽기 전용 레이어 | 직접 삭제할 때까지 유지 |\n| 컨테이너 | 이미지의 설정으로 실행되는 격리된 프로세스 | 실행 상태와 설정 변경 가능 | 삭제할 때까지 유지 |\n| writable layer | 컨테이너가 실행 중 기록한 파일 변경분 | 쓰기 가능 | 컨테이너 삭제 시 함께 제거 |\n\n같은 이미지에서 여러 컨테이너를 만들 수 있으며 각 컨테이너의 writable layer는 서로 공유되지 않습니다. 영속 데이터는 writable layer에 의존하지 말고 볼륨이나 외부 저장소로 분리합니다.\n\n## 명령의 관계\n\n```text\ndocker pull -> 이미지 준비\ndocker create -> 중지 상태 컨테이너 생성\ndocker start -> 기존 컨테이너의 명령 실행\ndocker run -> 필요하면 pull + create + start\ndocker rm -> 컨테이너와 writable layer 삭제\ndocker image rm -> 이미지 삭제\n```\n\n```bash\ndocker pull nginx:alpine\ndocker create --name web -p 127.0.0.1:8080:80 nginx:alpine\ndocker start web\ndocker ps\ndocker stop web\ndocker rm web\n```\n\n## 이미지 레이어 확인\n\nDockerfile의 각 빌드 단계는 재사용 가능한 이미지 레이어를 만들 수 있습니다. 여러 이미지가 같은 베이스 레이어를 공유하므로 디스크 사용량의 단순 합계와 실제 사용량이 다를 수 있습니다.\n\n```bash\ndocker image inspect nginx:alpine\ndocker history nginx:alpine\ndocker system df\n```\n\n컨테이너에서 변경된 경로는 다음처럼 확인합니다.\n\n```bash\ndocker run --name layer-demo alpine sh -c 'echo hello > /message'\ndocker diff layer-demo\ndocker rm layer-demo\n```\n\n`/message`는 컨테이너 writable layer에 있으므로 컨테이너 삭제 후 남지 않습니다.\n\n## 태그와 digest\n\n`nginx:alpine`에서 `alpine`은 사람이 읽기 좋은 태그이며 registry에서 다른 이미지 digest를 가리키도록 변경될 수 있습니다.\n\n```bash\ndocker image inspect nginx:alpine --format '{{index .RepoDigests 0}}'\n```\n\n- 학습과 로컬 개발에서는 태그가 편리합니다.\n- 재현 가능한 배포에서는 검증한 버전 태그와 digest 고정을 함께 검토합니다.\n- digest를 고정하면 자동 보안 업데이트도 따라오지 않으므로 갱신 절차가 필요합니다.\n\n## 확인 질문\n\n1. 컨테이너 정지와 삭제는 데이터 수명에 어떤 차이가 있나요?\n2. 같은 이미지에서 만든 두 컨테이너의 `/tmp` 파일이 자동 공유되지 않는 이유는 무엇인가요?\n3. 운영 배포에서 이동 가능한 태그만 사용할 때 어떤 재현성 문제가 생길 수 있나요?\n\n## 다음 문서\n\n- [Dockerfile](02-dockerfile.md)\n- [볼륨과 바인드 마운트](03-volume-bind-mount.md)\n\n## 참고한 공식 문서\n\n- [Docker objects](https://docs.docker.com/get-started/docker-overview/#docker-objects)\n- [docker image history](https://docs.docker.com/reference/cli/docker/image/history/)\n"
+        },
+        {
+          "id": "docker/concepts/02-dockerfile",
+          "topicId": "docker",
+          "sourcePath": "docker/concepts/02-dockerfile.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "Dockerfile",
+          "summary": "Dockerfile은 이미지를 만들기 위한 빌드 명세입니다. docker build 마지막 인자인 .은 현재 디렉터리를 빌드 컨텍스트로 전달한다는 의미입니다. COPY는 이 컨텍스트 안의 파일만 읽을 수 있습니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Operations",
+            "Container",
+            "Image"
+          ],
+          "sections": [
+            "학습 목표",
+            "핵심 개념",
+            "기본 예시",
+            "`CMD`와 `ENTRYPOINT`",
+            "캐시를 활용하는 복사 순서",
+            "운영 점검 기준",
+            "빌드와 검사",
+            "확인 질문",
+            "참고한 공식 문서"
+          ],
+          "order": 2,
+          "body": "# Dockerfile\n\n## 학습 목표\n\n- 빌드 시점 명령과 컨테이너 실행 시점 명령을 구분합니다.\n- 빌드 컨텍스트, 레이어, 캐시가 이미지 빌드에 미치는 영향을 이해합니다.\n- 크기, 보안, 재현성을 고려한 Dockerfile 점검 기준을 익힙니다.\n\n## 핵심 개념\n\nDockerfile은 이미지를 만들기 위한 빌드 명세입니다. `docker build` 마지막 인자인 `.`은 현재 디렉터리를 **빌드 컨텍스트**로 전달한다는 의미입니다. `COPY`는 이 컨텍스트 안의 파일만 읽을 수 있습니다.\n\n| 명령 | 실행 시점 | 역할 |\n| --- | --- | --- |\n| `FROM` | 빌드 | 베이스 이미지 또는 새 빌드 단계 시작 |\n| `WORKDIR` | 빌드 | 이후 명령의 기본 경로 설정 |\n| `COPY` | 빌드 | 컨텍스트의 파일을 이미지에 복사 |\n| `RUN` | 빌드 | 패키지 설치, 컴파일 등으로 레이어 생성 |\n| `USER` | 빌드/실행 설정 | 이후 명령과 기본 실행 사용자 지정 |\n| `EXPOSE` | 이미지 메타데이터 | 애플리케이션이 듣는 포트 문서화 |\n| `CMD` | 컨테이너 시작 | 기본 실행 명령 또는 기본 인자 제공 |\n| `ENTRYPOINT` | 컨테이너 시작 | 항상 실행할 프로그램 지정 |\n\n`EXPOSE`는 호스트 포트를 열지 않습니다. 외부 접근에는 `docker run -p` 또는 Compose `ports`가 필요합니다.\n\n## 기본 예시\n\n```dockerfile\nFROM nginx:alpine\n\nCOPY html/index.html /usr/share/nginx/html/index.html\n\nEXPOSE 80\n\nHEALTHCHECK --interval=30s --timeout=3s --retries=3 \\\n  CMD wget -q --spider http://127.0.0.1/ || exit 1\n```\n\n실행 가능한 전체 파일은 [Dockerfile 기본 실습](../examples/dockerfile-basic/README.md)에 있습니다.\n\n## `CMD`와 `ENTRYPOINT`\n\nOS 종료 신호가 애플리케이션에 직접 전달되도록 JSON 배열인 exec form을 기본으로 사용합니다.\n\n```dockerfile\nENTRYPOINT [\"java\", \"-jar\", \"/app/app.jar\"]\nCMD [\"--spring.profiles.active=prod\"]\n```\n\n`docker run image --server.port=9090`처럼 실행하면 `ENTRYPOINT`는 유지되고 `CMD` 기본 인자가 바뀝니다. `CMD`만 정의한 이미지에서는 `docker run` 뒤의 명령이 기본 명령 전체를 대체합니다.\n\n## 캐시를 활용하는 복사 순서\n\n자주 바뀌지 않는 의존성 정의를 애플리케이션 소스보다 먼저 복사하면 소스 변경 시 의존성 설치 레이어를 재사용할 수 있습니다.\n\n```dockerfile\nCOPY package.json package-lock.json ./\nRUN npm ci\nCOPY . .\nRUN npm run build\n```\n\n`.dockerignore`로 `.git`, 빌드 결과, 로컬 의존성, 시크릿처럼 불필요하거나 민감한 파일을 컨텍스트에서 제외합니다.\n\n## 운영 점검 기준\n\n- 빌드 도구가 최종 이미지에 필요 없다면 multi-stage build로 실행 파일만 복사합니다.\n- 애플리케이션이 특권을 요구하지 않으면 전용 non-root 사용자로 실행합니다.\n- 관련 패키지 설치와 캐시 정리를 같은 `RUN` 단계에서 처리합니다.\n- 베이스 이미지는 검증한 버전과 digest를 기록하고 정기적으로 갱신합니다.\n- 비밀번호와 토큰을 `ARG`, `ENV`, `COPY`로 이미지 레이어에 넣지 않습니다. BuildKit secret 또는 배포 환경의 시크릿 기능을 사용합니다.\n- `latest` 같은 이동 가능한 태그만으로 배포 재현성을 보장하지 않습니다.\n\n## 빌드와 검사\n\n```bash\ndocker build --check .\ndocker build -t my-app:local .\ndocker history my-app:local\ndocker image inspect my-app:local\n```\n\n`docker build --check` 지원 여부는 Docker/BuildKit 버전에 따라 다를 수 있습니다.\n\n## 확인 질문\n\n1. `RUN npm start`와 `CMD [\"npm\", \"start\"]`는 언제 실행되나요?\n2. 소스 코드보다 의존성 파일을 먼저 `COPY`하는 이유는 무엇인가요?\n3. `EXPOSE 8080`만 작성한 이미지가 호스트에 자동 공개되지 않는 이유는 무엇인가요?\n\n## 참고한 공식 문서\n\n- [Dockerfile reference](https://docs.docker.com/reference/dockerfile/)\n- [Building best practices](https://docs.docker.com/build/building/best-practices/)\n- [Build secrets](https://docs.docker.com/build/building/secrets/)\n"
+        },
+        {
+          "id": "docker/concepts/03-volume-bind-mount",
+          "topicId": "docker",
+          "sourcePath": "docker/concepts/03-volume-bind-mount.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "볼륨과 바인드 마운트",
+          "summary": "바인드 마운트도 컨테이너와 독립적으로 유지됩니다. 다만 애플리케이션이 생성하는 영속 데이터는 호스트 경로 결합도가 낮고 Docker가 수명주기를 관리하는 named volume을 기본 선택으로 검토합니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Storage",
+            "Security",
+            "Operations"
+          ],
+          "sections": [
+            "학습 목표",
+            "방식 비교",
+            "named volume 실습",
+            "bind mount 실습",
+            "자주 놓치는 점",
+            "확인 명령어",
+            "정리",
+            "함께 보면 좋은 문서",
+            "참고한 공식 문서"
+          ],
+          "order": 3,
+          "body": "# 볼륨과 바인드 마운트\n\n## 학습 목표\n\n- 컨테이너 writable layer, volume, bind mount, tmpfs의 수명을 구분합니다.\n- 데이터 성격에 맞는 마운트 방식을 선택합니다.\n- 마운트 권한과 기존 파일 가림 현상을 진단합니다.\n\n## 방식 비교\n\n| 방식 | 데이터 위치 | 적합한 용도 | 주의점 |\n| --- | --- | --- | --- |\n| 컨테이너 writable layer | Docker 내부 | 임시 파일, 재생성 가능한 데이터 | 컨테이너 삭제 시 제거 |\n| named volume | Docker가 관리 | DB 데이터, 컨테이너 생성 데이터 | 별도 백업이 필요 |\n| bind mount | 지정한 호스트 경로 | 소스 코드, 설정, 호스트와 파일 공유 | 호스트 경로와 UID/GID에 의존 |\n| tmpfs | 호스트 메모리 | 디스크에 남기지 않을 임시 데이터 | 중지 시 사라지고 메모리 사용 |\n\n바인드 마운트도 컨테이너와 독립적으로 유지됩니다. 다만 애플리케이션이 생성하는 영속 데이터는 호스트 경로 결합도가 낮고 Docker가 수명주기를 관리하는 named volume을 기본 선택으로 검토합니다.\n\n## named volume 실습\n\n```bash\ndocker volume create app-data\n\ndocker run --rm \\\n  --mount type=volume,src=app-data,dst=/data \\\n  alpine sh -c 'date -u > /data/created-at'\n\ndocker run --rm \\\n  --mount type=volume,src=app-data,dst=/data,readonly \\\n  alpine cat /data/created-at\n\ndocker volume inspect app-data\n```\n\n첫 컨테이너는 종료 후 자동 삭제되지만 두 번째 컨테이너가 같은 파일을 읽을 수 있습니다. 데이터 수명이 컨테이너와 분리됐기 때문입니다.\n\n## bind mount 실습\n\n```bash\nmkdir -p ./mount-demo\n\ndocker run --rm \\\n  --mount type=bind,src=\"$(pwd)/mount-demo\",dst=/workspace \\\n  alpine sh -c 'echo created-in-container > /workspace/result.txt'\n\ncat ./mount-demo/result.txt\n```\n\n읽기 전용 설정 파일은 쓰기 권한을 주지 않습니다.\n\n```bash\ndocker run --rm \\\n  --mount type=bind,src=\"$(pwd)/config\",dst=/app/config,readonly \\\n  my-app\n```\n\n## 자주 놓치는 점\n\n- 비어 있지 않은 컨테이너 경로에 마운트하면 기존 파일이 삭제되는 것이 아니라 마운트 뒤에 가려집니다.\n- 컨테이너 프로세스의 숫자 UID/GID와 호스트 파일 소유자가 다르면 `Permission denied`가 발생할 수 있습니다.\n- bind mount는 호스트 파일을 변경할 수 있으므로 쓰기 권한 범위를 최소화합니다.\n- volume은 백업이 아닙니다. 별도 저장 위치로 내보내고 복원 절차를 주기적으로 시험합니다.\n- `docker compose down -v`와 `docker volume prune`은 데이터를 삭제할 수 있으므로 대상 확인 없이 실행하지 않습니다.\n\n## 확인 명령어\n\n```bash\ndocker volume ls\ndocker volume inspect app-data\ndocker inspect <container> --format '{{json .Mounts}}'\ndocker system df -v\n```\n\n## 정리\n\n```bash\ndocker volume rm app-data\nrm -r ./mount-demo\n```\n\n## 함께 보면 좋은 문서\n\n- [Permission denied](../troubleshooting/permission-denied.md)\n- [Compose 기본 실습](../examples/compose-basic/README.md)\n\n## 참고한 공식 문서\n\n- [Volumes](https://docs.docker.com/engine/storage/volumes/)\n- [Bind mounts](https://docs.docker.com/engine/storage/bind-mounts/)\n- [tmpfs mounts](https://docs.docker.com/engine/storage/tmpfs/)\n"
+        },
+        {
+          "id": "docker/concepts/04-network",
+          "topicId": "docker",
+          "sourcePath": "docker/concepts/04-network.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "Docker 네트워크",
+          "summary": "사용자 정의 bridge 네트워크에 연결된 컨테이너는 컨테이너명이나 network alias를 DNS 이름으로 사용할 수 있습니다. IP는 재생성 시 달라질 수 있으므로 애플리케이션 설정에 고정하지 않습니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Network",
+            "Operations",
+            "Container"
+          ],
+          "sections": [
+            "학습 목표",
+            "통신 경로 구분",
+            "컨테이너 간 통신 실습",
+            "포트 공개",
+            "연결 실패 확인 순서",
+            "정리",
+            "함께 보면 좋은 문서",
+            "참고한 공식 문서"
+          ],
+          "order": 4,
+          "body": "# Docker 네트워크\n\n## 학습 목표\n\n- 컨테이너 간 통신과 호스트 포트 공개를 구분합니다.\n- 사용자 정의 bridge 네트워크의 DNS를 사용합니다.\n- 연결 실패를 네트워크, 이름 해석, 리슨 포트 순서로 확인합니다.\n\n## 통신 경로 구분\n\n| 요청 경로 | 주소 예시 | 필요한 설정 |\n| --- | --- | --- |\n| 같은 사용자 정의 네트워크의 컨테이너끼리 | `http://api:8080` | 같은 네트워크와 대상 프로세스의 리슨 |\n| 호스트에서 컨테이너로 | `http://127.0.0.1:8080` | `-p 127.0.0.1:8080:80` |\n| 컨테이너에서 외부 인터넷으로 | `https://example.com` | 기본적으로 outbound 가능 |\n| 컨테이너에서 호스트 서비스로 | `host.docker.internal` | 플랫폼별 지원 또는 host-gateway 설정 |\n\n사용자 정의 bridge 네트워크에 연결된 컨테이너는 컨테이너명이나 network alias를 DNS 이름으로 사용할 수 있습니다. IP는 재생성 시 달라질 수 있으므로 애플리케이션 설정에 고정하지 않습니다.\n\n## 컨테이너 간 통신 실습\n\n```bash\ndocker network create learn-net\n\ndocker run -d \\\n  --name web \\\n  --network learn-net \\\n  nginx:alpine\n\ndocker run --rm \\\n  --network learn-net \\\n  curlimages/curl \\\n  -fsS http://web\n```\n\nNginx HTML이 보이면 Docker DNS가 `web`을 컨테이너 주소로 해석하고 80 포트로 연결한 것입니다. 컨테이너 간 통신에는 `EXPOSE`나 `-p`가 필수가 아닙니다.\n\n```bash\ndocker network inspect learn-net\ndocker exec web hostname -i\n```\n\n## 포트 공개\n\n```bash\ndocker run -d --name public-web -p 127.0.0.1:8080:80 nginx:alpine\n```\n\n포트 표기는 `호스트 주소:호스트 포트:컨테이너 포트` 순서입니다. `-p 8080:80`처럼 호스트 주소를 생략하면 기본적으로 모든 호스트 인터페이스에 공개될 수 있습니다. 로컬 실습이나 내부 관리 도구는 `127.0.0.1` 바인딩을 우선 검토합니다.\n\n`EXPOSE 80`은 이미지가 사용하는 포트를 설명하는 메타데이터이며 방화벽이나 공개 설정이 아닙니다.\n\n## 연결 실패 확인 순서\n\n```bash\ndocker inspect <container> --format '{{json .NetworkSettings.Networks}}'\ndocker network inspect <network>\ndocker exec <source> getent hosts <service-name>\ndocker exec <target> ss -lnt\n```\n\n1. 두 컨테이너가 같은 네트워크에 있는지 확인합니다.\n2. 서비스명이 DNS로 해석되는지 확인합니다.\n3. 대상 프로세스가 예상 포트에서 듣는지 확인합니다.\n4. 대상이 컨테이너 안의 `127.0.0.1`에만 바인딩됐다면 `0.0.0.0` 리슨이 필요한지 검토합니다.\n\n이미지에 `getent`나 `ss`가 없을 수 있습니다. 그때는 같은 네트워크에 진단용 임시 컨테이너를 실행합니다.\n\n## 정리\n\n```bash\ndocker rm -f web public-web\ndocker network rm learn-net\n```\n\n## 함께 보면 좋은 문서\n\n- [컨테이너에서 localhost로 다른 서비스 접근하기](06-container-localhost-access.md)\n- [Cannot connect between containers](../troubleshooting/cannot-connect-between-containers.md)\n\n## 참고한 공식 문서\n\n- [Networking overview](https://docs.docker.com/engine/network/)\n- [Bridge network driver](https://docs.docker.com/engine/network/drivers/bridge/)\n- [Port publishing](https://docs.docker.com/engine/network/port-publishing/)\n"
+        },
+        {
+          "id": "docker/concepts/05-compose",
+          "topicId": "docker",
+          "sourcePath": "docker/concepts/05-compose.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "Docker Compose",
+          "summary": "Docker Compose는 서비스, 네트워크, 볼륨을 YAML로 정의하고 하나의 프로젝트 단위로 관리합니다.",
+          "difficulty": "중급",
+          "readTime": 3,
+          "tags": [
+            "Network",
+            "Storage",
+            "Operations"
+          ],
+          "sections": [
+            "학습 목표",
+            "핵심 개념",
+            "준비 상태를 기다리는 의존성",
+            "자주 쓰는 명령어",
+            "설정값과 시크릿",
+            "실습",
+            "확인 질문",
+            "참고한 공식 문서"
+          ],
+          "order": 5,
+          "body": "# Docker Compose\n\n## 학습 목표\n\n- 여러 컨테이너의 원하는 상태를 하나의 Compose 파일로 선언합니다.\n- 서비스명 DNS, 포트 공개, volume 수명을 구분합니다.\n- 시작 순서와 애플리케이션 준비 상태가 다르다는 점을 이해합니다.\n\n## 핵심 개념\n\nDocker Compose는 서비스, 네트워크, 볼륨을 YAML로 정의하고 하나의 프로젝트 단위로 관리합니다.\n\n```yaml\nservices:\n  web:\n    image: nginx:alpine\n    ports:\n      - \"127.0.0.1:8080:80\"\n```\n\nCompose는 기본 네트워크를 만들고 같은 프로젝트의 서비스명을 DNS 이름으로 제공합니다. 컨테이너 간에는 컨테이너 포트를 사용하고, 호스트에서 접근할 때만 공개된 호스트 포트를 사용합니다.\n\n```text\nhost -> 127.0.0.1:8080 -> web container:80\napp container -> http://web:80\n```\n\n## 준비 상태를 기다리는 의존성\n\n짧은 `depends_on`은 컨테이너 시작 순서만 제어하며 데이터베이스가 요청을 받을 준비까지 기다리지 않습니다. 준비 상태가 중요하다면 healthcheck와 `service_healthy` 조건을 사용합니다.\n\n```yaml\nservices:\n  app:\n    image: my-app\n    depends_on:\n      redis:\n        condition: service_healthy\n\n  redis:\n    image: redis:8-alpine\n    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"PING\"]\n      interval: 5s\n      timeout: 3s\n      retries: 5\n```\n\n애플리케이션에도 연결 재시도와 제한 시간을 구현해야 합니다. healthcheck 하나가 일시적인 네트워크 장애를 없애지는 않습니다.\n\n## 자주 쓰는 명령어\n\n```bash\ndocker compose config -q\ndocker compose up -d\ndocker compose ps -a\ndocker compose logs -f --tail 100\ndocker compose exec <service> sh\ndocker compose stop\ndocker compose down\n```\n\n- `config -q`는 병합과 변수 치환이 끝난 구성이 유효한지 확인합니다.\n- `stop`은 컨테이너를 중지하지만 프로젝트의 컨테이너와 네트워크를 남깁니다.\n- `down`은 Compose가 만든 컨테이너와 기본 네트워크를 제거합니다.\n- `down -v`는 선언된 named volume과 anonymous volume까지 제거하므로 데이터 삭제 의도를 확인한 뒤 사용합니다.\n\n## 설정값과 시크릿\n\n```yaml\nservices:\n  app:\n    environment:\n      API_BASE_URL: http://api:8080\n      APP_MODE: ${APP_MODE:-local}\n```\n\n`docker compose config` 출력에는 치환된 값이 보일 수 있습니다. 비밀번호를 Compose 파일이나 Git에 저장하지 말고 시크릿 관리 기능이나 배포 환경에서 주입합니다. 필수 변수는 `${PASSWORD:?PASSWORD is required}`처럼 누락 시 즉시 실패하게 만들 수 있습니다.\n\n## 실습\n\n[Compose 기본 실습](../examples/compose-basic/README.md)에서 Nginx, Redis, one-shot checker를 실행해 다음을 확인합니다.\n\n1. 서비스명으로 Redis에 연결되는지 확인합니다.\n2. healthcheck를 통과한 뒤 의존 서비스가 시작되는지 확인합니다.\n3. 컨테이너 재시작 후 named volume 데이터가 남는지 확인합니다.\n4. `down`과 `down -v`의 결과를 비교합니다.\n\n## 확인 질문\n\n1. `ports` 없이도 `app`이 `redis:6379`에 접근할 수 있는 이유는 무엇인가요?\n2. `depends_on: [redis]`만으로 준비 완료를 보장할 수 없는 이유는 무엇인가요?\n3. `docker compose down -v`를 운영 데이터가 있는 환경에서 주의해야 하는 이유는 무엇인가요?\n\n## 참고한 공식 문서\n\n- [Compose networking](https://docs.docker.com/compose/how-tos/networking/)\n- [Control startup order](https://docs.docker.com/compose/how-tos/startup-order/)\n- [docker compose down](https://docs.docker.com/reference/cli/docker/compose/down/)\n"
+        },
+        {
+          "id": "docker/concepts/06-container-localhost-access",
+          "topicId": "docker",
+          "sourcePath": "docker/concepts/06-container-localhost-access.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "컨테이너에서 localhost로 다른 서비스 접근하기",
+          "summary": "컨테이너 안에서 localhost는 호스트 서버가 아니라 컨테이너 자기 자신입니다.",
+          "difficulty": "중급",
+          "readTime": 8,
+          "tags": [
+            "Network",
+            "Security",
+            "Operations"
+          ],
+          "sections": [
+            "학습 목표",
+            "핵심 개념",
+            "상황별 접근 방법",
+            "호스트 서버의 서비스로 요청하기",
+            "다른 컨테이너로 요청하기",
+            "예시: host network Spring Boot에서 Compose PostgreSQL 접속하기",
+            "반드시 localhost로 요청해야 하는 경우",
+            "어떤 방법을 선택할까",
+            "자주 하는 실수",
+            "빠른 예시",
+            "참고한 공식 문서"
+          ],
+          "order": 6,
+          "body": "# 컨테이너에서 localhost로 다른 서비스 접근하기\n\n## 학습 목표\n\n- 컨테이너 안의 `localhost`가 가리키는 대상을 설명합니다.\n- 호스트, 같은 Docker 네트워크의 서비스, 공유 네트워크 네임스페이스에 맞는 주소를 선택합니다.\n- host network의 편의성과 격리·이식성 비용을 함께 판단합니다.\n\n## 핵심 개념\n\n컨테이너 안에서 `localhost`는 호스트 서버가 아니라 컨테이너 자기 자신입니다.\n\n예를 들어 컨테이너 내부 애플리케이션이 `http://localhost:8080`으로 요청하면, 기본적으로는 호스트 서버의 8080 포트나 다른 컨테이너의 8080 포트가 아니라 현재 컨테이너 내부의 8080 포트로 요청합니다.\n\n그래서 컨테이너에서 외부 대상에 접근할 때는 대상에 따라 접근 방법을 다르게 선택해야 합니다.\n\n## 상황별 접근 방법\n\n| 대상 | 권장 접근 방법 | 예시 |\n| --- | --- | --- |\n| 호스트 서버에서 실행 중인 서비스 | `host.docker.internal` 또는 host network | `http://host.docker.internal:8080` |\n| 다른 Docker 컨테이너 | 사용자 정의 Docker 네트워크 + 컨테이너명 또는 Compose 서비스명 | `http://api:8080` |\n| 반드시 `localhost:<port>`를 유지해야 하는 경우 | host network 또는 네트워크 네임스페이스 공유 | `network_mode: host`, `network_mode: \"service:api\"` |\n\n## 호스트 서버의 서비스로 요청하기\n\n호스트 서버에서 실행 중인 서비스에 컨테이너가 접근해야 한다면 `localhost` 대신 `host.docker.internal`을 사용합니다.\n\n```bash\ncurl http://host.docker.internal:8080\n```\n\nLinux 서버에서는 Docker 실행 시 `host.docker.internal`을 직접 추가해야 하는 경우가 많습니다.\n\n```bash\ndocker run \\\n  --add-host=host.docker.internal:host-gateway \\\n  <image>\n```\n\nDocker Compose에서는 다음처럼 설정합니다.\n\n```yaml\nservices:\n  app:\n    image: my-app\n    extra_hosts:\n      - \"host.docker.internal:host-gateway\"\n```\n\n이후 컨테이너 내부에서는 다음 주소로 호스트 서버의 서비스에 접근합니다.\n\n```bash\ncurl http://host.docker.internal:8080\n```\n\n주의할 점은 호스트의 서비스가 `127.0.0.1`에만 바인딩되어 있으면 컨테이너에서 접근하지 못할 수 있다는 것입니다. 이 경우 서비스가 `0.0.0.0` 또는 Docker 브리지 게이트웨이 주소에서 요청을 받을 수 있도록 바인딩 설정을 확인해야 합니다.\n\n## 다른 컨테이너로 요청하기\n\n다른 컨테이너에 접근할 때는 `localhost`를 사용하지 않는 것이 일반적입니다. 두 컨테이너를 같은 사용자 정의 네트워크에 넣고, 컨테이너명이나 Compose 서비스명을 호스트명처럼 사용합니다.\n\n```bash\ndocker network create app-network\n\ndocker run -d \\\n  --name api \\\n  --network app-network \\\n  my-api\n\ndocker run --rm \\\n  --network app-network \\\n  curlimages/curl \\\n  http://api:8080\n```\n\nCompose에서는 같은 `services` 아래에 있는 서비스끼리 서비스명으로 접근할 수 있습니다.\n\n```yaml\nservices:\n  app:\n    image: my-app\n    depends_on:\n      - api\n    environment:\n      API_BASE_URL: http://api:8080\n\n  api:\n    image: my-api\n    expose:\n      - \"8080\"\n```\n\n`expose`는 컨테이너가 사용하는 포트를 설명하지만 같은 네트워크의 접근을 허용하거나 차단하는 보안 규칙은 아닙니다. 서비스가 실제로 해당 포트에서 리슨하면 같은 네트워크의 다른 컨테이너가 접근할 수 있습니다.\n\n이때 `app` 컨테이너는 `http://api:8080`으로 `api` 컨테이너에 접근합니다. 여기서 사용하는 포트는 호스트에 공개한 포트가 아니라 컨테이너 내부에서 서비스가 실제로 리슨하는 포트입니다.\n\n## 예시: host network Spring Boot에서 Compose PostgreSQL 접속하기\n\n다음과 같은 구성을 생각해볼 수 있습니다.\n\n- PostgreSQL과 Adminer는 Docker Compose로 실행합니다.\n- Spring Boot 애플리케이션은 `docker run --network host`로 단일 컨테이너 실행합니다.\n- Spring Boot 애플리케이션은 PostgreSQL에 연결해야 합니다.\n\n이 경우 Spring Boot 컨테이너는 Compose 네트워크에 직접 붙어 있는 것이 아닙니다. 대신 호스트 서버의 네트워크를 그대로 사용합니다. 따라서 PostgreSQL 컨테이너의 포트를 호스트에 공개하고, Spring Boot에서는 `localhost:<호스트 포트>`로 접근합니다.\n\n### Compose 설정\n\n```yaml\nservices:\n  postgres:\n    image: postgres:16\n    container_name: local-postgres\n    environment:\n      POSTGRES_DB: appdb\n      POSTGRES_USER: appuser\n      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}\n    ports:\n      - \"127.0.0.1:5432:5432\"\n\n  adminer:\n    image: adminer\n    container_name: local-adminer\n    ports:\n      - \"127.0.0.1:8080:8080\"\n```\n\nPostgreSQL 설정에서 중요한 부분은 `ports`입니다.\n\n```yaml\nports:\n  - \"127.0.0.1:5432:5432\"\n```\n\n이 설정은 PostgreSQL 컨테이너의 `5432` 포트를 호스트 서버의 `127.0.0.1:5432`로 공개합니다. Spring Boot 컨테이너는 host network를 사용하므로 컨테이너 안에서 `localhost:5432`로 요청했을 때 호스트 서버의 `127.0.0.1:5432`에 접근합니다.\n\n흐름은 다음과 같습니다.\n\n```text\nSpring Boot container (--network host)\n  -> localhost:5432\n  -> host server 127.0.0.1:5432\n  -> compose postgres container 5432\n```\n\n### Spring Boot datasource 설정\n\n`application.properties`를 사용한다면 다음처럼 설정합니다.\n\n```properties\nspring.datasource.url=jdbc:postgresql://localhost:5432/appdb\nspring.datasource.username=appuser\nspring.datasource.password=${POSTGRES_PASSWORD}\n```\n\n환경 변수로 넘긴다면 다음처럼 실행할 수 있습니다.\n\n```bash\ndocker run --network host \\\n  -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/appdb \\\n  -e SPRING_DATASOURCE_USERNAME=appuser \\\n  -e SPRING_DATASOURCE_PASSWORD=\"${POSTGRES_PASSWORD}\" \\\n  my-spring-app\n```\n\nSpring Boot가 `server.port=8080`으로 실행된다면 `--network host` 환경에서는 호스트 서버의 8080 포트를 직접 사용합니다. 이때 `docker run -p 8080:8080` 같은 포트 매핑은 의미가 없습니다.\n\n### 왜 postgres 서비스명으로 접속하지 않을까\n\nCompose 내부 컨테이너끼리는 다음처럼 서비스명으로 접근할 수 있습니다.\n\n```text\njdbc:postgresql://postgres:5432/appdb\n```\n\n하지만 `--network host`로 실행한 Spring Boot 컨테이너는 Compose가 만든 Docker 네트워크에 붙어 있지 않습니다. 그래서 기본적으로 Compose 서비스명인 `postgres`를 Docker DNS로 해석하지 못합니다.\n\n이 구성에서는 다음 주소를 사용합니다.\n\n```text\njdbc:postgresql://localhost:5432/appdb\n```\n\n즉, `postgres` 서비스명으로 붙는 방식이 아니라 호스트에 공개된 포트를 통해 PostgreSQL 컨테이너로 들어가는 방식입니다.\n\n### 확인 명령어\n\nCompose 서비스를 먼저 실행합니다.\n\n```bash\ndocker compose up -d\n```\n\n호스트 서버에서 PostgreSQL 포트가 열렸는지 확인합니다.\n\n```bash\ndocker compose ps\nlsof -i :5432\n```\n\nSpring Boot 컨테이너와 같은 조건에서 접속을 테스트하려면 host network로 임시 컨테이너를 실행해 확인할 수 있습니다.\n\n```bash\ndocker run --rm --network host \\\n  -e PGPASSWORD=\"${POSTGRES_PASSWORD}\" \\\n  postgres:16 \\\n  psql -h localhost -U appuser -d appdb\n```\n\n### 주의할 점\n\n- PostgreSQL compose 서비스에 `ports`가 없고 `expose`만 있으면 host network Spring Boot 컨테이너에서 `localhost:5432`로 접근할 수 없습니다.\n- Spring Boot 컨테이너에서는 `jdbc:postgresql://postgres:5432/appdb`가 아니라 `jdbc:postgresql://localhost:5432/appdb`를 사용합니다.\n- PostgreSQL을 `\"127.0.0.1:5432:5432\"`로 공개하면 같은 서버 내부에서만 접근하기 좋습니다.\n- 외부 서버에서도 PostgreSQL에 접근해야 한다면 `\"5432:5432\"`처럼 열 수 있지만, 보안상 방화벽과 계정 권한을 반드시 함께 제한해야 합니다.\n- host network는 Linux 서버에서 주로 사용하는 방식입니다. Docker Desktop 환경에서는 동작 방식이 다를 수 있습니다.\n\n## 반드시 localhost로 요청해야 하는 경우\n\n애플리케이션 설정을 바꾸기 어렵거나 라이브러리가 `localhost:<port>`로만 접근하도록 되어 있다면 네트워크 구조를 바꿔야 합니다.\n\n### 1. host network 사용\n\nLinux 서버에서는 컨테이너를 호스트 네트워크 네임스페이스에서 실행할 수 있습니다.\n\n```bash\ndocker run --network host <image>\n```\n\nCompose에서는 다음처럼 설정합니다.\n\n```yaml\nservices:\n  app:\n    image: my-app\n    network_mode: host\n```\n\n이 경우 컨테이너 안의 `localhost`는 호스트 서버의 `localhost`와 같은 네트워크를 바라봅니다. 따라서 컨테이너에서 `http://localhost:8080`으로 요청하면 호스트 서버의 8080 포트로 접근할 수 있습니다. host mode에서는 `-p` 또는 `ports` 포트 매핑이 무시되며 경고가 발생합니다.\n\n다만 host network는 포트 격리가 약해지고 같은 포트를 여러 컨테이너가 동시에 사용할 수 없습니다. Docker Desktop 4.34 이상은 설정에서 host networking을 활성화한 Linux 컨테이너에 한해 이 기능을 지원하지만, Linux Docker Engine과 세부 동작이 같다고 가정하지 말고 대상 환경에서 검증해야 합니다. 운영 환경에서는 필요한 경우에만 제한적으로 사용합니다.\n\n### 2. 다른 컨테이너의 네트워크 네임스페이스 공유\n\n컨테이너 A가 컨테이너 B와 같은 네트워크 네임스페이스를 공유하면, A에서 `localhost:<port>`로 B의 프로세스에 접근할 수 있습니다.\n\n```bash\ndocker run -d --name api my-api\n\ndocker run --rm \\\n  --network container:api \\\n  curlimages/curl \\\n  http://localhost:8080\n```\n\nCompose에서는 다음처럼 특정 서비스의 네트워크 네임스페이스를 공유할 수 있습니다.\n\n```yaml\nservices:\n  api:\n    image: my-api\n\n  app:\n    image: my-app\n    network_mode: \"service:api\"\n```\n\n이 방식은 sidecar 패턴처럼 두 컨테이너가 거의 한 묶음으로 동작해야 할 때 사용할 수 있습니다. 대신 `app`은 독립적인 포트 매핑이나 네트워크 설정을 갖기 어렵고, 같은 네트워크 공간을 공유하므로 포트 충돌에 주의해야 합니다.\n\n## 어떤 방법을 선택할까\n\n대부분의 경우에는 다음 순서로 선택합니다.\n\n1. 다른 컨테이너로 접근한다면 `http://서비스명:포트`를 사용합니다.\n2. 호스트 서버 서비스로 접근한다면 `host.docker.internal`을 사용합니다.\n3. 애플리케이션이 반드시 `localhost`만 써야 한다면 `network_mode: host`나 `network_mode: \"service:<name>\"`를 검토합니다.\n\n## 자주 하는 실수\n\n- 컨테이너 안에서 `localhost`를 호스트 서버라고 생각하는 것\n- 컨테이너끼리 통신할 때 호스트에 공개한 포트를 사용하는 것\n- Compose 서비스 간 통신에서 `localhost`를 사용하는 것\n- 호스트 서비스가 `127.0.0.1`에만 바인딩되어 있는데 컨테이너에서 접근하려는 것\n- host network를 편하다는 이유로 모든 컨테이너에 적용하는 것\n\n## 빠른 예시\n\n호스트 서버의 8080 포트로 접근:\n\n```yaml\nservices:\n  app:\n    image: my-app\n    extra_hosts:\n      - \"host.docker.internal:host-gateway\"\n    environment:\n      API_BASE_URL: http://host.docker.internal:8080\n```\n\n다른 컨테이너의 8080 포트로 접근:\n\n```yaml\nservices:\n  app:\n    image: my-app\n    environment:\n      API_BASE_URL: http://api:8080\n\n  api:\n    image: my-api\n    expose:\n      - \"8080\"\n```\n\n반드시 `localhost:8080`으로 접근:\n\n```yaml\nservices:\n  api:\n    image: my-api\n\n  app:\n    image: my-app\n    network_mode: \"service:api\"\n```\n\n## 참고한 공식 문서\n\n- [Networking overview](https://docs.docker.com/engine/network/)\n- [Host network driver](https://docs.docker.com/engine/network/drivers/host/)\n- [Control Compose startup order](https://docs.docker.com/compose/how-tos/startup-order/)\n"
+        },
+        {
+          "id": "docker/concepts/07-container-operations",
+          "topicId": "docker",
+          "sourcePath": "docker/concepts/07-container-operations.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "컨테이너 운영 기초",
+          "summary": "컨테이너는 기본적으로 호스트가 허용하는 만큼 CPU와 메모리를 사용할 수 있습니다. 운영에서는 부하 테스트를 바탕으로 제한값과 모니터링 기준을 함께 정합니다.",
+          "difficulty": "중급",
+          "readTime": 3,
+          "tags": [
+            "Operations",
+            "Container",
+            "Image"
+          ],
+          "sections": [
+            "학습 목표",
+            "리소스 제한",
+            "프로세스 상태와 healthcheck",
+            "재시작 정책",
+            "로그와 디스크 사용량",
+            "정상 종료와 PID 1",
+            "운영 확인 순서",
+            "정리",
+            "참고한 공식 문서"
+          ],
+          "order": 7,
+          "body": "# 컨테이너 운영 기초\n\n## 학습 목표\n\n- CPU와 메모리 사용량을 제한하고 실제 적용값을 확인합니다.\n- 프로세스 상태와 애플리케이션 준비 상태를 구분합니다.\n- 로그, 재시작 정책, 종료 신호를 운영 관점에서 연결합니다.\n\n## 리소스 제한\n\n컨테이너는 기본적으로 호스트가 허용하는 만큼 CPU와 메모리를 사용할 수 있습니다. 운영에서는 부하 테스트를 바탕으로 제한값과 모니터링 기준을 함께 정합니다.\n\n```bash\ndocker run -d \\\n  --name limited-web \\\n  --memory 256m \\\n  --cpus 0.5 \\\n  nginx:alpine\n\ndocker stats limited-web\ndocker inspect limited-web --format '{{json .HostConfig.Memory}} {{json .HostConfig.NanoCpus}}'\n```\n\n메모리 제한을 넘으면 Linux OOM 처리로 컨테이너 프로세스가 종료될 수 있습니다. `docker inspect`의 `.State.OOMKilled`와 종료 코드를 함께 확인합니다.\n\n## 프로세스 상태와 healthcheck\n\n프로세스가 실행 중이라는 사실만으로 애플리케이션이 요청을 처리할 준비가 됐다고 볼 수 없습니다. `HEALTHCHECK`는 컨테이너 안에서 애플리케이션 상태를 검사합니다.\n\n```dockerfile\nHEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \\\n  CMD wget -q --spider http://127.0.0.1/ || exit 1\n```\n\n```bash\ndocker inspect limited-web --format '{{json .State.Health}}'\ndocker events --filter container=limited-web\n```\n\n검사 명령에 사용하는 `wget`이나 `curl`이 이미지 안에 실제로 있어야 합니다. 일반 Docker 실행은 `unhealthy` 상태만 기록하며 컨테이너를 자동 재시작하지 않습니다. 재시작 여부는 오케스트레이터나 별도 정책에서 결정합니다.\n\n## 재시작 정책\n\n| 정책 | 의미 | 주의점 |\n| --- | --- | --- |\n| `no` | 자동 재시작하지 않음 | 기본값 |\n| `on-failure[:N]` | 비정상 종료 시 재시작 | 정상 종료에는 적용되지 않음 |\n| `always` | daemon 재시작 후에도 다시 실행 | 수동 중지 동작을 이해해야 함 |\n| `unless-stopped` | 수동으로 중지하지 않았다면 재실행 | 일반 서버 워크로드에 자주 사용 |\n\n```bash\ndocker update --restart unless-stopped limited-web\ndocker inspect limited-web --format '{{.HostConfig.RestartPolicy.Name}}'\n```\n\n재시작 정책은 반복 장애의 원인을 해결하지 않습니다. 재시작 횟수와 애플리케이션 로그를 함께 관찰합니다.\n\n## 로그와 디스크 사용량\n\n애플리케이션 로그는 파일보다 표준 출력과 표준 오류로 보내는 편이 컨테이너 로그 수집에 유리합니다.\n\n```bash\ndocker logs --tail 100 -f limited-web\ndocker inspect limited-web --format '{{.HostConfig.LogConfig.Type}}'\n```\n\n기본 `json-file` 로그 드라이버는 별도 설정이 없으면 자동 순환하지 않습니다. 단일 컨테이너 실행에서는 다음처럼 크기와 파일 수를 제한할 수 있습니다.\n\n```bash\ndocker run -d \\\n  --name rotated-web \\\n  --log-opt max-size=10m \\\n  --log-opt max-file=3 \\\n  nginx:alpine\n```\n\n## 정상 종료와 PID 1\n\n`docker stop`은 먼저 종료 신호를 보내고 유예 시간 뒤 강제 종료합니다. 애플리케이션이 신호를 받으려면 `CMD`나 `ENTRYPOINT`의 exec form을 사용해 실행 파일이 PID 1이 되도록 합니다.\n\n```dockerfile\nCMD [\"node\", \"server.js\"]\n```\n\n쉘 스크립트를 진입점으로 쓴다면 마지막 프로세스를 `exec`로 실행합니다.\n\n```sh\nexec \"$@\"\n```\n\n## 운영 확인 순서\n\n```bash\ndocker ps -a\ndocker inspect limited-web --format '{{json .State}}'\ndocker stats --no-stream limited-web\ndocker logs --tail 100 limited-web\ndocker top limited-web\n```\n\n상태 → 종료 코드/OOM → 리소스 → 로그 → 프로세스 순으로 확인하면 원인 범위를 빠르게 줄일 수 있습니다.\n\n## 정리\n\n```bash\ndocker rm -f limited-web rotated-web\n```\n\n## 참고한 공식 문서\n\n- [Resource constraints](https://docs.docker.com/engine/containers/resource_constraints/)\n- [Dockerfile HEALTHCHECK](https://docs.docker.com/reference/dockerfile/#healthcheck)\n- [Configure logging drivers](https://docs.docker.com/engine/logging/configure/)\n- [Start containers automatically](https://docs.docker.com/engine/containers/start-containers-automatically/)\n"
+        },
+        {
+          "id": "docker/commands/docker-cli-cheatsheet",
+          "topicId": "docker",
+          "sourcePath": "docker/commands/docker-cli-cheatsheet.md",
+          "category": "commands",
+          "categoryLabel": "명령어",
+          "title": "Docker CLI 치트시트",
+          "summary": "docker compose down -v는 named volume과 anonymous volume 데이터를 삭제할 수 있습니다. 복구할 데이터가 없는지 확인한 뒤 실행합니다.",
+          "difficulty": "참고",
+          "readTime": 3,
+          "tags": [
+            "Network",
+            "Storage",
+            "Operations"
+          ],
+          "sections": [
+            "컨테이너",
+            "이미지",
+            "볼륨",
+            "네트워크",
+            "Compose",
+            "운영 진단",
+            "정리 명령 주의"
+          ],
+          "order": 1999,
+          "body": "# Docker CLI 치트시트\n\n## 컨테이너\n\n```bash\ndocker run <image>\ndocker run -d --name <name> <image>\ndocker ps\ndocker ps -a\ndocker stop <container>\ndocker start <container>\ndocker restart <container>\ndocker rm <container>\ndocker logs <container>\ndocker logs --tail 100 -f <container>\ndocker exec -it <container> sh\ndocker inspect <container> --format '{{json .State}}'\ndocker stats --no-stream <container>\ndocker top <container>\n```\n\n## 이미지\n\n```bash\ndocker images\ndocker pull <image>\ndocker build -t <name>:<tag> .\ndocker rmi <image>\ndocker history <image>\n```\n\n## 볼륨\n\n```bash\ndocker volume ls\ndocker volume create <name>\ndocker volume inspect <name>\ndocker volume rm <name>\n```\n\n## 네트워크\n\n```bash\ndocker network ls\ndocker network create <name>\ndocker network inspect <name>\ndocker network connect <network> <container>\ndocker network disconnect <network> <container>\ndocker network rm <name>\n```\n\n## Compose\n\n```bash\ndocker compose up\ndocker compose up -d\ndocker compose config -q\ndocker compose down\ndocker compose logs\ndocker compose logs -f --tail 100\ndocker compose ps\ndocker compose exec <service> sh\ndocker compose port <service> <container-port>\n```\n\n`docker compose down -v`는 named volume과 anonymous volume 데이터를 삭제할 수 있습니다. 복구할 데이터가 없는지 확인한 뒤 실행합니다.\n\n## 운영 진단\n\n```bash\ndocker system df -v\ndocker events --since 10m\ndocker ps -a --filter exited=137\ndocker ps --filter publish=8080\ndocker inspect <container> --format '{{json .Mounts}}'\ndocker inspect <container> --format '{{json .NetworkSettings.Networks}}'\n```\n\n## 정리 명령 주의\n\n다음 명령은 사용하지 않는 리소스나 데이터를 대량 삭제할 수 있습니다. 자동화 전에 대상 목록과 복구 가능 여부를 확인합니다.\n\n```text\ndocker system prune\ndocker image prune -a\ndocker volume prune\ndocker compose down -v\n```\n"
+        },
+        {
+          "id": "docker/examples/compose-basic/README",
+          "topicId": "docker",
+          "sourcePath": "docker/examples/compose-basic/README.md",
+          "category": "examples",
+          "categoryLabel": "실습",
+          "title": "Compose 기본 실습",
+          "summary": "Nginx와 Redis를 함께 실행하고 서비스 상태, 기본 네트워크, named volume을 확인합니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Network",
+            "Storage",
+            "Operations"
+          ],
+          "sections": [
+            "설정 검증",
+            "실행과 확인",
+            "데이터 수명 확인",
+            "정리"
+          ],
+          "order": 2999,
+          "body": "# Compose 기본 실습\n\nNginx와 Redis를 함께 실행하고 서비스 상태, 기본 네트워크, named volume을 확인합니다.\n\n## 설정 검증\n\n이 디렉터리에서 실행합니다.\n\n```bash\ndocker compose config -q\ndocker compose config\n```\n\n첫 명령이 출력 없이 종료 코드 0을 반환하면 문법이 유효합니다.\n\n## 실행과 확인\n\n```bash\ndocker compose up -d\ndocker compose ps -a\ncurl http://127.0.0.1:8080\ndocker compose logs checker\ndocker compose exec redis redis-cli PING\n```\n\n- `web`과 `redis`가 `healthy` 상태가 됩니다.\n- `checker` 로그에는 서비스명 `redis`로 접속한 결과인 `PONG`이 보입니다.\n- `checker`는 작업을 마친 one-shot 컨테이너이므로 종료 코드 0인 `Exited` 상태가 정상입니다.\n\nCompose는 이 프로젝트의 서비스가 공유하는 기본 네트워크를 만들고 서비스명을 DNS 이름으로 제공합니다. 호스트에 공개하지 않은 Redis 6379 포트도 같은 네트워크의 `checker`에서는 `redis:6379`로 접근할 수 있습니다.\n\n## 데이터 수명 확인\n\n```bash\ndocker compose exec redis redis-cli SET lesson compose\ndocker compose restart redis\ndocker compose exec redis redis-cli GET lesson\ndocker volume ls --filter name=compose-basic\n```\n\nRedis 데이터를 named volume에 저장하므로 컨테이너를 다시 만들어도 값이 남습니다.\n\n## 정리\n\n컨테이너와 네트워크만 제거하고 데이터를 남기려면 다음을 실행합니다.\n\n```bash\ndocker compose down\n```\n\n학습 데이터를 포함한 named volume까지 제거할 때만 `-v`를 사용합니다.\n\n```bash\ndocker compose down -v\n```\n\n`down -v`는 복구할 데이터가 없는지 확인한 뒤 실행해야 합니다.\n"
+        },
+        {
+          "id": "docker/examples/dockerfile-basic/README",
+          "topicId": "docker",
+          "sourcePath": "docker/examples/dockerfile-basic/README.md",
+          "category": "examples",
+          "categoryLabel": "실습",
+          "title": "Dockerfile 기본 실습",
+          "summary": "정적 HTML을 Nginx 이미지에 넣고 빌드, 실행, 상태 확인, 정리까지 수행합니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Container",
+            "Image",
+            "Network"
+          ],
+          "sections": [
+            "파일 구성",
+            "빌드",
+            "실행과 검증",
+            "캐시 확인",
+            "정리",
+            "확인 질문"
+          ],
+          "order": 2999,
+          "body": "# Dockerfile 기본 실습\n\n정적 HTML을 Nginx 이미지에 넣고 빌드, 실행, 상태 확인, 정리까지 수행합니다.\n\n## 파일 구성\n\n```text\ndockerfile-basic/\n├── .dockerignore\n├── Dockerfile\n├── README.md\n└── html/\n    └── index.html\n```\n\n## 빌드\n\n이 디렉터리에서 실행합니다.\n\n```bash\ndocker build -t dockerfile-basic:local .\ndocker image inspect dockerfile-basic:local\ndocker history dockerfile-basic:local\n```\n\n## 실행과 검증\n\n```bash\ndocker run -d \\\n  --name dockerfile-basic \\\n  -p 127.0.0.1:8080:80 \\\n  dockerfile-basic:local\n\ncurl http://127.0.0.1:8080\ndocker ps --filter name=dockerfile-basic\ndocker inspect dockerfile-basic --format '{{json .State.Health}}'\n```\n\nHTML에 `Dockerfile basic example`이 보이고 health 상태가 `healthy`가 되면 성공입니다. 처음 몇 초 동안은 `starting`일 수 있습니다.\n\n## 캐시 확인\n\n아무 파일도 바꾸지 않고 다시 빌드합니다.\n\n```bash\ndocker build -t dockerfile-basic:local .\n```\n\n출력의 빌드 단계에 `CACHED`가 표시되는지 확인합니다. 그다음 `html/index.html`을 수정해 `COPY` 단계 이후의 캐시만 무효화되는지 비교합니다.\n\n## 정리\n\n```bash\ndocker rm -f dockerfile-basic\ndocker image rm dockerfile-basic:local\n```\n\n## 확인 질문\n\n1. `.dockerignore`에 불필요한 파일을 넣는 이유는 무엇인가요?\n2. `EXPOSE 80`만으로 호스트의 8080 포트에서 접속할 수 있나요?\n3. HTML 변경 후 모든 레이어가 다시 빌드되지 않는 이유는 무엇인가요?\n"
+        },
+        {
+          "id": "docker/troubleshooting/cannot-connect-between-containers",
+          "topicId": "docker",
+          "sourcePath": "docker/troubleshooting/cannot-connect-between-containers.md",
+          "category": "troubleshooting",
+          "categoryLabel": "트러블슈팅",
+          "title": "Cannot connect between containers",
+          "summary": "컨테이너 A에서 컨테이너 B로 접속할 수 없습니다.",
+          "difficulty": "실전",
+          "readTime": 3,
+          "tags": [
+            "Network",
+            "Operations",
+            "Container"
+          ],
+          "sections": [
+            "증상",
+            "자주 보는 원인",
+            "확인 방법",
+            "해결 방법",
+            "함께 보면 좋은 문서"
+          ],
+          "order": 3999,
+          "body": "# Cannot connect between containers\n\n## 증상\n\n컨테이너 A에서 컨테이너 B로 접속할 수 없습니다.\n\n## 자주 보는 원인\n\n- 두 컨테이너가 같은 네트워크에 있지 않음\n- `localhost`를 잘못 사용함\n- 대상 서비스가 컨테이너 내부에서만 다른 포트로 실행 중임\n\n## 확인 방법\n\n```bash\ndocker network ls\ndocker network inspect <network>\ndocker exec -it <container> sh\ndocker inspect <container> --format '{{json .NetworkSettings.Networks}}'\n```\n\n가능하면 source와 같은 네트워크에서 다음 순서로 확인합니다.\n\n```bash\ngetent hosts <service-name>\nnc -vz <service-name> <port>\n```\n\n대상 컨테이너에서는 프로세스가 실제로 어느 주소와 포트에서 듣는지 확인합니다.\n\n```bash\nss -lntp\n```\n\n`127.0.0.1:<port>`에만 바인딩된 프로세스는 다른 컨테이너 요청을 받지 못합니다. 필요한 경우 `0.0.0.0:<port>`에서 듣도록 애플리케이션을 설정합니다. 이미지에 진단 도구가 없으면 같은 네트워크에 임시 진단 컨테이너를 실행합니다.\n\n## 해결 방법\n\n- 두 컨테이너를 같은 사용자 정의 네트워크에 연결합니다.\n- 컨테이너 간 접속에는 `localhost` 대신 서비스명이나 컨테이너명을 사용합니다.\n- Compose 환경에서는 서비스명을 호스트명으로 사용합니다.\n- 호스트에 공개한 포트가 아니라 대상 컨테이너가 실제로 리슨하는 내부 포트를 사용합니다.\n\n## 함께 보면 좋은 문서\n\n- [컨테이너에서 localhost로 다른 서비스 접근하기](../concepts/06-container-localhost-access.md)\n"
+        },
+        {
+          "id": "docker/troubleshooting/container-exits-immediately",
+          "topicId": "docker",
+          "sourcePath": "docker/troubleshooting/container-exits-immediately.md",
+          "category": "troubleshooting",
+          "categoryLabel": "트러블슈팅",
+          "title": "Container exits immediately",
+          "summary": "State.ExitCode, State.Error, State.OOMKilled, health 상태를 함께 확인합니다. 자주 보는 종료 코드는 다음과 같습니다.",
+          "difficulty": "실전",
+          "readTime": 3,
+          "tags": [
+            "Security",
+            "Container",
+            "Image"
+          ],
+          "sections": [
+            "증상",
+            "자주 보는 원인",
+            "확인 방법",
+            "해결 방법"
+          ],
+          "order": 3999,
+          "body": "# Container exits immediately\n\n## 증상\n\n컨테이너가 실행 직후 바로 종료됩니다.\n\n## 자주 보는 원인\n\n- 컨테이너의 메인 프로세스가 종료됨\n- `CMD` 또는 `ENTRYPOINT`가 잘못됨\n- 애플리케이션 실행 중 에러가 발생함\n\n## 확인 방법\n\n```bash\ndocker ps -a\ndocker logs <container>\ndocker inspect <container>\ndocker inspect <container> --format '{{json .State}}'\n```\n\n`State.ExitCode`, `State.Error`, `State.OOMKilled`, health 상태를 함께 확인합니다. 자주 보는 종료 코드는 다음과 같습니다.\n\n| 코드 | 일반적인 의미 |\n| --- | --- |\n| `125` | Docker가 컨테이너 실행 자체에 실패 |\n| `126` | 명령은 있지만 실행 권한 또는 형식 문제 |\n| `127` | 실행할 명령을 찾지 못함 |\n| `137` | `SIGKILL`, OOM 또는 강제 종료 가능성 |\n\n종료 코드만으로 원인을 확정하지 말고 로그와 `OOMKilled`를 같이 봅니다.\n\n## 해결 방법\n\n- 로그에서 애플리케이션 에러를 먼저 확인합니다.\n- 컨테이너가 foreground 프로세스를 실행하는지 확인합니다.\n- 디버깅이 필요하면 쉘로 진입해 실행 명령을 직접 확인합니다.\n\n```bash\ndocker run -it --entrypoint sh <image>\n```\n\ndistroless나 scratch 기반 이미지에는 `sh`가 없을 수 있습니다. 그때는 debug 이미지, `docker cp`, 애플리케이션 자체 진단 endpoint를 사용합니다.\n"
+        },
+        {
+          "id": "docker/troubleshooting/permission-denied",
+          "topicId": "docker",
+          "sourcePath": "docker/troubleshooting/permission-denied.md",
+          "category": "troubleshooting",
+          "categoryLabel": "트러블슈팅",
+          "title": "Permission denied",
+          "summary": "컨테이너 안에서 파일을 읽거나 쓸 때 Permission denied가 발생합니다.",
+          "difficulty": "실전",
+          "readTime": 3,
+          "tags": [
+            "Storage",
+            "Security",
+            "Operations"
+          ],
+          "sections": [
+            "증상",
+            "자주 보는 원인",
+            "확인 방법",
+            "해결 방법"
+          ],
+          "order": 3999,
+          "body": "# Permission denied\n\n## 증상\n\n컨테이너 안에서 파일을 읽거나 쓸 때 `Permission denied`가 발생합니다.\n\n## 자주 보는 원인\n\n- 바인드 마운트한 호스트 디렉터리 권한이 컨테이너 사용자와 맞지 않음\n- 컨테이너가 root가 아닌 사용자로 실행됨\n- 생성된 파일의 소유자가 예상과 다름\n\n## 확인 방법\n\n```bash\ndocker exec -it <container> sh\nid\nls -la <path>\nstat -c '%u:%g %a %n' <path>\ndocker inspect <container> --format '{{json .Mounts}}'\n```\n\n## 해결 방법\n\n- 호스트 디렉터리 권한과 소유자를 확인합니다.\n- Dockerfile의 `USER` 설정을 확인합니다.\n- 필요한 경우 볼륨을 사용해 권한 충돌을 줄입니다.\n- 호스트와 컨테이너의 숫자 UID/GID를 맞추거나 시작 시 필요한 디렉터리만 소유권을 조정합니다.\n- SELinux 환경의 bind mount라면 공유 범위에 맞는 `:z` 또는 `:Z` label이 필요한지 확인합니다.\n\n`chmod 777`이나 컨테이너를 항상 root로 실행하는 방식은 권한 범위를 과도하게 넓힐 수 있으므로 원인 확인 없이 적용하지 않습니다.\n"
+        },
+        {
+          "id": "docker/troubleshooting/port-already-in-use",
+          "topicId": "docker",
+          "sourcePath": "docker/troubleshooting/port-already-in-use.md",
+          "category": "troubleshooting",
+          "categoryLabel": "트러블슈팅",
+          "title": "Port already in use",
+          "summary": "컨테이너 실행 시 호스트 포트를 사용할 수 없다는 에러가 발생합니다.",
+          "difficulty": "실전",
+          "readTime": 3,
+          "tags": [
+            "Container",
+            "Image",
+            "Network"
+          ],
+          "sections": [
+            "증상",
+            "자주 보는 원인",
+            "확인 방법",
+            "해결 방법"
+          ],
+          "order": 3999,
+          "body": "# Port already in use\n\n## 증상\n\n컨테이너 실행 시 호스트 포트를 사용할 수 없다는 에러가 발생합니다.\n\n## 자주 보는 원인\n\n- 이미 같은 포트를 사용하는 컨테이너가 실행 중임\n- 로컬 애플리케이션이 해당 포트를 점유 중임\n- 이전 컨테이너가 종료되지 않고 남아 있음\n\n## 확인 방법\n\n```bash\ndocker ps\ndocker ps -a\ndocker ps --filter publish=8080\ndocker compose port <service> <container-port>\nlsof -i :8080\n```\n\n## 해결 방법\n\n- 기존 컨테이너를 중지하거나 삭제합니다.\n- 호스트 포트 매핑을 다른 값으로 바꿉니다.\n\n```bash\ndocker run -p 8081:80 nginx\n```\n\n포트를 바꾼 뒤에는 애플리케이션의 callback URL, 방화벽, healthcheck, 문서화된 접속 주소도 함께 수정됐는지 확인합니다. 로컬 전용 서비스라면 `127.0.0.1:8081:80`처럼 바인딩 범위를 제한합니다.\n"
+        }
+      ]
+    },
+    {
+      "id": "redis",
+      "title": "Redis",
+      "kicker": "IN-MEMORY DATA",
+      "description": "용도에 맞는 운영 설정과 복제, Sentinel, Cluster 선택 기준을 정리합니다.",
+      "accent": "#ef5b4c",
+      "accentSoft": "#ffebe8",
+      "order": 2,
+      "tags": [
+        "Cache",
+        "Persistence",
+        "HA"
+      ],
+      "documents": [
+        {
+          "id": "redis/concepts/01-data-model-and-expiration",
+          "topicId": "redis",
+          "sourcePath": "redis/concepts/01-data-model-and-expiration.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "Redis 데이터 모델과 만료",
+          "summary": "Redis는 메모리를 중심으로 동작하는 key-value 자료구조 서버입니다. 빠른 조회가 장점이지만 사용 목적에 따라 허용 가능한 데이터 유실, eviction, persistence, 고가용성 구성이 달라집니다.",
+          "difficulty": "입문",
+          "readTime": 4,
+          "tags": [
+            "Storage",
+            "Security",
+            "Operations"
+          ],
+          "sections": [
+            "학습 목표",
+            "Redis를 먼저 어떻게 사용할지 정한다",
+            "주요 자료구조 선택",
+            "키 이름 설계",
+            "TTL과 만료",
+            "기본 실습",
+            "확인 질문",
+            "참고한 공식 문서"
+          ],
+          "order": 1,
+          "body": "# Redis 데이터 모델과 만료\n\n## 학습 목표\n\n- Redis를 단순한 문자열 캐시가 아니라 자료구조 서버로 이해합니다.\n- 데이터 성격에 맞는 자료구조와 키 이름을 선택합니다.\n- TTL, 원자적 명령, keyspace 순회 시 주의점을 설명합니다.\n\n## Redis를 먼저 어떻게 사용할지 정한다\n\nRedis는 메모리를 중심으로 동작하는 key-value 자료구조 서버입니다. 빠른 조회가 장점이지만 사용 목적에 따라 허용 가능한 데이터 유실, eviction, persistence, 고가용성 구성이 달라집니다.\n\n대표 용도는 다음과 같습니다.\n\n- 원본 DB 결과를 잠시 저장하는 캐시\n- 만료가 필요한 세션과 임시 토큰\n- 원자적 카운터와 rate limit\n- 순위표, 작업 대기열, Pub/Sub\n\n강한 트랜잭션 일관성, 복잡한 관계 질의, 장기 보존이 핵심이라면 RDBMS나 전용 메시지 브로커가 더 적합할 수 있습니다. Redis를 원본 데이터 저장소로 쓸 때는 persistence와 복구 목표를 먼저 검증합니다.\n\n## 주요 자료구조 선택\n\n| 자료구조 | 대표 명령 | 적합한 예 | 주의점 |\n| --- | --- | --- | --- |\n| String | `SET`, `GET`, `INCR` | 캐시 값, 토큰, 카운터 | 한 값에 큰 객체를 계속 덮어쓰지 않기 |\n| Hash | `HSET`, `HGET`, `HINCRBY` | 사용자 속성, 작은 객체 | field 수가 무제한으로 커지지 않게 관리 |\n| List | `LPUSH`, `RPOP`, `BLPOP` | 단순 FIFO/LIFO 작업 | 재처리·확인이 중요하면 Streams 검토 |\n| Set | `SADD`, `SISMEMBER` | 중복 없는 태그, 권한 | 전체 `SMEMBERS`는 큰 집합에서 부담 |\n| Sorted Set | `ZADD`, `ZRANGE` | 순위표, 시간 기반 정렬 | score가 `double`임을 고려 |\n| Stream | `XADD`, `XREADGROUP`, `XACK` | 소비자 그룹이 있는 이벤트 처리 | retention과 pending 메시지 운영 필요 |\n\n자료구조가 제공하는 원자적 명령을 우선 사용하면 애플리케이션의 읽기-수정-쓰기 경쟁 조건을 줄일 수 있습니다.\n\n```text\n나쁜 흐름: GET counter -> 애플리케이션에서 +1 -> SET counter\n권장 흐름: INCR counter\n```\n\nRedis 명령 하나는 원자적으로 처리되지만 여러 명령의 묶음이 자동으로 원자적인 것은 아닙니다. 조건부 쓰기에는 `SET ... NX`, 여러 단계에는 transaction이나 Lua/Functions가 필요한지 검토합니다.\n\n## 키 이름 설계\n\nRedis에는 내장 namespace가 없으므로 콜론으로 계층을 표현하는 관례를 사용합니다.\n\n```text\n<service>:<environment>:<entity>:<id>[:<attribute>]\n\nshop:prod:user:42:session\nshop:prod:product:1001\nshop:prod:rate-limit:login:203.0.113.10\n```\n\n- 지나치게 긴 키는 메모리를 소비하지만 `u:42`처럼 의미가 없는 축약도 운영을 어렵게 합니다.\n- 개인정보나 시크릿을 키 이름에 직접 넣지 않습니다. 키 이름은 로그와 진단 결과에 노출될 수 있습니다.\n- Cluster에서 여러 키를 한 명령으로 다뤄야 한다면 hash tag 설계를 별도로 검토합니다.\n- 하나의 키나 collection이 무제한으로 커지는 big key가 되지 않도록 상한과 분할 기준을 정합니다.\n\n## TTL과 만료\n\n캐시와 임시 데이터는 생성 시점에 TTL을 함께 설정해 만료 누락 구간을 줄입니다.\n\n```bash\nSET session:42 '{\"userId\":42}' EX 1800\nTTL session:42\nGET session:42\n```\n\n`TTL` 결과는 초 단위 남은 시간이며 `-1`은 키가 있지만 만료가 없고, `-2`는 키가 없음을 뜻합니다.\n\n기존 키를 일반 `SET`으로 덮어쓰면 TTL이 제거될 수 있습니다. TTL을 의도적으로 유지할 때만 `KEEPTTL`을 사용합니다.\n\n```bash\nSET session:42 '{\"userId\":42,\"role\":\"admin\"}' KEEPTTL\n```\n\nTTL에 임의 오차를 더하면 많은 키가 같은 순간에 만료되어 원본 DB로 요청이 몰리는 cache stampede를 줄이는 데 도움이 됩니다.\n\n## 기본 실습\n\n먼저 [로컬 캐시 실습](../examples/basic-cache/README.md)을 실행한 뒤 Redis CLI에서 확인합니다.\n\n```bash\nSET page:home '<html>...</html>' EX 60\nGET page:home\nTTL page:home\n\nHSET user:42 name galaxy role admin\nHGETALL user:42\n\nZADD leaderboard 120 alice 95 bob\nZREVRANGE leaderboard 0 -1 WITHSCORES\n\nINCR page:home:views\n```\n\n키를 찾을 때는 전체 서버를 오래 막을 수 있는 `KEYS *` 대신 cursor 기반 `SCAN`을 사용합니다.\n\n```bash\nSCAN 0 MATCH 'user:*' COUNT 100\n```\n\n`COUNT`는 정확한 반환 개수가 아니라 힌트입니다. cursor가 다시 `0`이 될 때까지 반복해야 전체 순회가 끝나며, 순회 중 데이터가 바뀌면 중복이 나올 수 있습니다.\n\n## 확인 질문\n\n1. 사용자 조회 결과 캐시와 순위표에 각각 어떤 자료구조가 적합한가요?\n2. `SET key value`를 다시 실행했을 때 기존 TTL을 확인해야 하는 이유는 무엇인가요?\n3. 애플리케이션에서 `GET` 후 값을 증가시켜 `SET`하는 것보다 `INCR`이 안전한 이유는 무엇인가요?\n4. 운영 환경에서 `KEYS *` 대신 `SCAN`을 사용하는 이유는 무엇인가요?\n\n## 참고한 공식 문서\n\n- [Redis data types](https://redis.io/docs/latest/develop/data-types/)\n- [Keys and values](https://redis.io/docs/latest/develop/using-commands/keyspace/)\n- [EXPIRE](https://redis.io/docs/latest/commands/expire/)\n- [SCAN](https://redis.io/docs/latest/commands/scan/)\n"
+        },
+        {
+          "id": "redis/concepts/02-production-configuration",
+          "topicId": "redis",
+          "sourcePath": "redis/concepts/02-production-configuration.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "Redis 운영 설정 시작하기",
+          "summary": "2026-07-10 기준으로, 운영에서는 \"기본값으로 띄우기\"보다 목적별 redis.conf를 명시하고 네트워크와 인증을 닫은 뒤 메모리 상한과 persistence 방식을 먼저 정합니다. 아래 예시는 Redis 7 이상을 기준으로 하며 Redis 8에서 검증하는 출발점입니다.",
+          "difficulty": "입문",
+          "readTime": 7,
+          "tags": [
+            "Network",
+            "Storage",
+            "Security"
+          ],
+          "sections": [
+            "학습 목표",
+            "먼저 결정할 것",
+            "현재 많이 쓰는 설정 방식",
+            "persistence 선택",
+            "고가용성 선택",
+            "운영 기준 예시",
+            "확인 명령어",
+            "최소 관측 항목",
+            "참고한 공식 문서"
+          ],
+          "order": 2,
+          "body": "# Redis 운영 설정 시작하기\n\n## 학습 목표\n\n- Redis 용도와 허용 가능한 데이터 유실 범위에서 설정을 시작합니다.\n- 네트워크, ACL, 메모리, eviction, persistence 설정을 하나의 운영 정책으로 연결합니다.\n- 설정 파일과 실제 런타임 상태가 일치하는지 검증합니다.\n\n2026-07-10 기준으로, 운영에서는 \"기본값으로 띄우기\"보다 목적별 `redis.conf`를 명시하고 네트워크와 인증을 닫은 뒤 메모리 상한과 persistence 방식을 먼저 정합니다. 아래 예시는 Redis 7 이상을 기준으로 하며 Redis 8에서 검증하는 출발점입니다.\n\n## 먼저 결정할 것\n\nRedis 설정은 아래 네 가지를 먼저 정한 뒤 작성합니다.\n\n1. 이 Redis가 캐시인지, 세션/락/큐처럼 유실에 민감한 저장소인지 정합니다.\n2. 직접 운영할지, 클라우드 관리형 Redis 또는 Redis 호환 서비스를 쓸지 정합니다.\n3. 단일 인스턴스, primary-replica + Sentinel, Redis Cluster 중 하나를 정합니다.\n4. 메모리 한도, eviction 정책, persistence, 백업, 모니터링 기준을 정합니다.\n\n운영에서는 가능하면 관리형 서비스를 먼저 검토합니다. 패치, 장애 조치, 백업, 모니터링, TLS, 접근 제어를 직접 운영하지 않아도 되기 때문입니다. 직접 운영해야 한다면 Docker든 VM이든 Kubernetes든 `redis.conf`와 데이터 디렉터리를 명시적으로 관리합니다.\n\n## 현재 많이 쓰는 설정 방식\n\n### 1. 설정 파일을 명시한다\n\nRedis는 설정 파일 없이도 실행되지만, 이 방식은 테스트와 개발용으로 보는 것이 안전합니다. 운영에서는 `redis.conf`를 준비하고 다음처럼 실행합니다.\n\n```bash\nredis-server /etc/redis/redis.conf\n```\n\nDocker에서는 공식 이미지를 사용하되 설정 파일과 데이터 디렉터리를 마운트합니다.\n\n```bash\ndocker run --name redis \\\n  -v ./conf:/usr/local/etc/redis \\\n  -v redis-data:/data \\\n  redis:<version> \\\n  redis-server /usr/local/etc/redis/redis.conf\n```\n\nRedis 8부터는 서버 설정만 담은 `redis.conf`와 Search, JSON, time series, probabilistic data structures 같은 구성 요소까지 포함하는 `redis-full.conf`를 구분합니다. 일반 캐시나 세션 저장소라면 먼저 `redis.conf`로 시작하고, Redis Stack 계열 기능이 필요할 때만 `redis-full.conf`를 검토합니다.\n\n`CONFIG SET`으로 런타임 설정을 바꿔도 원본 설정 파일이 자동 변경되지는 않습니다. 재시작 후 되돌아가지 않도록 원하는 상태는 배포가 관리하는 설정 파일에 반영하고, 변경 전후 값을 확인합니다.\n\n```bash\nredis-cli CONFIG GET maxmemory maxmemory-policy appendonly\n```\n\n### 2. 외부 노출을 막고 인증을 켠다\n\nRedis는 애플리케이션 내부망에서만 접근하도록 둡니다. 퍼블릭 인터넷에 `6379`를 열지 않고, 방화벽과 보안 그룹으로 접근 가능한 클라이언트를 제한합니다.\n\n```conf\nbind 127.0.0.1 10.0.1.10\nprotected-mode yes\nport 6379\n```\n\nRedis 6 이상에서는 단순 `requirepass`보다 ACL을 기준으로 사용자와 권한을 분리하는 구성이 좋습니다.\n\n```conf\naclfile /etc/redis/users.acl\n```\n\n```conf\nuser default off\nuser app on >replace-with-long-random-password ~app:* +@read +@write +@connection -@dangerous\nuser ops on >replace-with-another-long-random-password ~* +@read +@connection +info +slowlog +latency -@dangerous\nuser breakglass off >replace-with-offline-password ~* +@all\n```\n\n`+@all`은 module 명령까지 포함할 수 있으므로 일상 운영 계정에 주지 않습니다. `breakglass` 같은 비상 계정은 기본 비활성화하고 승인·감사 절차와 함께 관리합니다.\n\n```bash\nredis-cli ACL DRYRUN app GET app:test\nredis-cli ACL DRYRUN app GET other:test\nredis-cli ACL LOG 10\nredis-cli ACL SAVE\n```\n\n외부 `aclfile`은 `ACL SAVE`/`ACL LOAD`로 별도 관리합니다. `CONFIG REWRITE`가 외부 ACL 파일까지 대신 저장한다고 가정하지 않습니다.\n\n네트워크를 신뢰할 수 없거나 클러스터, 복제, 클라이언트 연결이 호스트 밖으로 나간다면 TLS도 함께 검토합니다. 인증 정보는 평문 네트워크에서 보호되지 않는다고 보고, 시크릿 관리 도구나 클라우드 Secret Manager에 둡니다.\n\n### 3. 메모리 한도를 반드시 둔다\n\nRedis는 메모리 기반 저장소이므로 운영에서는 `maxmemory`를 명시합니다. 컨테이너나 VM의 전체 메모리와 같게 잡지 말고, 복제 버퍼, AOF 버퍼, OS 여유 메모리를 남깁니다.\n\n```conf\nmaxmemory 1gb\nmaxmemory-policy allkeys-lfu\n```\n\n정책 선택 기준은 다음처럼 잡습니다.\n\n- 일반 캐시: `allkeys-lfu` 또는 `allkeys-lru`\n- TTL이 있는 키만 지우고 싶을 때: `volatile-ttl` 또는 `volatile-lru`\n- 세션, 락, 큐처럼 임의 삭제가 위험할 때: `noeviction`\n\n`noeviction`은 메모리가 꽉 찼을 때 쓰기 요청이 실패할 수 있으므로 애플리케이션에서 에러 처리를 준비해야 합니다.\n\n`maxmemory`는 Redis 프로세스 RSS 전체의 완전한 상한이 아닙니다. 복제/AOF 버퍼는 eviction 계산에서 제외될 수 있고 RDB/AOF rewrite의 `fork()` 중 copy-on-write 메모리가 추가로 필요합니다.\n\n```bash\nredis-cli INFO memory\nredis-cli MEMORY STATS\n```\n\n`mem_not_counted_for_evict`, `used_memory_rss`, persistence 작업 중 메모리 증가를 부하 테스트에 포함합니다. `volatile-*` 정책은 TTL 키가 없으면 제거 후보가 없어 쓰기가 실패할 수 있습니다.\n\n## persistence 선택\n\nRedis를 순수 캐시로만 쓰고 원본 데이터가 다른 DB에 있다면 persistence를 끄거나 최소화할 수 있습니다.\n\n```conf\nappendonly no\nsave \"\"\n```\n\n재시작 후 빠른 복구나 일정 수준의 데이터 보존이 필요하면 RDB snapshot 또는 AOF를 켭니다. 자주 검토하는 선택지는 AOF `everysec`이지만 장애 시 최근 쓰기 유실 가능성을 받아들여야 합니다.\n\n```conf\nappendonly yes\nappendfsync everysec\n\nsave 900 1\nsave 300 10\nsave 60 10000\n\ndir /data\n```\n\n위 예시는 AOF와 RDB를 동시에 사용합니다. 복구 우선순위, 백업 파일 구성, RPO/RTO는 [Redis persistence, 백업, 복구](03-persistence-backup-and-recovery.md)에서 별도로 다룹니다.\n\n데이터 유실이 거의 허용되지 않는 업무라면 Redis 단독 저장을 다시 검토합니다. Redis 복제와 Cluster는 기본적으로 비동기 복제 특성이 있으므로, 강한 내구성이 필요한 데이터는 RDBMS, 로그 기반 큐, 관리형 Redis의 durability 옵션 등을 함께 비교합니다.\n\n## 고가용성 선택\n\n단일 Redis는 로컬 개발, 학습, 장애 영향이 작은 캐시에 적합합니다.\n\n운영에서 단일 primary 구조를 유지하되 자동 장애 조치가 필요하면 primary-replica 복제와 Sentinel을 검토합니다. Sentinel은 비샤딩 Redis의 고가용성을 제공하며, 견고한 배포에는 최소 3개 Sentinel 인스턴스와 Sentinel을 지원하는 클라이언트가 필요합니다.\n\n수평 확장과 샤딩이 필요하면 Redis Cluster를 사용합니다. 공식 문서는 최소 3개 master가 필요하고, 배포에는 3 master + 3 replica 구성을 강하게 권장합니다. Cluster는 NAT나 포트 매핑 환경에서 주의가 필요하므로 Docker 포트 매핑이나 Kubernetes Service 설계까지 함께 확인합니다.\n\n## 운영 기준 예시\n\n아래 설정은 그대로 복사하기보다 용도에 맞게 조정하는 출발점입니다.\n\n```conf\nbind 127.0.0.1 10.0.1.10\nprotected-mode yes\nport 6379\n\naclfile /etc/redis/users.acl\n\nmaxmemory 1gb\nmaxmemory-policy allkeys-lfu\n\nappendonly yes\nappendfsync everysec\nsave 900 1\nsave 300 10\nsave 60 10000\ndir /data\n\ntimeout 0\ntcp-keepalive 300\n\nslowlog-log-slower-than 10000\nslowlog-max-len 128\n```\n\n## 확인 명령어\n\n설정이 의도대로 적용됐는지 `redis-cli`로 확인합니다.\n\n```bash\nredis-cli INFO server\nredis-cli INFO memory\nredis-cli INFO persistence\nredis-cli CONFIG GET maxmemory maxmemory-policy appendonly appendfsync\nredis-cli ACL LIST\nredis-cli SLOWLOG LEN\n```\n\n메모리 문제를 볼 때는 아래 명령어도 자주 사용합니다.\n\n```bash\nredis-cli --bigkeys\nredis-cli --memkeys\nredis-cli INFO stats\n```\n\n## 최소 관측 항목\n\n| 영역 | 확인 항목 | 이상 신호 예시 |\n| --- | --- | --- |\n| 메모리 | `used_memory`, RSS, fragmentation, eviction 제외 버퍼 | 지속 증가, 호스트 여유 부족 |\n| 캐시 | hits, misses, `evicted_keys`, `expired_keys` | miss/eviction 증가와 앱 지연 상승 |\n| 클라이언트 | 연결 수, blocked clients, rejected connections | pool 고갈, 연결 폭증 |\n| 명령 | commandstats, Slow Log | 느린 명령과 큰 collection 접근 |\n| 지연 | `LATENCY LATEST/DOCTOR` | fork, eviction, disk I/O spike |\n| persistence | RDB/AOF 마지막 성공과 rewrite 상태 | 저장 실패, rewrite 장기화 |\n| 복제 | link 상태, lag, backlog | replica 단절, lag 증가 |\n\n```bash\nredis-cli SLOWLOG GET 20\nredis-cli LATENCY DOCTOR\nredis-cli INFO clients commandstats latencystats\n```\n\nSlow Log는 서버 명령 실행 시간만 측정하며 네트워크 왕복 시간은 포함하지 않습니다. 애플리케이션 지연과 Redis 내부 지연을 함께 관찰합니다.\n\n## 참고한 공식 문서\n\n- [Redis configuration](https://redis.io/docs/latest/operate/oss_and_stack/management/config/)\n- [Redis persistence](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)\n- [Redis security](https://redis.io/docs/latest/operate/oss_and_stack/management/security/)\n- [Redis ACL](https://redis.io/docs/latest/operate/oss_and_stack/management/security/acl/)\n- [Redis key eviction](https://redis.io/docs/latest/develop/reference/eviction/)\n- [Run Redis Open Source on Docker](https://redis.io/docs/latest/operate/oss_and_stack/install/install-stack/docker/)\n- [High availability with Redis Sentinel](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/)\n- [Scale with Redis Cluster](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/)\n- [Redis Official Image on Docker Hub](https://hub.docker.com/_/redis/)\n- [Redis latency monitoring](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency-monitor/)\n"
+        },
+        {
+          "id": "redis/concepts/03-persistence-backup-and-recovery",
+          "topicId": "redis",
+          "sourcePath": "redis/concepts/03-persistence-backup-and-recovery.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "Redis persistence, 백업, 복구",
+          "summary": "FLUSHALL, 애플리케이션 버그, 데이터 손상이 replica에 그대로 전달될 수 있으므로 replica 자체를 백업으로 취급하지 않습니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Storage",
+            "Security",
+            "Operations"
+          ],
+          "sections": [
+            "학습 목표",
+            "먼저 구분할 것",
+            "방식 비교",
+            "설정 예시",
+            "상태 확인",
+            "백업 원칙",
+            "복구 훈련 절차",
+            "메모리와 지연 시간 비용",
+            "확인 질문",
+            "참고한 공식 문서"
+          ],
+          "order": 3,
+          "body": "# Redis persistence, 백업, 복구\n\n## 학습 목표\n\n- RDB, AOF, 동시 사용, persistence 없음의 차이를 구분합니다.\n- 복제와 백업이 해결하는 문제가 다르다는 점을 설명합니다.\n- RPO와 RTO를 기준으로 복구 절차를 설계하고 검증합니다.\n\n## 먼저 구분할 것\n\n| 기능 | 해결하려는 문제 | 해결하지 못하는 것 |\n| --- | --- | --- |\n| persistence | 프로세스나 서버 재시작 후 데이터 복원 | 잘못된 삭제의 시점 복구를 자동 보장하지 않음 |\n| replication | 노드 장애 시 사용할 최신 복제본 유지 | 삭제·손상 명령도 복제되므로 백업이 아님 |\n| backup | 과거 시점의 데이터를 별도 위치에 보관 | 자동 failover를 제공하지 않음 |\n| high availability | 장애 감지와 서비스 복구 시간 단축 | 모든 쓰기의 무손실을 보장하지 않음 |\n\n`FLUSHALL`, 애플리케이션 버그, 데이터 손상이 replica에 그대로 전달될 수 있으므로 replica 자체를 백업으로 취급하지 않습니다.\n\n## 방식 비교\n\n| 방식 | 예상 데이터 유실 범위 | 장점 | 비용과 주의점 |\n| --- | --- | --- | --- |\n| 없음 | 메모리 데이터 전체 | 순수 캐시에서 단순함 | 원본에서 전체 재생성 가능해야 함 |\n| RDB | 마지막 snapshot 이후 | compact, 백업과 큰 데이터 재시작에 유리 | snapshot 간 쓰기 유실, `fork()` 비용 |\n| AOF `everysec` | 일반적으로 최근 약 1초 | RDB보다 촘촘한 변경 기록 | 파일 크기, fsync와 rewrite 비용 |\n| RDB + AOF | AOF 기준 복구 + RDB 백업 활용 | 복구 선택지와 백업 편의 | 메모리·디스크·운영 복잡도 증가 |\n\nRPO는 허용 가능한 데이터 유실 시간이고 RTO는 서비스 복구에 허용되는 시간입니다. “AOF를 켠다”보다 “장애 시 몇 초를 잃을 수 있고 몇 분 안에 복구해야 하는가”를 먼저 정합니다.\n\n## 설정 예시\n\n다음 설정은 AOF와 RDB를 **동시에** 사용합니다.\n\n```conf\nappendonly yes\nappendfsync everysec\n\nsave 900 1\nsave 300 10\nsave 60 10000\n\ndir /data\n```\n\n두 방식을 함께 사용하면 재시작 시 더 완전한 AOF가 우선 사용됩니다. Redis 7 이상 AOF는 base 파일과 incremental 파일을 manifest로 관리하는 multi-part 구조이므로 AOF 파일 하나만 임의로 복사하지 않습니다.\n\n## 상태 확인\n\n```bash\nredis-cli INFO persistence\nredis-cli LASTSAVE\nredis-cli CONFIG GET dir dbfilename appendonly appenddirname appendfsync\n```\n\n특히 다음 필드를 경보 대상으로 검토합니다.\n\n- `rdb_last_bgsave_status`\n- `rdb_last_save_time`\n- `aof_enabled`\n- `aof_last_write_status`\n- `aof_rewrite_in_progress`\n- `aof_last_bgrewrite_status`\n\n설정 파일에서 persistence를 켰더라도 디스크 권한, 용량, `fork()` 실패로 실제 저장이 실패할 수 있습니다.\n\n## 백업 원칙\n\n1. 백업 파일을 Redis 데이터 디렉터리와 다른 장애 도메인에 보관합니다.\n2. 암호화, 보존 기간, 접근 권한, 삭제 정책을 함께 정합니다.\n3. 백업 시점의 Redis 버전과 설정을 기록합니다.\n4. RDB는 완료 상태를 확인한 파일을 복사합니다.\n5. AOF rewrite 중 파일 일부만 복사하지 말고 제품 또는 운영 환경이 제공하는 일관된 백업 절차를 사용합니다.\n6. 백업 성공 알림보다 격리된 환경의 실제 복원 성공을 기준으로 검증합니다.\n\n## 복구 훈련 절차\n\n```text\n1. 복구할 시점과 RPO를 결정한다.\n2. 새 격리 환경에 같은 계열 Redis 버전을 준비한다.\n3. Redis를 중지한 상태에서 검증된 RDB 또는 AOF 세트를 배치한다.\n4. 파일 소유권과 redis.conf의 dir/dbfilename/appenddirname을 확인한다.\n5. Redis를 시작하고 로그와 INFO persistence를 확인한다.\n6. DBSIZE, 샘플 키, TTL, 애플리케이션 읽기 테스트로 데이터를 검증한다.\n7. 복구 시간과 수동 단계를 기록해 다음 훈련을 개선한다.\n```\n\n운영 원본 디렉터리에서 처음 복구를 시도하지 않습니다. 잘못된 파일 배치나 버전 차이로 원본까지 훼손할 수 있습니다.\n\n## 메모리와 지연 시간 비용\n\nRDB 생성과 AOF rewrite는 자식 프로세스를 만들며 쓰기가 많은 동안 copy-on-write 메모리를 추가로 사용할 수 있습니다. 데이터셋이 큰 환경에서는 평상시 메모리만 보고 인스턴스 크기를 결정하지 않습니다.\n\n```bash\nredis-cli INFO memory\nredis-cli INFO persistence\nredis-cli LATENCY DOCTOR\n```\n\n백업이나 rewrite 중 지연 시간, 메모리, 디스크 처리량을 부하 테스트에서 함께 측정합니다.\n\n## 확인 질문\n\n1. replica가 있어도 과거 시점 백업이 필요한 이유는 무엇인가요?\n2. 순수 캐시에서 persistence를 끄기 전에 무엇을 검증해야 하나요?\n3. AOF `everysec`의 유실 가능성과 비용은 무엇인가요?\n4. 백업 파일 생성 성공만으로 복구 가능성을 보장할 수 없는 이유는 무엇인가요?\n\n## 참고한 공식 문서\n\n- [Redis persistence](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)\n- [Redis replication](https://redis.io/docs/latest/operate/oss_and_stack/management/replication/)\n- [Diagnosing latency issues](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/)\n"
+        },
+        {
+          "id": "redis/concepts/04-multi-node",
+          "topicId": "redis",
+          "sourcePath": "redis/concepts/04-multi-node.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "Redis 여러 대 구성 방식",
+          "summary": "Redis를 여러 대 묶는 방법은 하나가 아닙니다. 어떤 방식이 좋은지는 \"고가용성만 필요한지\", \"읽기 부하를 나누고 싶은지\", \"데이터를 여러 노드에 나눠 담아야 하는지\", \"멀티 리전 쓰기까지 필요한지\"에 따라 달라집니다.",
+          "difficulty": "입문",
+          "readTime": 10,
+          "tags": [
+            "Network",
+            "Storage",
+            "Security"
+          ],
+          "sections": [
+            "학습 목표",
+            "한눈에 보기",
+            "1. Primary-Replica",
+            "2. Sentinel",
+            "3. Redis Cluster",
+            "4. Client-side Sharding",
+            "5. Proxy Sharding",
+            "6. Managed Redis",
+            "7. Active-Active와 멀티 리전",
+            "선택 기준",
+            "자주 하는 실수",
+            "운영 확인 명령어",
+            "장애 훈련 체크리스트",
+            "참고한 공식 문서"
+          ],
+          "order": 4,
+          "body": "# Redis 여러 대 구성 방식\n\n## 학습 목표\n\n- 복제, 자동 장애 조치, 읽기 확장, 쓰기 샤딩이 각각 다른 문제임을 구분합니다.\n- Sentinel quorum과 failover 승인의 조건을 설명합니다.\n- Redis Cluster의 client, hash slot, 네트워크 제약을 배포 전에 점검합니다.\n\nRedis를 여러 대 묶는 방법은 하나가 아닙니다. 어떤 방식이 좋은지는 \"고가용성만 필요한지\", \"읽기 부하를 나누고 싶은지\", \"데이터를 여러 노드에 나눠 담아야 하는지\", \"멀티 리전 쓰기까지 필요한지\"에 따라 달라집니다.\n\n## 한눈에 보기\n\n| 방식 | 해결하려는 문제 | 쓰기 확장 | 읽기 확장 | 자동 장애 조치 | 샤딩 | 추천 상황 |\n| --- | --- | --- | --- | --- | --- | --- |\n| Primary-Replica | 복제, 읽기 분산 | 아니오 | stale read 허용 시 가능 | 단독으로는 불가 | 아니오 | 단순 복제, 읽기 부하 분산 |\n| Sentinel | 비샤딩 Redis의 고가용성 | 아니오 | stale read 허용 시 가능 | 가능 | 아니오 | 데이터가 한 노드에 들어가고 자동 failover가 필요할 때 |\n| Redis Cluster | 샤딩과 고가용성 | 가능 | replica `READONLY` 사용 시 가능 | 가능 | 가능 | 데이터나 트래픽이 한 Redis를 넘을 때 |\n| Client-side Sharding | 애플리케이션 주도 분산 | 가능 | 가능 | 직접 구현 | 가능 | 단순 캐시를 앱이 직접 나누고 싶을 때 |\n| Proxy Sharding | 프록시 주도 분산 | 가능 | 가능 | 제품/구성 의존 | 가능 | 앱을 cluster-aware하게 바꾸기 어려울 때 |\n| Managed Redis | 운영 부담 감소 | 상품 구성 의존 | 상품 구성 의존 | 보통 가능 | 상품 구성 의존 | 장애 조치, 백업, 패치를 직접 운영하고 싶지 않을 때 |\n| Active-Active | 멀티 리전 양방향 쓰기 | 가능 | 가능 | 가능 | 제품 의존 | 글로벌 쓰기, 낮은 지연 시간이 필요할 때 |\n\n## 1. Primary-Replica\n\n가장 기본적인 여러 대 구성입니다. Primary가 쓰기를 받고, Replica는 Primary 데이터를 비동기로 복제합니다.\n\n```text\nApp -> Primary\n        ├─ Replica 1\n        └─ Replica 2\n```\n\nReplica는 읽기 부하 분산, 백업 생성 부하 분리, 장애 시 승격 후보로 사용할 수 있습니다. 하지만 replica 자체는 백업이 아닙니다. 잘못된 삭제나 손상도 복제되므로 과거 시점으로 복구하려면 별도 백업이 필요합니다. Primary-Replica만으로는 자동 장애 조치도 되지 않습니다. Primary가 죽으면 누가 새 Primary가 될지 Sentinel, 관리형 서비스, 별도 자동화가 처리해야 합니다.\n\nReplica 설정은 보통 Replica 쪽 설정 파일에 작성합니다.\n\n```conf\nreplicaof 10.0.1.10 6379\nmasteruser replica-user\nmasterauth replace-with-replica-password\n```\n\n확인은 `INFO replication`으로 합니다.\n\n```bash\nredis-cli INFO replication\n```\n\n좋은 경우:\n\n- 읽기 요청 일부를 Replica로 보내고 싶을 때\n- 장애 시 승격할 복제본을 준비하고 싶을 때\n- 백업이나 분석 용도로 Primary 부하를 줄이고 싶을 때\n\n주의할 점:\n\n- Redis 복제는 기본적으로 비동기입니다. 장애 순간 일부 쓰기 데이터가 Replica에 도착하지 않았을 수 있습니다.\n- Replica 읽기는 Primary보다 뒤처질 수 있습니다.\n- 쓰기 처리량은 Primary 하나에 묶입니다.\n- persistence가 없는 primary를 빈 데이터로 자동 재시작하면 그 상태가 replica로 전파될 수 있으므로 재시작 정책과 persistence를 함께 설계합니다.\n\n복제 지연이 큰 상태에서 쓰기를 제한해 유실 창을 줄일 수 있지만 가용성과 trade-off가 생깁니다.\n\n```conf\nmin-replicas-to-write 1\nmin-replicas-max-lag 10\n```\n\n특정 쓰기 뒤 replica 확인 응답을 기다릴 때는 `WAIT`를 사용할 수 있습니다.\n\n```bash\nSET order:123 paid\nWAIT 1 1000\n```\n\n`WAIT`도 강한 일관성이나 무손실을 보장하지 않는 best-effort 수단입니다. 업무 내구성이 필요하면 저장소 선택과 트랜잭션 경계를 함께 검토합니다.\n\n## 2. Sentinel\n\nSentinel은 Primary-Replica 구조에 감시와 자동 장애 조치를 붙이는 방식입니다. Sentinel은 Redis 노드의 상태를 감시하다가 Primary 장애를 감지하면 Replica 중 하나를 새 Primary로 승격합니다.\n\n```text\nApp -> Sentinel에게 현재 Primary 조회\n              |\n        Primary Redis\n        ├─ Replica 1\n        └─ Replica 2\n\nSentinel 1, Sentinel 2, Sentinel 3\n```\n\nSentinel은 샤딩을 하지 않습니다. 데이터가 한 Redis Primary에 들어가는 규모에서 고가용성을 얻는 방식입니다.\n\n예시 설정:\n\n```conf\nport 26379\n\nsentinel monitor mymaster 10.0.1.10 6379 2\nsentinel auth-user mymaster sentinel-user\nsentinel auth-pass mymaster replace-with-sentinel-password\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 60000\nsentinel parallel-syncs mymaster 1\n```\n\n마지막 숫자 `2`는 quorum입니다. 한 Sentinel의 주관적 장애 판단은 SDOWN이고 quorum만큼 동의하면 ODOWN이 됩니다. 실제 failover 수행에는 알려진 Sentinel 과반수의 승인도 별도로 필요합니다. Sentinel 3개와 quorum 2 구성에서는 장애 판단과 승인 모두 2개가 필요합니다. 실무에서는 Sentinel을 3개 이상, 가능하면 서로 다른 장애 도메인에 배치합니다.\n\n```bash\nredis-cli -p 26379 SENTINEL CKQUORUM mymaster\n```\n\n좋은 경우:\n\n- Redis 데이터가 한 Primary에 들어갈 때\n- 샤딩은 필요 없고 자동 failover만 필요할 때\n- Redis Cluster보다 단순한 운영 모델을 원할 때\n\n주의할 점:\n\n- 애플리케이션 클라이언트가 Sentinel을 지원해야 합니다.\n- Sentinel 설정 파일은 failover 중 재작성될 수 있으므로 컨테이너에서 읽기 전용으로만 마운트하면 문제가 될 수 있습니다.\n- 자동 failover가 있어도 비동기 복제 특성상 장애 직전 쓰기는 유실될 수 있습니다.\n\n## 3. Redis Cluster\n\nRedis Cluster는 Redis 공식 샤딩 방식입니다. 전체 keyspace를 16384개 hash slot으로 나누고, 여러 master가 slot을 나눠 가집니다.\n\n```text\nApp\n |\nRedis Cluster\n├─ Master A: hash slots 0-5460\n│  └─ Replica A\n├─ Master B: hash slots 5461-10922\n│  └─ Replica B\n└─ Master C: hash slots 10923-16383\n   └─ Replica C\n```\n\nCluster-aware 클라이언트는 키가 어느 slot에 속하는지 계산하고 해당 master로 요청을 보냅니다. slot 위치가 바뀌면 Redis가 `MOVED` 또는 `ASK` 응답을 보내고, 클라이언트는 새 노드로 다시 요청합니다.\n\n각 노드는 Cluster mode와 쓰기 가능한 고유 상태 파일을 먼저 설정합니다. `nodes.conf`는 Redis가 관리하므로 직접 편집하거나 노드 간 공유하지 않습니다.\n\n```conf\nport 6379\ncluster-enabled yes\ncluster-config-file nodes.conf\ncluster-node-timeout 5000\nappendonly yes\n```\n\nCluster 생성 예시:\n\n```bash\nredis-cli --cluster create \\\n  10.0.1.11:6379 10.0.1.12:6379 10.0.1.13:6379 \\\n  10.0.1.14:6379 10.0.1.15:6379 10.0.1.16:6379 \\\n  --cluster-replicas 1\n```\n\n접속할 때는 cluster mode를 이해하는 클라이언트가 필요합니다. `redis-cli`는 `-c` 옵션을 사용합니다.\n\n```bash\nredis-cli -c -h 10.0.1.11 -p 6379\n```\n\n확인 명령어:\n\n```bash\nredis-cli -c CLUSTER INFO\nredis-cli -c CLUSTER NODES\nredis-cli -c CLUSTER SHARDS\nredis-cli -c CLUSTER KEYSLOT 'cart:{user:123}'\n```\n\n좋은 경우:\n\n- 데이터가 단일 Redis 메모리 한도를 넘을 때\n- 쓰기 처리량을 여러 master로 나누고 싶을 때\n- 샤딩과 자동 failover를 Redis 자체 기능으로 가져가고 싶을 때\n\n주의할 점:\n\n- 공식적으로 최소 3개 master가 필요하고, 운영에서는 보통 3 master + 3 replica부터 시작합니다.\n- 모든 클라이언트가 Redis Cluster를 잘 지원하는 것은 아닙니다.\n- 여러 키를 한 번에 다루는 명령은 같은 hash slot에 있어야 합니다.\n- 데이터 포트와 cluster bus 포트(기본값은 데이터 포트 + 10000)를 노드 간 열어야 합니다.\n- Redis Cluster는 노드가 광고한 주소와 포트가 그대로 도달 가능해야 하며 포트가 remap되는 NAT 환경을 공식 지원하지 않습니다.\n- Cluster는 DB 0만 사용하며 `SELECT`를 지원하지 않습니다.\n- replica 읽기는 클라이언트가 replica 연결에서 `READONLY`를 사용하고 stale read를 허용할 때만 적용합니다.\n\nmulti-key 명령이 필요하면 hash tag로 같은 slot에 묶을 수 있습니다.\n\n```text\ncart:{user:123}\nprofile:{user:123}\nsession:{user:123}\n```\n\n중괄호 안의 `user:123`이 hash slot 계산에 사용되므로 위 세 키는 같은 slot에 들어갑니다.\n\n## 4. Client-side Sharding\n\nClient-side sharding은 Redis Cluster를 쓰지 않고 애플리케이션이나 클라이언트 라이브러리가 직접 키를 여러 Redis에 나눠 보내는 방식입니다.\n\n```text\nApp\n├─ key A -> Redis 1\n├─ key B -> Redis 2\n└─ key C -> Redis 3\n```\n\n보통 consistent hashing을 사용합니다. Redis 노드들은 서로를 모르는 독립 인스턴스이고, 애플리케이션이 \"이 키는 어느 Redis로 보낼지\"를 결정합니다.\n\n좋은 경우:\n\n- 단순 캐시를 여러 노드로 나누고 싶을 때\n- Redis Cluster의 multi-key 제약이나 클러스터 프로토콜을 피하고 싶을 때\n- 이미 애플리케이션에 sharding 로직이 있을 때\n\n주의할 점:\n\n- 노드 추가, 제거, 리밸런싱을 직접 설계해야 합니다.\n- 장애 조치도 직접 구현하거나 각 shard마다 Sentinel/관리형 구성을 붙여야 합니다.\n- 같은 기능을 여러 서비스가 각자 다르게 구현하면 운영이 어려워집니다.\n\n## 5. Proxy Sharding\n\nProxy sharding은 애플리케이션과 Redis 사이에 프록시를 두고, 프록시가 키를 여러 Redis로 라우팅하는 방식입니다.\n\n```text\nApp -> Proxy -> Redis 1\n             -> Redis 2\n             -> Redis 3\n```\n\n애플리케이션은 Redis가 하나처럼 보이지만, 실제로는 프록시가 뒤쪽 Redis들을 나눠 씁니다. 예전에는 Twemproxy 같은 구성이 많이 쓰였고, 일부 조직은 자체 프록시나 서비스 메시 계층을 사용하기도 합니다.\n\n좋은 경우:\n\n- 애플리케이션 클라이언트를 Redis Cluster-aware하게 바꾸기 어려울 때\n- 라우팅 정책을 중앙에서 통제하고 싶을 때\n- 여러 언어의 애플리케이션이 같은 sharding 정책을 공유해야 할 때\n\n주의할 점:\n\n- 프록시 자체가 추가 장애 지점이 됩니다.\n- Redis의 모든 명령을 그대로 지원하지 못할 수 있습니다.\n- 요즘 새 구성에서는 Redis Cluster나 관리형 Redis를 먼저 검토하는 경우가 많습니다.\n\n## 6. Managed Redis\n\n클라우드 관리형 Redis는 별도 Redis 배포 방식이라기보다 운영 선택지입니다. AWS ElastiCache, Azure Cache for Redis, Google Cloud Memorystore, Redis Cloud 같은 서비스가 여기에 해당합니다.\n\n관리형 서비스는 보통 아래를 대신 처리합니다.\n\n- primary-replica 구성\n- 자동 failover\n- 백업과 복원\n- 패치와 버전 업그레이드\n- 모니터링 지표\n- TLS, 인증, 네트워크 접근 제어\n- Cluster mode 또는 shard 구성\n\n좋은 경우:\n\n- Redis 운영보다 애플리케이션 개발에 집중하고 싶을 때\n- 장애 조치, 백업, 패치를 표준화하고 싶을 때\n- 운영팀 규모가 작거나 Redis 장애 경험이 많지 않을 때\n\n주의할 점:\n\n- 제공자마다 Redis 버전, 명령어, 모듈, Cluster mode, 백업 정책이 다릅니다.\n- 장애 조치 시간과 데이터 유실 가능성은 서비스 등급과 설정에 따라 달라집니다.\n- 비용은 직접 운영보다 높을 수 있지만, 운영 리스크와 인건비를 함께 비교해야 합니다.\n\n## 7. Active-Active와 멀티 리전\n\n일반적인 Redis OSS의 Primary-Replica, Sentinel, Cluster는 \"한 시점에 한 쪽이 쓰기를 받는\" 구조로 이해하는 것이 안전합니다. 여러 리전에서 동시에 쓰고 자동 병합하는 active-active 구조는 Redis Enterprise, Redis Cloud의 특수 기능, 또는 CRDT 기반 제품 영역으로 보는 것이 맞습니다.\n\n좋은 경우:\n\n- 글로벌 서비스에서 여러 리전의 쓰기 지연 시간을 줄이고 싶을 때\n- 한 리전 장애에도 다른 리전에서 쓰기를 계속 받아야 할 때\n\n주의할 점:\n\n- 충돌 해결 정책이 필요합니다.\n- Redis 자료구조와 명령어가 모두 동일하게 동작한다고 가정하면 안 됩니다.\n- 일반적인 캐시나 세션 저장소에는 과한 선택일 수 있습니다.\n\n## 선택 기준\n\n실무에서는 보통 아래 순서로 고릅니다.\n\n```text\n1. 단일 Redis로 충분하고 장애 영향이 작다\n   -> 단일 Redis 또는 Primary-Replica\n\n2. 데이터는 한 Redis에 들어가지만 자동 장애 조치가 필요하다\n   -> Sentinel 또는 관리형 Redis의 non-cluster HA 구성\n\n3. 데이터나 쓰기 처리량이 한 Redis를 넘는다\n   -> Redis Cluster 또는 관리형 Redis의 cluster mode\n\n4. 애플리케이션이 Redis Cluster를 지원하지 못한다\n   -> 관리형 non-cluster, Proxy Sharding, Client-side Sharding 검토\n\n5. 여러 리전에서 동시에 쓰기를 받아야 한다\n   -> Redis Enterprise/Redis Cloud active-active 같은 특수 기능 검토\n```\n\n## 자주 하는 실수\n\n- Primary-Replica만 구성하고 자동 failover가 된다고 착각합니다.\n- Sentinel을 쓰면서 클라이언트는 여전히 고정 Primary 주소만 바라봅니다.\n- Redis Cluster를 쓰면서 multi-key 명령의 hash slot 제약을 고려하지 않습니다.\n- 컨테이너나 Kubernetes에서 Cluster 노드가 내부 주소와 외부 주소를 잘못 광고합니다.\n- replica를 시점 복구 가능한 백업으로 착각합니다.\n- Redis를 단독 영구 저장소처럼 쓰면서 비동기 복제와 장애 시 유실 가능성을 검토하지 않습니다.\n- `maxmemory`와 eviction 정책 없이 여러 대를 늘리는 것으로 문제를 해결하려 합니다.\n\n## 운영 확인 명령어\n\n복제 상태:\n\n```bash\nredis-cli INFO replication\n```\n\nSentinel 상태:\n\n```bash\nredis-cli -p 26379 SENTINEL masters\nredis-cli -p 26379 SENTINEL replicas mymaster\nredis-cli -p 26379 SENTINEL sentinels mymaster\nredis-cli -p 26379 SENTINEL CKQUORUM mymaster\n```\n\nCluster 상태:\n\n```bash\nredis-cli -c CLUSTER INFO\nredis-cli -c CLUSTER NODES\nredis-cli -c CLUSTER SHARDS\n```\n\n메모리와 eviction 상태:\n\n```bash\nredis-cli INFO memory\nredis-cli INFO stats\nredis-cli CONFIG GET maxmemory maxmemory-policy\n```\n\n## 장애 훈련 체크리스트\n\n1. 클라이언트가 고정 primary 주소가 아니라 Sentinel/Cluster topology를 사용합니다.\n2. primary 중지 후 감지 시간, 승격 시간, 애플리케이션 오류율을 측정합니다.\n3. 장애 직전 쓰기 중 유실되거나 중복된 범위를 확인합니다.\n4. 기존 primary가 돌아왔을 때 split-brain 없이 replica로 합류하는지 확인합니다.\n5. backup 복구와 failover를 별도 훈련으로 수행합니다.\n6. 목표 RTO/RPO와 측정 결과가 다르면 timeout, quorum, 배치 위치, 클라이언트 재시도를 조정합니다.\n\n## 참고한 공식 문서\n\n- [Redis replication](https://redis.io/docs/latest/operate/oss_and_stack/management/replication/)\n- [High availability with Redis Sentinel](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/)\n- [Scale with Redis Cluster](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/)\n- [Redis cluster specification](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/)\n- [WAIT](https://redis.io/docs/latest/commands/wait/)\n- [CLUSTER SHARDS](https://redis.io/docs/latest/commands/cluster-shards/)\n"
+        },
+        {
+          "id": "redis/commands/redis-cli-cheatsheet",
+          "topicId": "redis",
+          "sourcePath": "redis/commands/redis-cli-cheatsheet.md",
+          "category": "commands",
+          "categoryLabel": "명령어",
+          "title": "Redis CLI 운영 치트시트",
+          "summary": "비밀번호를 -a 인자나 셸 기록에 남기지 않습니다. 가능하면 시크릿 관리 도구에서 환경 변수나 클라이언트 설정으로 주입합니다.",
+          "difficulty": "참고",
+          "readTime": 3,
+          "tags": [
+            "Network",
+            "Storage",
+            "Security"
+          ],
+          "sections": [
+            "접속",
+            "키와 TTL",
+            "자료구조 확인",
+            "서버 상태",
+            "느린 명령과 지연 시간",
+            "메모리 조사",
+            "persistence",
+            "복제, Sentinel, Cluster",
+            "위험 명령",
+            "참고한 공식 문서"
+          ],
+          "order": 1999,
+          "body": "# Redis CLI 운영 치트시트\n\n## 접속\n\n```bash\nredis-cli -h <host> -p 6379 --tls --user <user>\nREDISCLI_AUTH='<password>' redis-cli -h <host> -p 6379 PING\n```\n\n비밀번호를 `-a` 인자나 셸 기록에 남기지 않습니다. 가능하면 시크릿 관리 도구에서 환경 변수나 클라이언트 설정으로 주입합니다.\n\n## 키와 TTL\n\n```bash\nTYPE <key>\nGET <key>\nTTL <key>\nPTTL <key>\nEXPIRE <key> 300\nUNLINK <key>\n```\n\n큰 키의 `DEL`은 메모리 해제를 동기 처리해 지연을 만들 수 있으므로 비동기 해제인 `UNLINK`를 검토합니다.\n\n운영 keyspace는 `KEYS *` 대신 cursor 기반으로 순회합니다.\n\n```bash\nredis-cli --scan --pattern 'app:*' --count 100\nSCAN 0 MATCH 'app:*' COUNT 100\n```\n\n`SCAN`은 중복을 반환할 수 있으며 `COUNT`는 정확한 개수가 아닙니다.\n\n## 자료구조 확인\n\n```bash\nHGETALL <hash>\nHLEN <hash>\nLLEN <list>\nSCARD <set>\nZCARD <sorted-set>\nXLEN <stream>\n```\n\n큰 collection에서 전체 원소를 한 번에 반환하는 명령은 피하고 `HSCAN`, `SSCAN`, `ZSCAN`, 범위 조회를 사용합니다.\n\n## 서버 상태\n\n```bash\nredis-cli INFO server clients memory stats persistence replication\nredis-cli INFO commandstats latencystats\nredis-cli DBSIZE\nredis-cli MEMORY STATS\nredis-cli MEMORY DOCTOR\nredis-cli MEMORY USAGE <key> SAMPLES 5\n```\n\n## 느린 명령과 지연 시간\n\n```bash\nredis-cli SLOWLOG LEN\nredis-cli SLOWLOG GET 20\nredis-cli LATENCY LATEST\nredis-cli LATENCY DOCTOR\n```\n\nSlow Log는 서버에서 명령을 실행한 시간만 기록하며 네트워크 왕복 시간은 포함하지 않습니다. `MONITOR`는 모든 명령을 스트리밍해 부하와 정보 노출을 만들 수 있으므로 운영에서 상시 사용하지 않습니다.\n\n## 메모리 조사\n\n```bash\nredis-cli --bigkeys -i 0.1\nredis-cli --memkeys -i 0.1\nredis-cli INFO memory\nredis-cli INFO stats\n```\n\n`--bigkeys`와 `--memkeys`는 `SCAN`을 사용하지만 전체 keyspace를 읽습니다. 트래픽이 낮을 때 간격을 두고 실행하고 애플리케이션 지연을 관찰합니다.\n\n## persistence\n\n```bash\nredis-cli INFO persistence\nredis-cli LASTSAVE\nredis-cli BGSAVE\nredis-cli BGREWRITEAOF\n```\n\n`BGSAVE`와 `BGREWRITEAOF`는 메모리와 디스크에 영향을 줍니다. 운영에서는 상태와 여유 자원을 확인한 뒤 실행합니다.\n\n## 복제, Sentinel, Cluster\n\n```bash\nredis-cli INFO replication\n\nredis-cli -p 26379 SENTINEL CKQUORUM mymaster\nredis-cli -p 26379 SENTINEL masters\nredis-cli -p 26379 SENTINEL replicas mymaster\n\nredis-cli -c CLUSTER INFO\nredis-cli -c CLUSTER NODES\nredis-cli -c CLUSTER SHARDS\nredis-cli -c CLUSTER KEYSLOT 'cart:{user:42}'\n```\n\n## 위험 명령\n\n다음 명령은 데이터 삭제, 장시간 block, 설정 불일치를 만들 수 있습니다.\n\n```text\nFLUSHALL / FLUSHDB\nKEYS *\nCONFIG SET / CONFIG REWRITE\nDEBUG / SHUTDOWN\nMONITOR\n```\n\n운영 계정 ACL에서 불필요한 위험 명령을 제거하고, 실행 전 대상 인스턴스와 복구 계획을 확인합니다.\n\n## 참고한 공식 문서\n\n- [Redis CLI](https://redis.io/docs/latest/develop/tools/cli/)\n- [SCAN](https://redis.io/docs/latest/commands/scan/)\n- [Redis latency monitoring](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency-monitor/)\n"
+        },
+        {
+          "id": "redis/examples/basic-cache/README",
+          "topicId": "redis",
+          "sourcePath": "redis/examples/basic-cache/README.md",
+          "category": "examples",
+          "categoryLabel": "실습",
+          "title": "Redis 로컬 캐시 실습",
+          "summary": "로컬 전용 Redis를 실행하고 TTL, 자료구조, 원자적 카운터, 메모리 정책을 확인합니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Storage",
+            "CLI",
+            "Cache"
+          ],
+          "sections": [
+            "실행",
+            "TTL 캐시",
+            "자료구조와 원자적 명령",
+            "keyspace와 메모리 확인",
+            "재생성 확인",
+            "정리",
+            "확인 질문"
+          ],
+          "order": 2999,
+          "body": "# Redis 로컬 캐시 실습\n\n로컬 전용 Redis를 실행하고 TTL, 자료구조, 원자적 카운터, 메모리 정책을 확인합니다.\n\n## 실행\n\n이 디렉터리에서 실행합니다.\n\n```bash\ndocker compose config -q\ndocker compose up -d\ndocker compose ps\ndocker compose exec redis redis-cli PING\n```\n\n`PONG`과 `healthy` 상태가 보이면 준비됐습니다. 호스트 포트는 `127.0.0.1`에만 바인딩되어 외부 인터페이스로 공개하지 않습니다.\n\n## TTL 캐시\n\n```bash\ndocker compose exec redis redis-cli SET product:1001 '{\"name\":\"keyboard\"}' EX 60\ndocker compose exec redis redis-cli GET product:1001\ndocker compose exec redis redis-cli TTL product:1001\n```\n\n60초 안에는 값과 남은 TTL이 보이고 시간이 지나면 `GET` 결과가 nil이 됩니다.\n\n## 자료구조와 원자적 명령\n\n```bash\ndocker compose exec redis redis-cli HSET user:42 name galaxy role admin\ndocker compose exec redis redis-cli HGETALL user:42\n\ndocker compose exec redis redis-cli ZADD leaderboard 120 alice 95 bob\ndocker compose exec redis redis-cli ZREVRANGE leaderboard 0 -1 WITHSCORES\n\ndocker compose exec redis redis-cli INCR page:home:views\ndocker compose exec redis redis-cli INCR page:home:views\ndocker compose exec redis redis-cli GET page:home:views\n```\n\n마지막 카운터 값은 `2`가 됩니다. `INCR` 하나로 읽기와 증가를 처리하므로 여러 클라이언트가 동시에 실행해도 증가 연산 자체는 원자적입니다.\n\n## keyspace와 메모리 확인\n\n```bash\ndocker compose exec redis redis-cli SCAN 0 MATCH 'user:*' COUNT 100\ndocker compose exec redis redis-cli INFO memory\ndocker compose exec redis redis-cli INFO stats\ndocker compose exec redis redis-cli CONFIG GET maxmemory maxmemory-policy\n```\n\n이 예제는 순수 캐시를 가정해 persistence를 끄고 `allkeys-lfu`를 사용합니다. 컨테이너가 새로 만들어지면 데이터가 사라지는 것이 정상입니다.\n\n## 재생성 확인\n\n```bash\ndocker compose down\ndocker compose up -d\ndocker compose exec redis redis-cli DBSIZE\n```\n\n`DBSIZE`가 0이면 persistence 없는 캐시의 수명을 확인한 것입니다. 원본 데이터가 없거나 재생성 비용이 너무 크다면 이 구성을 사용하면 안 됩니다.\n\n## 정리\n\n```bash\ndocker compose down\n```\n\n## 확인 질문\n\n1. 캐시 키를 만들 때 TTL을 같은 명령에 넣는 이유는 무엇인가요?\n2. 이 Compose 구성이 세션이나 작업 큐에 부적합할 수 있는 이유는 무엇인가요?\n3. `maxmemory`보다 컨테이너 메모리 제한을 더 크게 잡아야 하는 이유는 무엇인가요?\n"
+        },
+        {
+          "id": "redis/troubleshooting/memory-pressure",
+          "topicId": "redis",
+          "sourcePath": "redis/troubleshooting/memory-pressure.md",
+          "category": "troubleshooting",
+          "categoryLabel": "트러블슈팅",
+          "title": "Redis memory pressure와 OOM",
+          "summary": "데이터를 지우거나 서버를 재시작하기 전에 상태를 보존합니다.",
+          "difficulty": "실전",
+          "readTime": 3,
+          "tags": [
+            "Storage",
+            "Operations",
+            "CLI"
+          ],
+          "sections": [
+            "증상",
+            "먼저 할 일",
+            "핵심 지표 해석",
+            "자주 보는 원인",
+            "큰 키 찾기",
+            "해결 방법",
+            "해결 후 검증",
+            "참고한 공식 문서"
+          ],
+          "order": 3999,
+          "body": "# Redis memory pressure와 OOM\n\n## 증상\n\n- 쓰기 요청이 `OOM command not allowed when used memory > 'maxmemory'`로 실패합니다.\n- `evicted_keys`가 빠르게 증가하고 cache hit ratio가 떨어집니다.\n- 지연 시간이 증가하거나 Redis/호스트 프로세스가 OOM kill 됩니다.\n- `used_memory_rss`가 `used_memory`보다 크게 보이거나 persistence 작업 중 메모리가 급증합니다.\n\n## 먼저 할 일\n\n데이터를 지우거나 서버를 재시작하기 전에 상태를 보존합니다.\n\n```bash\nredis-cli INFO memory\nredis-cli INFO stats\nredis-cli INFO persistence\nredis-cli INFO replication\nredis-cli MEMORY STATS\nredis-cli CONFIG GET maxmemory maxmemory-policy\n```\n\n운영 장애 중 원인을 모른 채 `FLUSHALL`, 큰 범위 `DEL`, persistence 비활성화를 실행하지 않습니다.\n\n## 핵심 지표 해석\n\n| 지표 | 확인할 내용 |\n| --- | --- |\n| `used_memory` | Redis allocator가 데이터와 내부 구조에 사용한 메모리 |\n| `used_memory_rss` | OS가 Redis 프로세스에 할당한 실제 resident memory |\n| `maxmemory` | eviction 또는 write 거부를 판단하는 설정값 |\n| `mem_not_counted_for_evict` | 복제/AOF 버퍼처럼 eviction 계산에서 제외된 메모리 |\n| `mem_fragmentation_ratio` | RSS와 allocator 메모리 차이의 신호, 단독 판단 금지 |\n| `evicted_keys` | 메모리 정책으로 제거된 누적 키 수 |\n| `expired_keys` | TTL로 만료된 누적 키 수 |\n| `keyspace_hits/misses` | 캐시 적중과 실패 추세 |\n\n`maxmemory`는 프로세스 전체 RSS의 완전한 상한이 아닙니다. 복제/AOF 버퍼, allocator fragmentation, `fork()` 시 copy-on-write 메모리와 OS 메모리까지 여유를 둡니다.\n\n## 자주 보는 원인\n\n- `maxmemory`가 없거나 컨테이너/VM 전체 메모리에 너무 가깝습니다.\n- 캐시 키에 TTL이 빠졌거나 eviction 정책이 용도와 맞지 않습니다.\n- 하나의 큰 String 또는 element가 많은 Hash, Set, Sorted Set, Stream이 생겼습니다.\n- 캐시 데이터와 임의 삭제가 불가능한 세션·큐 데이터를 한 인스턴스에 섞었습니다.\n- RDB/AOF rewrite 중 쓰기가 많아 copy-on-write 메모리가 증가했습니다.\n- replica/AOF backlog나 느린 replica 때문에 버퍼가 커졌습니다.\n- 호스트가 swap을 사용하거나 다른 프로세스와 메모리를 경쟁합니다.\n\n`volatile-*` 정책은 TTL이 설정된 키만 후보로 사용합니다. TTL 키가 없다면 메모리를 비울 수 없어 사실상 `noeviction`처럼 쓰기가 실패할 수 있습니다.\n\n## 큰 키 찾기\n\n```bash\nredis-cli --bigkeys -i 0.1\nredis-cli --memkeys -i 0.1\nredis-cli MEMORY USAGE <suspected-key> SAMPLES 5\nredis-cli TYPE <suspected-key>\n```\n\n이 명령은 `SCAN`을 사용하지만 전체 keyspace를 조사합니다. 트래픽이 낮을 때 간격을 두고 실행하고 지연 시간을 관찰합니다.\n\n## 해결 방법\n\n### 순수 캐시\n\n- 원본에서 재생성 가능한지 확인한 뒤 `allkeys-lfu` 또는 `allkeys-lru`를 검토합니다.\n- cache hit ratio와 eviction rate가 함께 나쁘면 메모리를 늘리거나 캐시할 대상을 줄입니다.\n- TTL에 임의 오차를 주고 cache stampede 방지 전략을 적용합니다.\n\n### 세션, 큐, 락, 상태 저장\n\n- 임의 eviction이 위험하면 `noeviction`을 사용하고 쓰기 실패를 애플리케이션에서 처리합니다.\n- 캐시와 별도 인스턴스로 분리해 서로 다른 정책을 적용합니다.\n- persistence, 백업, replica 상태와 데이터 유실 허용 범위를 다시 확인합니다.\n\n### big key\n\n- collection을 시간, 사용자, shard 단위로 나누고 최대 element 수를 정합니다.\n- 큰 키 삭제는 `UNLINK`나 점진적 삭제를 검토하고 지연 시간을 측정합니다.\n- 값 직렬화 형식과 중복 데이터를 줄이되 CPU 비용도 함께 측정합니다.\n\n## 해결 후 검증\n\n```bash\nredis-cli INFO memory\nredis-cli INFO stats\nredis-cli SLOWLOG GET 20\nredis-cli LATENCY DOCTOR\n```\n\n- 쓰기 오류가 멈췄는지 확인합니다.\n- `evicted_keys` 증가율과 애플리케이션 지연 시간이 안정됐는지 확인합니다.\n- 재시작이나 persistence 작업 중에도 호스트 메모리 여유가 유지되는지 부하 테스트합니다.\n- 원인, 임계값, 조치와 재발 방지 항목을 기록합니다.\n\n## 참고한 공식 문서\n\n- [Key eviction](https://redis.io/docs/latest/develop/reference/eviction/)\n- [Memory optimization](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/memory-optimization/)\n- [Diagnosing latency issues](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/)\n"
+        }
+      ]
+    }
+  ]
+}

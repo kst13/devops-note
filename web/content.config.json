@@ -1,0 +1,20 @@
+{
+  "docker": {
+    "title": "Docker",
+    "kicker": "CONTAINER RUNTIME",
+    "description": "이미지와 컨테이너의 기초부터 네트워크, Compose, 운영 트러블슈팅까지 익힙니다.",
+    "accent": "#2f7cf6",
+    "accentSoft": "#e8f1ff",
+    "order": 1,
+    "tags": ["Container", "Image", "Network"]
+  },
+  "redis": {
+    "title": "Redis",
+    "kicker": "IN-MEMORY DATA",
+    "description": "용도에 맞는 운영 설정과 복제, Sentinel, Cluster 선택 기준을 정리합니다.",
+    "accent": "#ef5b4c",
+    "accentSoft": "#ffebe8",
+    "order": 2,
+    "tags": ["Cache", "Persistence", "HA"]
+  }
+}

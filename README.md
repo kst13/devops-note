@@ -45,6 +45,18 @@ examples/          직접 실행해볼 수 있는 최소 예제
 - [Docker](docker/README.md)
 - [Redis](redis/README.md)
 
+## 학습 사이트
+
+`web/`에는 저장소의 Markdown 문서를 주제별 학습 경로와 검색 가능한 문서 화면으로 보여주는 웹 프로젝트가 있습니다.
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+`npm run sync-content`를 실행하면 루트의 주제 디렉터리를 다시 읽어 웹 콘텐츠를 갱신합니다. 새 주제는 루트에 `README.md`와 `concepts/`, `troubleshooting/`, `commands/`, `examples/` 중 필요한 디렉터리를 추가하면 자동으로 인식됩니다.
+
 ## 작성 기준
 
 문서는 나중에 문제를 다시 만났을 때 바로 실행하고 검증할 수 있어야 합니다. 따라서 설명은 짧게 유지하되, 판단에 필요한 맥락과 확인 절차는 생략하지 않습니다.

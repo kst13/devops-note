@@ -20,13 +20,25 @@ examples/          직접 실행해볼 수 있는 예제
 
 ## 추천 학습 순서
 
-1. [컨테이너와 이미지](concepts/01-container-image.md)
-2. [Dockerfile](concepts/02-dockerfile.md)
-3. [볼륨과 바인드 마운트](concepts/03-volume-bind-mount.md)
-4. [Docker 네트워크](concepts/04-network.md)
-5. [Docker Compose](concepts/05-compose.md)
-6. [컨테이너에서 localhost로 다른 서비스 접근하기](concepts/06-container-localhost-access.md)
-7. [Docker CLI 치트시트](commands/docker-cli-cheatsheet.md)
+### 입문
+
+1. [Docker 시작하기](concepts/00-getting-started.md) — 설치 상태와 전체 동작 흐름 확인
+2. [컨테이너와 이미지](concepts/01-container-image.md) — 이미지, 컨테이너, 레이어 구분
+3. [Dockerfile](concepts/02-dockerfile.md) — 재현 가능한 이미지 빌드
+
+### 핵심
+
+4. [볼륨과 바인드 마운트](concepts/03-volume-bind-mount.md) — 데이터 수명과 마운트 선택
+5. [Docker 네트워크](concepts/04-network.md) — 컨테이너 DNS와 포트 공개
+6. [Docker Compose](concepts/05-compose.md) — 여러 서비스를 선언적으로 실행
+7. [컨테이너에서 localhost로 다른 서비스 접근하기](concepts/06-container-localhost-access.md) — 대상별 주소 선택
+
+### 실습과 운영
+
+8. [Dockerfile 기본 실습](examples/dockerfile-basic/README.md)
+9. [Compose 기본 실습](examples/compose-basic/README.md)
+10. [컨테이너 운영 기초](concepts/07-container-operations.md) — 리소스, healthcheck, 로그, 종료
+11. [Docker CLI 치트시트](commands/docker-cli-cheatsheet.md)
 
 ## 트러블슈팅 기록
 

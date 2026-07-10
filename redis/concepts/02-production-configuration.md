@@ -1,6 +1,12 @@
 # Redis 운영 설정 시작하기
 
-2026-06-08 기준으로, 운영에서 많이 쓰는 Redis 설정 방식은 "기본값으로 띄우기"가 아니라 목적별 `redis.conf`를 명시하고, 네트워크와 인증을 닫고, 메모리 상한과 persistence 방식을 먼저 정하는 흐름입니다.
+## 학습 목표
+
+- Redis 용도와 허용 가능한 데이터 유실 범위에서 설정을 시작합니다.
+- 네트워크, ACL, 메모리, eviction, persistence 설정을 하나의 운영 정책으로 연결합니다.
+- 설정 파일과 실제 런타임 상태가 일치하는지 검증합니다.
+
+2026-07-10 기준으로, 운영에서는 "기본값으로 띄우기"보다 목적별 `redis.conf`를 명시하고 네트워크와 인증을 닫은 뒤 메모리 상한과 persistence 방식을 먼저 정합니다. 아래 예시는 Redis 7 이상을 기준으로 하며 Redis 8에서 검증하는 출발점입니다.
 
 ## 먼저 결정할 것
 
@@ -35,6 +41,12 @@ docker run --name redis \
 
 Redis 8부터는 서버 설정만 담은 `redis.conf`와 Search, JSON, time series, probabilistic data structures 같은 구성 요소까지 포함하는 `redis-full.conf`를 구분합니다. 일반 캐시나 세션 저장소라면 먼저 `redis.conf`로 시작하고, Redis Stack 계열 기능이 필요할 때만 `redis-full.conf`를 검토합니다.
 
+`CONFIG SET`으로 런타임 설정을 바꿔도 원본 설정 파일이 자동 변경되지는 않습니다. 재시작 후 되돌아가지 않도록 원하는 상태는 배포가 관리하는 설정 파일에 반영하고, 변경 전후 값을 확인합니다.
+
+```bash
+redis-cli CONFIG GET maxmemory maxmemory-policy appendonly
+```
+
 ### 2. 외부 노출을 막고 인증을 켠다
 
 Redis는 애플리케이션 내부망에서만 접근하도록 둡니다. 퍼블릭 인터넷에 `6379`를 열지 않고, 방화벽과 보안 그룹으로 접근 가능한 클라이언트를 제한합니다.
@@ -54,8 +66,20 @@ aclfile /etc/redis/users.acl
 ```conf
 user default off
 user app on >replace-with-long-random-password ~app:* +@read +@write +@connection -@dangerous
-user ops on >replace-with-another-long-random-password ~* +@all
+user ops on >replace-with-another-long-random-password ~* +@read +@connection +info +slowlog +latency -@dangerous
+user breakglass off >replace-with-offline-password ~* +@all
 ```
+
+`+@all`은 module 명령까지 포함할 수 있으므로 일상 운영 계정에 주지 않습니다. `breakglass` 같은 비상 계정은 기본 비활성화하고 승인·감사 절차와 함께 관리합니다.
+
+```bash
+redis-cli ACL DRYRUN app GET app:test
+redis-cli ACL DRYRUN app GET other:test
+redis-cli ACL LOG 10
+redis-cli ACL SAVE
+```
+
+외부 `aclfile`은 `ACL SAVE`/`ACL LOAD`로 별도 관리합니다. `CONFIG REWRITE`가 외부 ACL 파일까지 대신 저장한다고 가정하지 않습니다.
 
 네트워크를 신뢰할 수 없거나 클러스터, 복제, 클라이언트 연결이 호스트 밖으로 나간다면 TLS도 함께 검토합니다. 인증 정보는 평문 네트워크에서 보호되지 않는다고 보고, 시크릿 관리 도구나 클라우드 Secret Manager에 둡니다.
 
@@ -76,6 +100,15 @@ maxmemory-policy allkeys-lfu
 
 `noeviction`은 메모리가 꽉 찼을 때 쓰기 요청이 실패할 수 있으므로 애플리케이션에서 에러 처리를 준비해야 합니다.
 
+`maxmemory`는 Redis 프로세스 RSS 전체의 완전한 상한이 아닙니다. 복제/AOF 버퍼는 eviction 계산에서 제외될 수 있고 RDB/AOF rewrite의 `fork()` 중 copy-on-write 메모리가 추가로 필요합니다.
+
+```bash
+redis-cli INFO memory
+redis-cli MEMORY STATS
+```
+
+`mem_not_counted_for_evict`, `used_memory_rss`, persistence 작업 중 메모리 증가를 부하 테스트에 포함합니다. `volatile-*` 정책은 TTL 키가 없으면 제거 후보가 없어 쓰기가 실패할 수 있습니다.
+
 ## persistence 선택
 
 Redis를 순수 캐시로만 쓰고 원본 데이터가 다른 DB에 있다면 persistence를 끄거나 최소화할 수 있습니다.
@@ -85,7 +118,7 @@ appendonly no
 save ""
 ```
 
-재시작 후 빠른 복구나 일정 수준의 데이터 보존이 필요하면 RDB snapshot 또는 AOF를 켭니다. 운영에서 많이 쓰는 기본 선택지는 AOF `everysec`입니다. 성능과 안정성의 균형이 좋지만, 장애 시 최대 약 1초의 쓰기 유실 가능성을 받아들이는 설정입니다.
+재시작 후 빠른 복구나 일정 수준의 데이터 보존이 필요하면 RDB snapshot 또는 AOF를 켭니다. 자주 검토하는 선택지는 AOF `everysec`이지만 장애 시 최근 쓰기 유실 가능성을 받아들여야 합니다.
 
 ```conf
 appendonly yes
@@ -97,6 +130,8 @@ save 60 10000
 
 dir /data
 ```
+
+위 예시는 AOF와 RDB를 동시에 사용합니다. 복구 우선순위, 백업 파일 구성, RPO/RTO는 [Redis persistence, 백업, 복구](03-persistence-backup-and-recovery.md)에서 별도로 다룹니다.
 
 데이터 유실이 거의 허용되지 않는 업무라면 Redis 단독 저장을 다시 검토합니다. Redis 복제와 Cluster는 기본적으로 비동기 복제 특성이 있으므로, 강한 내구성이 필요한 데이터는 RDBMS, 로그 기반 큐, 관리형 Redis의 durability 옵션 등을 함께 비교합니다.
 
@@ -157,6 +192,26 @@ redis-cli --memkeys
 redis-cli INFO stats
 ```
 
+## 최소 관측 항목
+
+| 영역 | 확인 항목 | 이상 신호 예시 |
+| --- | --- | --- |
+| 메모리 | `used_memory`, RSS, fragmentation, eviction 제외 버퍼 | 지속 증가, 호스트 여유 부족 |
+| 캐시 | hits, misses, `evicted_keys`, `expired_keys` | miss/eviction 증가와 앱 지연 상승 |
+| 클라이언트 | 연결 수, blocked clients, rejected connections | pool 고갈, 연결 폭증 |
+| 명령 | commandstats, Slow Log | 느린 명령과 큰 collection 접근 |
+| 지연 | `LATENCY LATEST/DOCTOR` | fork, eviction, disk I/O spike |
+| persistence | RDB/AOF 마지막 성공과 rewrite 상태 | 저장 실패, rewrite 장기화 |
+| 복제 | link 상태, lag, backlog | replica 단절, lag 증가 |
+
+```bash
+redis-cli SLOWLOG GET 20
+redis-cli LATENCY DOCTOR
+redis-cli INFO clients commandstats latencystats
+```
+
+Slow Log는 서버 명령 실행 시간만 측정하며 네트워크 왕복 시간은 포함하지 않습니다. 애플리케이션 지연과 Redis 내부 지연을 함께 관찰합니다.
+
 ## 참고한 공식 문서
 
 - [Redis configuration](https://redis.io/docs/latest/operate/oss_and_stack/management/config/)
@@ -168,3 +223,4 @@ redis-cli INFO stats
 - [High availability with Redis Sentinel](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/)
 - [Scale with Redis Cluster](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/)
 - [Redis Official Image on Docker Hub](https://hub.docker.com/_/redis/)
+- [Redis latency monitoring](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency-monitor/)

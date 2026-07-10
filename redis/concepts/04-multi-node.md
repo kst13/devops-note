@@ -1,14 +1,20 @@
 # Redis 여러 대 구성 방식
 
+## 학습 목표
+
+- 복제, 자동 장애 조치, 읽기 확장, 쓰기 샤딩이 각각 다른 문제임을 구분합니다.
+- Sentinel quorum과 failover 승인의 조건을 설명합니다.
+- Redis Cluster의 client, hash slot, 네트워크 제약을 배포 전에 점검합니다.
+
 Redis를 여러 대 묶는 방법은 하나가 아닙니다. 어떤 방식이 좋은지는 "고가용성만 필요한지", "읽기 부하를 나누고 싶은지", "데이터를 여러 노드에 나눠 담아야 하는지", "멀티 리전 쓰기까지 필요한지"에 따라 달라집니다.
 
 ## 한눈에 보기
 
 | 방식 | 해결하려는 문제 | 쓰기 확장 | 읽기 확장 | 자동 장애 조치 | 샤딩 | 추천 상황 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Primary-Replica | 복제, 읽기 분산 | 아니오 | 가능 | 단독으로는 불가 | 아니오 | 단순 복제, 읽기 부하 분산 |
-| Sentinel | 비샤딩 Redis의 고가용성 | 아니오 | 가능 | 가능 | 아니오 | 데이터가 한 노드에 들어가고 자동 failover가 필요할 때 |
-| Redis Cluster | 샤딩과 고가용성 | 가능 | 가능 | 가능 | 가능 | 데이터나 트래픽이 한 Redis를 넘을 때 |
+| Primary-Replica | 복제, 읽기 분산 | 아니오 | stale read 허용 시 가능 | 단독으로는 불가 | 아니오 | 단순 복제, 읽기 부하 분산 |
+| Sentinel | 비샤딩 Redis의 고가용성 | 아니오 | stale read 허용 시 가능 | 가능 | 아니오 | 데이터가 한 노드에 들어가고 자동 failover가 필요할 때 |
+| Redis Cluster | 샤딩과 고가용성 | 가능 | replica `READONLY` 사용 시 가능 | 가능 | 가능 | 데이터나 트래픽이 한 Redis를 넘을 때 |
 | Client-side Sharding | 애플리케이션 주도 분산 | 가능 | 가능 | 직접 구현 | 가능 | 단순 캐시를 앱이 직접 나누고 싶을 때 |
 | Proxy Sharding | 프록시 주도 분산 | 가능 | 가능 | 제품/구성 의존 | 가능 | 앱을 cluster-aware하게 바꾸기 어려울 때 |
 | Managed Redis | 운영 부담 감소 | 상품 구성 의존 | 상품 구성 의존 | 보통 가능 | 상품 구성 의존 | 장애 조치, 백업, 패치를 직접 운영하고 싶지 않을 때 |
@@ -24,7 +30,7 @@ App -> Primary
         └─ Replica 2
 ```
 
-Replica는 읽기 부하 분산, 백업, 장애 시 승격 후보로 사용할 수 있습니다. 하지만 Primary-Replica만으로는 자동 장애 조치가 되지 않습니다. Primary가 죽으면 누가 새 Primary가 될지 사람이 정하거나 Sentinel, 관리형 서비스, 별도 자동화가 처리해야 합니다.
+Replica는 읽기 부하 분산, 백업 생성 부하 분리, 장애 시 승격 후보로 사용할 수 있습니다. 하지만 replica 자체는 백업이 아닙니다. 잘못된 삭제나 손상도 복제되므로 과거 시점으로 복구하려면 별도 백업이 필요합니다. Primary-Replica만으로는 자동 장애 조치도 되지 않습니다. Primary가 죽으면 누가 새 Primary가 될지 Sentinel, 관리형 서비스, 별도 자동화가 처리해야 합니다.
 
 Replica 설정은 보통 Replica 쪽 설정 파일에 작성합니다.
 
@@ -51,6 +57,23 @@ redis-cli INFO replication
 - Redis 복제는 기본적으로 비동기입니다. 장애 순간 일부 쓰기 데이터가 Replica에 도착하지 않았을 수 있습니다.
 - Replica 읽기는 Primary보다 뒤처질 수 있습니다.
 - 쓰기 처리량은 Primary 하나에 묶입니다.
+- persistence가 없는 primary를 빈 데이터로 자동 재시작하면 그 상태가 replica로 전파될 수 있으므로 재시작 정책과 persistence를 함께 설계합니다.
+
+복제 지연이 큰 상태에서 쓰기를 제한해 유실 창을 줄일 수 있지만 가용성과 trade-off가 생깁니다.
+
+```conf
+min-replicas-to-write 1
+min-replicas-max-lag 10
+```
+
+특정 쓰기 뒤 replica 확인 응답을 기다릴 때는 `WAIT`를 사용할 수 있습니다.
+
+```bash
+SET order:123 paid
+WAIT 1 1000
+```
+
+`WAIT`도 강한 일관성이나 무손실을 보장하지 않는 best-effort 수단입니다. 업무 내구성이 필요하면 저장소 선택과 트랜잭션 경계를 함께 검토합니다.
 
 ## 2. Sentinel
 
@@ -81,7 +104,11 @@ sentinel failover-timeout mymaster 60000
 sentinel parallel-syncs mymaster 1
 ```
 
-여기서 마지막 숫자 `2`는 quorum입니다. 최소 2개의 Sentinel이 Primary를 장애로 판단해야 failover 판단이 진행됩니다. 실무에서는 Sentinel을 3개 이상, 가능하면 서로 다른 장애 도메인에 배치합니다.
+마지막 숫자 `2`는 quorum입니다. 한 Sentinel의 주관적 장애 판단은 SDOWN이고 quorum만큼 동의하면 ODOWN이 됩니다. 실제 failover 수행에는 알려진 Sentinel 과반수의 승인도 별도로 필요합니다. Sentinel 3개와 quorum 2 구성에서는 장애 판단과 승인 모두 2개가 필요합니다. 실무에서는 Sentinel을 3개 이상, 가능하면 서로 다른 장애 도메인에 배치합니다.
+
+```bash
+redis-cli -p 26379 SENTINEL CKQUORUM mymaster
+```
 
 좋은 경우:
 
@@ -113,6 +140,16 @@ Redis Cluster
 
 Cluster-aware 클라이언트는 키가 어느 slot에 속하는지 계산하고 해당 master로 요청을 보냅니다. slot 위치가 바뀌면 Redis가 `MOVED` 또는 `ASK` 응답을 보내고, 클라이언트는 새 노드로 다시 요청합니다.
 
+각 노드는 Cluster mode와 쓰기 가능한 고유 상태 파일을 먼저 설정합니다. `nodes.conf`는 Redis가 관리하므로 직접 편집하거나 노드 간 공유하지 않습니다.
+
+```conf
+port 6379
+cluster-enabled yes
+cluster-config-file nodes.conf
+cluster-node-timeout 5000
+appendonly yes
+```
+
 Cluster 생성 예시:
 
 ```bash
@@ -133,7 +170,8 @@ redis-cli -c -h 10.0.1.11 -p 6379
 ```bash
 redis-cli -c CLUSTER INFO
 redis-cli -c CLUSTER NODES
-redis-cli -c CLUSTER SLOTS
+redis-cli -c CLUSTER SHARDS
+redis-cli -c CLUSTER KEYSLOT 'cart:{user:123}'
 ```
 
 좋은 경우:
@@ -147,7 +185,10 @@ redis-cli -c CLUSTER SLOTS
 - 공식적으로 최소 3개 master가 필요하고, 운영에서는 보통 3 master + 3 replica부터 시작합니다.
 - 모든 클라이언트가 Redis Cluster를 잘 지원하는 것은 아닙니다.
 - 여러 키를 한 번에 다루는 명령은 같은 hash slot에 있어야 합니다.
-- Docker 포트 매핑, NAT, Kubernetes Service 구성에서 노드가 서로 광고하는 주소가 꼬이면 Cluster가 불안정해질 수 있습니다.
+- 데이터 포트와 cluster bus 포트(기본값은 데이터 포트 + 10000)를 노드 간 열어야 합니다.
+- Redis Cluster는 노드가 광고한 주소와 포트가 그대로 도달 가능해야 하며 포트가 remap되는 NAT 환경을 공식 지원하지 않습니다.
+- Cluster는 DB 0만 사용하며 `SELECT`를 지원하지 않습니다.
+- replica 읽기는 클라이언트가 replica 연결에서 `READONLY`를 사용하고 stale read를 허용할 때만 적용합니다.
 
 multi-key 명령이 필요하면 hash tag로 같은 slot에 묶을 수 있습니다.
 
@@ -276,6 +317,7 @@ App -> Proxy -> Redis 1
 - Sentinel을 쓰면서 클라이언트는 여전히 고정 Primary 주소만 바라봅니다.
 - Redis Cluster를 쓰면서 multi-key 명령의 hash slot 제약을 고려하지 않습니다.
 - 컨테이너나 Kubernetes에서 Cluster 노드가 내부 주소와 외부 주소를 잘못 광고합니다.
+- replica를 시점 복구 가능한 백업으로 착각합니다.
 - Redis를 단독 영구 저장소처럼 쓰면서 비동기 복제와 장애 시 유실 가능성을 검토하지 않습니다.
 - `maxmemory`와 eviction 정책 없이 여러 대를 늘리는 것으로 문제를 해결하려 합니다.
 
@@ -293,6 +335,7 @@ Sentinel 상태:
 redis-cli -p 26379 SENTINEL masters
 redis-cli -p 26379 SENTINEL replicas mymaster
 redis-cli -p 26379 SENTINEL sentinels mymaster
+redis-cli -p 26379 SENTINEL CKQUORUM mymaster
 ```
 
 Cluster 상태:
@@ -300,7 +343,7 @@ Cluster 상태:
 ```bash
 redis-cli -c CLUSTER INFO
 redis-cli -c CLUSTER NODES
-redis-cli -c CLUSTER SLOTS
+redis-cli -c CLUSTER SHARDS
 ```
 
 메모리와 eviction 상태:
@@ -311,9 +354,20 @@ redis-cli INFO stats
 redis-cli CONFIG GET maxmemory maxmemory-policy
 ```
 
+## 장애 훈련 체크리스트
+
+1. 클라이언트가 고정 primary 주소가 아니라 Sentinel/Cluster topology를 사용합니다.
+2. primary 중지 후 감지 시간, 승격 시간, 애플리케이션 오류율을 측정합니다.
+3. 장애 직전 쓰기 중 유실되거나 중복된 범위를 확인합니다.
+4. 기존 primary가 돌아왔을 때 split-brain 없이 replica로 합류하는지 확인합니다.
+5. backup 복구와 failover를 별도 훈련으로 수행합니다.
+6. 목표 RTO/RPO와 측정 결과가 다르면 timeout, quorum, 배치 위치, 클라이언트 재시도를 조정합니다.
+
 ## 참고한 공식 문서
 
 - [Redis replication](https://redis.io/docs/latest/operate/oss_and_stack/management/replication/)
 - [High availability with Redis Sentinel](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/)
 - [Scale with Redis Cluster](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/)
 - [Redis cluster specification](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/)
+- [WAIT](https://redis.io/docs/latest/commands/wait/)
+- [CLUSTER SHARDS](https://redis.io/docs/latest/commands/cluster-shards/)
