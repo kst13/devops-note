@@ -126,6 +126,8 @@ redis-cli -p 26379 SENTINEL CKQUORUM mymaster
 
 Redis Cluster는 Redis 공식 샤딩 방식입니다. 전체 keyspace를 16384개 hash slot으로 나누고, 여러 master가 slot을 나눠 가집니다.
 
+직접 설치하고 설정하는 절차는 [Redis Cluster 설치 및 설정 방법](05-redis-cluster-installation.md)에 따로 정리합니다.
+
 ```text
 App
  |

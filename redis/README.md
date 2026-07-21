@@ -30,6 +30,7 @@ troubleshooting/   증상, 원인, 확인, 해결 기록
 ### 고가용성과 확장
 
 7. [Redis 여러 대 구성 방식](concepts/04-multi-node.md)
+8. [Redis Cluster 설치 및 설정 방법](concepts/05-redis-cluster-installation.md)
 
 ## 학습 기준
 
