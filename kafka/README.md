@@ -24,8 +24,9 @@ examples/          직접 실행해볼 수 있는 예제
 ## 추천 학습 순서
 
 1. [Kafka 기본 개념](concepts/01-kafka-basics.md)
-2. [실서버 3대 클러스터 설계 방식](concepts/02-cluster-design.md)
-3. [KRaft 3노드 클러스터 설치 및 설정 방법](concepts/03-kraft-cluster-installation.md)
+2. [KRaft 등장 배경과 ZooKeeper 대비 장단점](concepts/02-kraft-vs-zookeeper.md)
+3. [실서버 3대 클러스터 설계 방식](concepts/03-cluster-design.md)
+4. [KRaft 3노드 클러스터 설치 및 설정 방법](concepts/04-kraft-cluster-installation.md)
 
 실행 가능한 예제는 [Docker Compose 3노드 KRaft 예제](examples/compose-3node-kraft/README.md)에 있습니다.
 

@@ -1,6 +1,6 @@
 # Kafka 운영 명령어 치트시트
 
-3노드 KRaft(SASL_SSL) 클러스터를 기준으로 자주 쓰는 명령을 모읍니다. 배경은 [설치 문서](../concepts/03-kraft-cluster-installation.md)를 참고합니다.
+3노드 KRaft(SASL_SSL) 클러스터를 기준으로 자주 쓰는 명령을 모읍니다. 배경은 [설치 문서](../concepts/04-kraft-cluster-installation.md)를 참고합니다.
 
 명령은 컨테이너 안에서 실행하는 형태(`docker compose exec kafka ...`)로 적습니다. 모든 CLI 는 보안 리스너에 접속하므로 `--command-config` 로 클라이언트 설정 파일이 필요합니다.
 

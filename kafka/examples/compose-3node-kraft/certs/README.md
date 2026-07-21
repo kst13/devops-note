@@ -1,6 +1,6 @@
 # TLS 인증서 생성 (사설 CA + 노드별 keystore/truststore)
 
-[03-kraft-cluster-installation.md](../../../concepts/03-kraft-cluster-installation.md) 5장에서 참조하는 인증서를 만드는 절차입니다. 사설 CA 1개로 노드 3대의 keystore와 공통 truststore를 발급합니다.
+[04-kraft-cluster-installation.md](../../../concepts/04-kraft-cluster-installation.md) 5장에서 참조하는 인증서를 만드는 절차입니다. 사설 CA 1개로 노드 3대의 keystore와 공통 truststore를 발급합니다.
 
 > 생성된 `*.jks`, `*.key`, `*.crt` 와 비밀번호는 **저장소에 커밋하지 않습니다.** 이 폴더는 `.gitignore` 로 제외하고, 산출물은 배포 시 각 노드에 안전하게 전달합니다.
 

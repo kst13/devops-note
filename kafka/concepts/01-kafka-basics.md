@@ -1,6 +1,6 @@
 # Kafka 기본 개념
 
-클러스터 설계와 설치로 넘어가기 전에, 뒤 문서에서 계속 쓰이는 용어를 먼저 정리합니다. 이미 익숙하다면 [실서버 3대 클러스터 설계 방식](02-cluster-design.md)으로 바로 넘어가도 됩니다.
+클러스터 설계와 설치로 넘어가기 전에, 뒤 문서에서 계속 쓰이는 용어를 먼저 정리합니다. 이미 익숙하다면 [실서버 3대 클러스터 설계 방식](03-cluster-design.md)으로 바로 넘어가도 됩니다.
 
 ## 한눈에 보기
 
@@ -50,7 +50,7 @@ partition-0 (RF=3)
 - Leader와 충분히 동기화된 복제본 집합이 **ISR**입니다.
 - `min.insync.replicas=2` + producer `acks=all` 이면, **ISR이 2개 이상일 때만** 쓰기가 성공합니다. broker 1대가 죽어도 ISR 2개가 유지되면 쓰기가 계속됩니다.
 
-이 조합이 [실서버 3대 클러스터 설계 방식](02-cluster-design.md)에서 다루는 무손실 구성의 기반입니다.
+이 조합이 [실서버 3대 클러스터 설계 방식](03-cluster-design.md)에서 다루는 무손실 구성의 기반입니다.
 
 ## KRaft vs ZooKeeper
 
@@ -72,6 +72,8 @@ partition-0 (RF=3)
 
 - ZooKeeper 모드에서 KRaft로의 마이그레이션은 별도 절차가 필요합니다. 신규 구축이면 처음부터 KRaft로 시작합니다.
 - KRaft에서 controller는 **broker와 겸용(combined)** 하거나 **분리(dedicated)** 할 수 있습니다. 3대 소규모에서는 겸용이 표준입니다. 자세한 기준은 다음 문서에서 다룹니다.
+
+KRaft가 왜 등장했고 ZooKeeper 대비 장단점이 무엇인지는 [KRaft 등장 배경과 ZooKeeper 대비 장단점](02-kraft-vs-zookeeper.md)에서 자세히 다룹니다.
 
 ## Consumer Group
 
