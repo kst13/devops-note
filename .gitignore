@@ -1,1 +1,10 @@
 .DS_Store
+
+# Kafka 예제: 시크릿/인증서/노드별 환경파일은 커밋하지 않는다
+kafka/examples/**/.env
+kafka/examples/**/secrets/
+kafka/examples/**/certs/*.jks
+kafka/examples/**/certs/*.key
+kafka/examples/**/certs/*.crt
+kafka/examples/**/certs/*.csr
+kafka/examples/**/certs/*.srl

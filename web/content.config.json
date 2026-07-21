@@ -16,5 +16,14 @@
     "accentSoft": "#ffebe8",
     "order": 2,
     "tags": ["Cache", "Persistence", "HA"]
+  },
+  "kafka": {
+    "title": "Kafka",
+    "kicker": "EVENT STREAMING",
+    "description": "실서버 3대 KRaft 클러스터 설계와 무손실 복제, SASL/TLS 보안, 설치·운영 절차를 정리합니다.",
+    "accent": "#5b53c6",
+    "accentSoft": "#eceaff",
+    "order": 3,
+    "tags": ["Streaming", "HA", "Security"]
   }
 }
