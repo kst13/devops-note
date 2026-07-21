@@ -1,6 +1,6 @@
 # KRaft 등장 배경과 ZooKeeper 대비 장단점
 
-[Kafka 기본 개념](01-kafka-basics.md)에서 KRaft와 ZooKeeper의 차이를 표로 짧게 봤습니다. 이 문서는 **왜 KRaft가 등장했고, ZooKeeper 대비 무엇이 낫고 무엇을 새로 신경 써야 하는지**를 정리합니다. 이 판단이 [실서버 3대 클러스터 설계 방식](03-cluster-design.md)에서 KRaft combined 모드를 고르는 근거가 됩니다.
+[Kafka 기본 개념](01-kafka-basics.md)에서 KRaft와 ZooKeeper의 차이를 표로 짧게 봤습니다. 이 문서는 **왜 KRaft가 등장했고, ZooKeeper 대비 무엇이 낫고 무엇을 새로 신경 써야 하는지**를 정리합니다. 이 판단이 [실서버 3대 클러스터 설계 방식](06-cluster-design.md)에서 KRaft combined 모드를 고르는 근거가 됩니다.
 
 ## 배경: ZooKeeper 체제의 한계
 
@@ -76,7 +76,7 @@ Kafka는 처음부터 메타데이터(브로커 목록, 컨트롤러 선출, 토
 
 - 신규 구축이므로 **KRaft가 사실상 정답**입니다. 마이그레이션 리스크가 없고, ZooKeeper 3대를 아낄 수 있으며, 4.x는 KRaft 전용이라 선택지도 없습니다.
 - 단점의 대부분은 "기존 ZooKeeper 자산이 있을 때"의 이야기라 신규 구축에는 거의 해당하지 않습니다.
-- 다만 KRaft라고 공짜는 아니어서, **컨트롤러 쿼럼(3표, 과반 2) 배치와 `kafka-metadata-quorum`으로 상태를 확인하는 운영 습관**은 새로 들여야 합니다. 이 부분은 [실서버 3대 클러스터 설계 방식](03-cluster-design.md)과 [KRaft 3노드 클러스터 설치 및 설정 방법](04-kraft-cluster-installation.md)에 반영돼 있습니다.
+- 다만 KRaft라고 공짜는 아니어서, **컨트롤러 쿼럼(3표, 과반 2) 배치와 `kafka-metadata-quorum`으로 상태를 확인하는 운영 습관**은 새로 들여야 합니다. 이 부분은 [실서버 3대 클러스터 설계 방식](06-cluster-design.md)과 [KRaft 3노드 클러스터 설치 및 설정 방법](07-kraft-cluster-installation.md)에 반영돼 있습니다.
 
 한 줄 요약: **ZooKeeper 대비 운영·성능·확장에서 이득이 크고, 유일한 실질 단점은 역사가 짧아 운영 노하우를 새로 쌓아야 한다는 점** 입니다. 신규 구축에서는 트레이드오프가 명확히 KRaft 쪽으로 기웁니다.
 

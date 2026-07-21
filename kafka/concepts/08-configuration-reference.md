@@ -1,6 +1,6 @@
 # Kafka 설정 레퍼런스 (KRaft 3노드 기준)
 
-실서버 3대 KRaft 구성에서 쓰는 주요 설정을 **한곳에 모아** 정리합니다. 각 설정을 왜 그렇게 두는지의 맥락은 [실서버 3대 클러스터 설계 방식](03-cluster-design.md)과 [KRaft 3노드 클러스터 설치 및 설정 방법](04-kraft-cluster-installation.md)에 있고, 이 문서는 "무엇을 어디에 어떤 값으로" 빠르게 찾는 용도입니다.
+실서버 3대 KRaft 구성에서 쓰는 주요 설정을 **한곳에 모아** 정리합니다. 각 설정을 왜 그렇게 두는지의 맥락은 [실서버 3대 클러스터 설계 방식](06-cluster-design.md)과 [KRaft 3노드 클러스터 설치 및 설정 방법](07-kraft-cluster-installation.md)에 있고, 이 문서는 "무엇을 어디에 어떤 값으로" 빠르게 찾는 용도입니다.
 
 ## 설정이 들어가는 위치
 
@@ -55,11 +55,11 @@ KAFKA_LISTENER_SECURITY_PROTOCOL_MAP  → listener.security.protocol.map
 | `ssl.client.auth` (`KAFKA_SSL_CLIENT_AUTH`) | `required` (`none`) | 컨트롤러 mTLS: 클라이언트 인증서 필수 |
 | `ssl.endpoint.identification.algorithm` | `https` (`https`) | 인증서 hostname 검증 유지 |
 
-시크릿(비밀번호·키)은 파일이 아니라 Secret Manager/Vault로 주입합니다. SCRAM 관리자 계정은 `kafka-storage format --add-scram`으로 부트스트랩합니다([04 문서](04-kraft-cluster-installation.md) §7).
+시크릿(비밀번호·키)은 파일이 아니라 Secret Manager/Vault로 주입합니다. SCRAM 관리자 계정은 `kafka-storage format --add-scram`으로 부트스트랩합니다([07 문서](07-kraft-cluster-installation.md) §7).
 
 ## 4. 복제와 무손실 (MSA 핵심)
 
-근거는 [03 문서](03-cluster-design.md) §2 참고.
+근거는 [06 문서](06-cluster-design.md) §2 참고.
 
 | 프로퍼티 | 값 (기본값) | 의미 |
 | --- | --- | --- |
@@ -147,7 +147,7 @@ kafka-configs.sh --bootstrap-server kafka1:9094 --command-config $CFG \
   --describe --entity-type topics --entity-name order-created
 ```
 
-read-only 설정을 바꿀 때는 한 번에 한 노드씩, ISR이 회복된 뒤 다음 노드로 넘어가는 롤링 재시작을 씁니다([04 문서](04-kraft-cluster-installation.md) §11).
+read-only 설정을 바꿀 때는 한 번에 한 노드씩, ISR이 회복된 뒤 다음 노드로 넘어가는 롤링 재시작을 씁니다([07 문서](07-kraft-cluster-installation.md) §11).
 
 ## 참고한 공식 문서
 

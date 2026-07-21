@@ -1,6 +1,6 @@
 # KRaft 3노드 클러스터 설치 및 설정 방법
 
-이 문서는 [실서버 3대 클러스터 설계 방식](03-cluster-design.md)에서 정한 구성(KRaft combined 3노드, RF3/minISR2, SASL_SSL + mTLS)을 **RHEL/Rocky/CentOS 계열에서 Docker Compose로** 설치하는 절차를 정리합니다.
+이 문서는 [실서버 3대 클러스터 설계 방식](06-cluster-design.md)에서 정한 구성(KRaft combined 3노드, RF3/minISR2, SASL_SSL + mTLS)을 **RHEL/Rocky/CentOS 계열에서 Docker Compose로** 설치하는 절차를 정리합니다.
 
 실행 가능한 설정 파일은 [`examples/compose-3node-kraft/`](../examples/compose-3node-kraft/README.md)에 있습니다. 이 문서는 그 파일들을 어떤 순서로, 왜 그렇게 쓰는지 설명합니다.
 
@@ -93,7 +93,7 @@ sudo chown -R 1000:1000 /data/kafka
 
 ## 6. docker-compose.yml 핵심 설정
 
-3대가 **같은 compose 파일**을 쓰고, 노드별 차이는 `.env`로만 주입합니다. 전체 파일은 예제 폴더에 있고, 핵심 env만 설명합니다. 개별 설정 키의 의미·기본값·권장값을 한곳에서 찾으려면 [Kafka 설정 레퍼런스](05-configuration-reference.md)를 봅니다.
+3대가 **같은 compose 파일**을 쓰고, 노드별 차이는 `.env`로만 주입합니다. 전체 파일은 예제 폴더에 있고, 핵심 env만 설명합니다. 개별 설정 키의 의미·기본값·권장값을 한곳에서 찾으려면 [Kafka 설정 레퍼런스](08-configuration-reference.md)를 봅니다.
 
 ```yaml
 environment:
@@ -128,7 +128,7 @@ environment:
 - `KAFKA_CONTROLLER_QUORUM_VOTERS`: **3대 모두 동일**하게 세 노드를 나열합니다. `id@host:9093` 형식.
 - `KAFKA_ADVERTISED_LISTENERS`: 클라이언트/다른 broker가 접속할 **실제 주소**. `${ADVERTISED_HOST}`에 그 노드의 실 IP/호스트명을 넣습니다. CONTROLLER는 advertised에 넣지 않습니다(quorum voters로 알림).
 - `KAFKA_LISTENER_SECURITY_PROTOCOL_MAP`: 리스너별 보안 프로토콜. CONTROLLER는 SSL(mTLS), 나머지는 SASL_SSL.
-- 무손실 관련 값은 [03 문서](03-cluster-design.md)의 표를 그대로 broker 기본값으로 넣은 것입니다.
+- 무손실 관련 값은 [06 문서](06-cluster-design.md)의 표를 그대로 broker 기본값으로 넣은 것입니다.
 
 SASL/SCRAM·TLS 관련 env(SCRAM JAAS, keystore/truststore 경로·비밀번호)와 볼륨 마운트는 예제 compose에 포함되어 있습니다.
 

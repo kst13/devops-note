@@ -5,7 +5,7 @@
 #   서버2: KAFKA_NODE_ID=2, ADVERTISED_HOST=10.0.0.12
 #   서버3: KAFKA_NODE_ID=3, ADVERTISED_HOST=10.0.0.13
 #
-# 최초 1회 스토리지 포맷이 필요하다. concepts/04-kraft-cluster-installation.md 7장 참고.
+# 최초 1회 스토리지 포맷이 필요하다. concepts/07-kraft-cluster-installation.md 7장 참고.
 
 services:
   kafka:

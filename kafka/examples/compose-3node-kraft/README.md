@@ -3,8 +3,8 @@
 실서버 3대에 KRaft combined 모드 Kafka(SASL_SSL + mTLS)를 올리는 실행 가능한 최소 구성입니다. 설계 배경과 각 설정의 이유는 다음 문서에서 다룹니다.
 
 - 개념: [Kafka 기본 개념](../../concepts/01-kafka-basics.md)
-- 설계: [실서버 3대 클러스터 설계 방식](../../concepts/03-cluster-design.md)
-- 절차: [KRaft 3노드 클러스터 설치 및 설정 방법](../../concepts/04-kraft-cluster-installation.md)
+- 설계: [실서버 3대 클러스터 설계 방식](../../concepts/06-cluster-design.md)
+- 절차: [KRaft 3노드 클러스터 설치 및 설정 방법](../../concepts/07-kraft-cluster-installation.md)
 
 ## 구성 파일
 
