@@ -93,7 +93,7 @@ sudo chown -R 1000:1000 /data/kafka
 
 ## 6. docker-compose.yml 핵심 설정
 
-3대가 **같은 compose 파일**을 쓰고, 노드별 차이는 `.env`로만 주입합니다. 전체 파일은 예제 폴더에 있고, 핵심 env만 설명합니다.
+3대가 **같은 compose 파일**을 쓰고, 노드별 차이는 `.env`로만 주입합니다. 전체 파일은 예제 폴더에 있고, 핵심 env만 설명합니다. 개별 설정 키의 의미·기본값·권장값을 한곳에서 찾으려면 [Kafka 설정 레퍼런스](05-configuration-reference.md)를 봅니다.
 
 ```yaml
 environment:
