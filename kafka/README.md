@@ -23,7 +23,7 @@ examples/          직접 실행해볼 수 있는 예제
 
 ## 추천 학습 순서
 
-1. [Kafka 핵심 개념: 토픽, 파티션, 브로커](concepts/01-kafka-basics.md)
+1. [Kafka 핵심 개념: 토픽, 파티션, 브로커, 컨트롤러](concepts/01-kafka-basics.md)
 2. [Producer와 복제](concepts/02-producer-and-replication.md)
 3. [Consumer와 Consumer Group](concepts/03-consumer-and-consumer-group.md)
 4. [브로커 내부 구조](concepts/04-broker-internals.md)
