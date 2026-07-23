@@ -31,6 +31,7 @@ examples/          직접 실행해볼 수 있는 예제
 6. [실서버 3대 클러스터 설계 방식](concepts/06-cluster-design.md)
 7. [KRaft 3노드 클러스터 설치 및 설정 방법](concepts/07-kraft-cluster-installation.md)
 8. [Kafka 설정 레퍼런스](concepts/08-configuration-reference.md)
+9. [개념 정리 Q&A (실무 관점)](concepts/09-concepts-qna.md)
 
 실행 가능한 예제는 [Docker Compose 3노드 KRaft 예제](examples/compose-3node-kraft/README.md)에 있습니다.
 
