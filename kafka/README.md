@@ -32,6 +32,7 @@ examples/          직접 실행해볼 수 있는 예제
 7. [KRaft 3노드 클러스터 설치 및 설정 방법](concepts/07-kraft-cluster-installation.md)
 8. [Kafka 설정 레퍼런스](concepts/08-configuration-reference.md)
 9. [개념 정리 Q&A (실무 관점)](concepts/09-concepts-qna.md)
+10. [보안: 암호화(TLS)와 인증(SASL·mTLS)](concepts/10-security-tls-and-auth.md)
 
 실행 가능한 예제(둘 다 KRaft, 보안만 다름):
 
