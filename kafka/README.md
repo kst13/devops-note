@@ -33,7 +33,10 @@ examples/          직접 실행해볼 수 있는 예제
 8. [Kafka 설정 레퍼런스](concepts/08-configuration-reference.md)
 9. [개념 정리 Q&A (실무 관점)](concepts/09-concepts-qna.md)
 
-실행 가능한 예제는 [Docker Compose 3노드 KRaft 예제](examples/compose-3node-kraft/README.md)에 있습니다.
+실행 가능한 예제(둘 다 KRaft, 보안만 다름):
+
+- [SASL_SSL + mTLS 버전](examples/compose-3node-kraft/README.md) — 운영 권장
+- [PLAINTEXT 버전](examples/compose-3node-kraft-plaintext/README.md) — 사설망/학습용
 
 ## 참고 기준
 

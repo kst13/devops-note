@@ -2,6 +2,8 @@
 
 실서버 3대에 KRaft combined 모드 Kafka(SASL_SSL + mTLS)를 올리는 실행 가능한 최소 구성입니다. 설계 배경과 각 설정의 이유는 다음 문서에서 다룹니다.
 
+> 인증·암호화 없이 신뢰된 사설망/학습용으로 빠르게 올리려면 PLAINTEXT 버전을 쓰세요 → [../compose-3node-kraft-plaintext](../compose-3node-kraft-plaintext/README.md). 두 예제의 차이는 **보안뿐**이고 둘 다 KRaft입니다.
+
 - 개념: [Kafka 기본 개념](../../concepts/01-kafka-basics.md)
 - 설계: [실서버 3대 클러스터 설계 방식](../../concepts/06-cluster-design.md)
 - 절차: [KRaft 3노드 클러스터 설치 및 설정 방법](../../concepts/07-kraft-cluster-installation.md)

@@ -1,0 +1,55 @@
+# 3대 공용 PLAINTEXT KRaft 예제 (사설망 격리 전제, 인증·암호화 없음)
+#
+# 운영처럼 인증(SCRAM)·암호화(TLS)가 필요하면 SASL_SSL+mTLS 버전을 쓴다:
+#   ../compose-3node-kraft/
+# 이 예제는 신뢰된 내부망 또는 학습·검증용이다.
+#
+# 3대가 "같은 파일"을 쓰고, 노드별 차이는 .env 로만 주입한다.
+#   서버1: KAFKA_NODE_ID=1, ADVERTISED_HOST=10.0.0.11
+#   서버2: KAFKA_NODE_ID=2, ADVERTISED_HOST=10.0.0.12
+#   서버3: KAFKA_NODE_ID=3, ADVERTISED_HOST=10.0.0.13
+# (IP 는 예시. 실제 서버 IP 로 바꾼다.)
+
+services:
+  kafka:
+    image: apache/kafka:4.0.0
+    container_name: kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"   # PLAINTEXT (클라이언트 + 브로커 간)
+      - "9093:9093"   # CONTROLLER (쿼럼)
+    environment:
+      # --- KRaft 역할/식별 ---
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: ${KAFKA_NODE_ID}
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:9093,2@kafka2:9093,3@kafka3:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # --- 리스너 (PLAINTEXT) ---
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${ADVERTISED_HOST}:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # --- 무손실 기본값 ---
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE: "false"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+      # --- 저장 + 클러스터 ID (3대 동일) ---
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: ${CLUSTER_ID}
+
+    volumes:
+      - /data/kafka:/var/lib/kafka/data
+
+    # 컨테이너가 다른 노드 이름을 해석하도록 매핑 (DNS 있으면 생략).
+    # IP 는 예시이므로 실제 값으로 바꾼다.
+    extra_hosts:
+      - "kafka1:10.0.0.11"
+      - "kafka2:10.0.0.12"
+      - "kafka3:10.0.0.13"
