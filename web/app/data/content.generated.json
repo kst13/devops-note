@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-26T12:49:47.855Z",
+  "generatedAt": "2026-07-26T23:51:13.942Z",
   "topics": [
     {
       "id": "docker",
@@ -1115,6 +1115,101 @@
           ],
           "order": 2999,
           "body": "# TLS 인증서 생성 (사설 CA + 노드별 keystore/truststore)\n\n[07-kraft-cluster-installation.md](../../../concepts/07-kraft-cluster-installation.md) 5장에서 참조하는 인증서를 만드는 절차입니다. 사설 CA 1개로 노드 3대의 keystore와 공통 truststore를 발급합니다.\n\n> 생성된 `*.jks`, `*.key`, `*.crt` 와 비밀번호는 **저장소에 커밋하지 않습니다.** 이 폴더는 `.gitignore` 로 제외하고, 산출물은 배포 시 각 노드에 안전하게 전달합니다.\n\n## 사전 준비\n\n```bash\n# 노드 정보 (실제 호스트명/IP 로 바꾼다)\n# kafka1=10.0.0.11, kafka2=10.0.0.12, kafka3=10.0.0.13\nSTOREPASS='__SET_ME__'      # keystore/truststore 비밀번호 (Secret Manager 로 관리)\nVALID=3650                  # 유효기간(일)\n```\n\n## 1. 사설 CA 생성\n\n```bash\nopenssl req -new -x509 -keyout ca.key -out ca.crt -days \"$VALID\" -nodes \\\n  -subj \"/CN=devops-note-kafka-CA\"\n```\n\n## 2. 공통 truststore 생성 (CA 신뢰)\n\n모든 노드와 클라이언트가 같은 truststore 를 씁니다.\n\n```bash\nkeytool -keystore truststore.jks -alias CARoot -import -file ca.crt \\\n  -storepass \"$STOREPASS\" -noprompt\n```\n\n## 3. 노드별 keystore 생성\n\n노드마다 반복합니다. `SAN` 에 그 노드의 **호스트명과 IP 를 모두** 넣는 것이 핵심입니다. 컨트롤러 리스너가 mTLS 이므로 serverAuth·clientAuth 를 함께 부여합니다.\n\n```bash\n# 예: kafka1 (다른 노드는 NODE/IP 만 바꿔 반복)\nNODE=kafka1\nIP=10.0.0.11\n\n# 3-1. 키쌍 생성 (SAN 포함)\nkeytool -keystore \"${NODE}.keystore.jks\" -alias \"${NODE}\" -validity \"$VALID\" \\\n  -genkey -keyalg RSA -storepass \"$STOREPASS\" -keypass \"$STOREPASS\" \\\n  -dname \"CN=${NODE}\" \\\n  -ext \"SAN=dns:${NODE},ip:${IP}\" \\\n  -ext \"EKU=serverAuth,clientAuth\"\n\n# 3-2. CSR 생성 → CA 서명\nkeytool -keystore \"${NODE}.keystore.jks\" -alias \"${NODE}\" -certreq -file \"${NODE}.csr\" \\\n  -storepass \"$STOREPASS\"\n\nopenssl x509 -req -CA ca.crt -CAkey ca.key -in \"${NODE}.csr\" -out \"${NODE}.crt\" \\\n  -days \"$VALID\" -CAcreateserial \\\n  -extfile <(printf \"subjectAltName=DNS:%s,IP:%s\\nextendedKeyUsage=serverAuth,clientAuth\" \"$NODE\" \"$IP\")\n\n# 3-3. CA 인증서와 서명된 노드 인증서를 keystore 에 반입\nkeytool -keystore \"${NODE}.keystore.jks\" -alias CARoot -import -file ca.crt \\\n  -storepass \"$STOREPASS\" -noprompt\nkeytool -keystore \"${NODE}.keystore.jks\" -alias \"${NODE}\" -import -file \"${NODE}.crt\" \\\n  -storepass \"$STOREPASS\" -noprompt\n```\n\nkafka2(10.0.0.12), kafka3(10.0.0.13) 에 대해 `NODE`/`IP` 만 바꿔 반복합니다.\n\n## 4. 배치\n\n각 노드의 `secrets/` 디렉터리(= compose 에서 `./secrets` 마운트)에 아래를 둡니다.\n\n```text\nkafka1 노드:  secrets/kafka1.keystore.jks  +  secrets/truststore.jks\nkafka2 노드:  secrets/kafka2.keystore.jks  +  secrets/truststore.jks\nkafka3 노드:  secrets/kafka3.keystore.jks  +  secrets/truststore.jks\n```\n\n`.env` 의 `KAFKA_KEYSTORE_FILE` 을 각 노드의 keystore 파일명으로 맞춥니다.\n\n## 5. 클라이언트용 truststore\n\n애플리케이션(MSA 앱)과 CLI 도 같은 `truststore.jks` 로 CA 를 신뢰해야 합니다. 클라이언트 설정 예시는 [commands/kafka-operations-cheatsheet.md](../../../commands/kafka-operations-cheatsheet.md) 를 참고합니다.\n\n## 확인\n\n```bash\n# 발급된 노드 인증서의 SAN 확인 (advertised 주소와 일치해야 함)\nkeytool -list -v -keystore kafka1.keystore.jks -storepass \"$STOREPASS\" | grep -A1 \"SubjectAlternativeName\"\n\n# 리스너 TLS 동작 확인 (기동 후)\nopenssl s_client -connect 10.0.0.11:9094 -CAfile ca.crt </dev/null\n```\n"
+        }
+      ]
+    },
+    {
+      "id": "aws",
+      "title": "AWS CLI",
+      "kicker": "CLOUD TOOLING",
+      "description": "터미널에서 AWS를 조작·자동화하는 CLI의 개념, 인증·설정, 서비스별 명령어를 정리합니다.",
+      "accent": "#ec7211",
+      "accentSoft": "#fdecd8",
+      "order": 4,
+      "tags": [
+        "Cloud",
+        "CLI",
+        "Automation"
+      ],
+      "documents": [
+        {
+          "id": "aws/concepts/01-aws-cli-basics",
+          "topicId": "aws",
+          "sourcePath": "aws/concepts/01-aws-cli-basics.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "AWS CLI 기본 개념",
+          "summary": "터미널에서 AWS 전체를 조작하는 공식 명령줄 도구입니다. 웹 콘솔에서 클릭하는 작업을 명령어·스크립트로 자동화합니다. Python 기반이고 거의 모든 AWS 서비스(수백 개) 를 커버합니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Security",
+            "Operations",
+            "CLI"
+          ],
+          "sections": [
+            "버전 — v1 vs v2",
+            "주요 기능·특징",
+            "설치 (v2)",
+            "관련 도구와의 위치",
+            "참고한 공식 문서"
+          ],
+          "order": 1,
+          "body": "# AWS CLI 기본 개념\n\n터미널에서 AWS 전체를 조작하는 공식 명령줄 도구입니다. 웹 콘솔에서 클릭하는 작업을 명령어·스크립트로 자동화합니다. Python 기반이고 거의 **모든 AWS 서비스(수백 개)** 를 커버합니다.\n\n```bash\naws <서비스> <작업> [--옵션]\n# 예: aws s3 ls / aws ec2 describe-instances / aws lambda invoke ...\n```\n\n## 버전 — v1 vs v2\n\n| | v1 | v2 (권장) |\n| --- | --- | --- |\n| 설치 | pip(Python 의존) | 독립 실행 번들(파이썬 불필요) |\n| 신기능 | 유지보수 위주 | SSO 로그인, 자동완성 개선, YAML 출력, `--cli-auto-prompt` 등 |\n| 현재 | 레거시 | 신규는 v2 사용 |\n\n## 주요 기능·특징\n\n- **통일된 명령 구조**: `aws <service> <operation> --parameters` 형태로 모든 서비스가 일관됩니다. 각 API가 그대로 명령이 됩니다.\n- **완전한 커버리지**: 콘솔로 하는 거의 모든 작업을 명령으로 수행합니다.\n- **인증/프로파일**: 액세스 키, SSO, IAM 역할 assume, EC2/ECS 인스턴스 역할, MFA를 지원하고 프로파일로 계정·환경을 전환합니다. (→ [02 문서](02-auth-config-and-output.md))\n- **출력 포맷 선택**: `--output json|table|text|yaml`. 스크립트 파싱은 json/text, 사람이 볼 때는 table.\n- **`--query`(JMESPath)**: 응답 JSON에서 원하는 필드만 추출·가공.\n- **Waiters**: `aws ec2 wait instance-running ...` 처럼 조건 충족까지 대기 → 자동화에 유용.\n- **고수준 명령**: `aws s3 sync`, `aws s3 cp --recursive`처럼 편의 명령 제공.\n- **안전장치**: `--dry-run`(권한·유효성만 확인), `--generate-cli-skeleton`(입력 템플릿), 방대한 내장 도움말(`aws help`).\n\n좋은 경우:\n\n- 반복 작업을 스크립트로 자동화하고 싶을 때(CI/CD, 배포, 운영).\n- 콘솔로 하기 번거로운 대량·일괄 작업.\n- `--query`/`jq`로 결과를 프로그래밍적으로 가공해야 할 때.\n\n주의할 점:\n\n- 명령형 도구입니다. **재현 가능한 인프라 상태 관리가 목적이면 IaC(CloudFormation/CDK/Terraform)** 를 함께 씁니다(아래 표 참고).\n- 자격증명·시크릿을 히스토리·로그에 남기지 않도록 주의합니다.\n\n## 설치 (v2)\n\n```bash\n# Linux x86_64\ncurl \"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip\" -o awscliv2.zip\nunzip awscliv2.zip && sudo ./aws/install\naws --version\n```\n(macOS는 `.pkg`, Windows는 MSI 설치 파일 제공)\n\n## 관련 도구와의 위치\n\n| 도구 | 용도 |\n| --- | --- |\n| **AWS CLI** | 명령어로 AWS 조작·자동화 (이 문서) |\n| SDK (boto3 등) | 애플리케이션 코드에서 AWS 호출 |\n| CloudFormation/CDK/Terraform | 인프라를 코드로 선언(IaC) |\n| CloudShell | 브라우저에서 바로 CLI 실행(설치 불필요) |\n\nCLI는 **명령형**(내가 명령을 내림), IaC는 **선언형**(원하는 상태를 정의)이라 상호 보완적입니다.\n\n## 참고한 공식 문서\n\n- [AWS CLI User Guide](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html)\n- [AWS CLI v2 설치](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)\n"
+        },
+        {
+          "id": "aws/concepts/02-auth-config-and-output",
+          "topicId": "aws",
+          "sourcePath": "aws/concepts/02-auth-config-and-output.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "인증·설정과 출력 다루기",
+          "summary": "AWS CLI를 쓰기 전에 \"누구로 접속하는지(인증)\"와 \"어느 리전·어떤 형식으로 받을지(설정·출력)\"를 정합니다. 이 두 가지가 CLI 사용의 토대입니다.",
+          "difficulty": "입문",
+          "readTime": 3,
+          "tags": [
+            "Security",
+            "Operations",
+            "CLI"
+          ],
+          "sections": [
+            "인증 (자격증명)",
+            "출력 다루기",
+            "자주 하는 실수",
+            "참고한 공식 문서"
+          ],
+          "order": 2,
+          "body": "# 인증·설정과 출력 다루기\n\nAWS CLI를 쓰기 전에 \"누구로 접속하는지(인증)\"와 \"어느 리전·어떤 형식으로 받을지(설정·출력)\"를 정합니다. 이 두 가지가 CLI 사용의 토대입니다.\n\n## 인증 (자격증명)\n\nCLI는 여러 곳에서 자격증명을 찾습니다(우선순위 대략 아래 순서).\n\n```text\n1. 명령 옵션 / 환경변수 (AWS_ACCESS_KEY_ID 등)\n2. ~/.aws/credentials, ~/.aws/config 의 프로파일\n3. SSO 캐시 (aws sso login)\n4. EC2/ECS/EKS 인스턴스·태스크 역할 (IMDS/컨테이너 자격증명)\n```\n\n### 기본 설정\n\n```bash\naws configure                 # 액세스 키, 리전, 출력 포맷 입력 → ~/.aws/ 에 저장\naws sts get-caller-identity   # \"지금 나는 어떤 계정/역할인가\" 확인 (가장 먼저)\n```\n\n### 프로파일 — 계정·환경 전환\n\n```bash\naws configure --profile prod          # prod 프로파일 설정\naws s3 ls --profile prod              # 특정 프로파일로 실행\nexport AWS_PROFILE=prod               # 세션 기본 프로파일 지정\naws configure list-profiles\n```\n\n`~/.aws/config` 예시:\n\n```ini\n[profile prod]\nregion = ap-northeast-2\noutput = json\n```\n\n### SSO / 역할 assume\n\n```bash\naws configure sso            # IAM Identity Center(SSO) 로그인 구성 (v2)\naws sso login --profile prod # 브라우저로 로그인\n```\n\n- **인스턴스 역할**: EC2/ECS에서 실행하면 키 없이 자동으로 붙은 IAM 역할을 사용합니다. 운영에서는 키를 파일에 두기보다 **역할**을 권장합니다.\n- 시크릿은 파일·히스토리에 남기지 말고 SSO·역할·Secret Manager로 주입합니다.\n\n## 출력 다루기\n\n### 출력 포맷\n\n```bash\n--output json    # 기본, 스크립트 파싱용\n--output table   # 사람이 보기 좋게\n--output text    # grep/awk 연동에 좋음\n--output yaml    # v2\n```\n\n### `--query` (JMESPath) — 필요한 필드만 추출\n\n```bash\naws ec2 describe-instances \\\n  --query 'Reservations[].Instances[].{ID:InstanceId,State:State.Name,IP:PrivateIpAddress}' \\\n  --output table\n```\n\n- 응답 JSON을 서버가 아니라 **클라이언트에서** 걸러 원하는 모양으로 만듭니다.\n\n### 서버측 필터 vs 클라이언트측 쿼리\n\n```text\n--filters : 서버가 걸러서 보냄 (전송량·비용 절감)   예) --filters \"Name=instance-state-name,Values=running\"\n--query   : 받은 결과를 클라이언트에서 가공          예) --query 'Reservations[].Instances[].InstanceId'\n```\n\n둘을 함께 쓰면 효율적입니다: 서버 필터로 줄이고, 쿼리로 모양을 잡습니다.\n\n### 페이지네이션·대기\n\n```bash\n--page-size 100 --max-items 500     # 대량 결과 제어\naws ec2 wait instance-running --instance-ids i-0abc123   # 상태 충족까지 대기(waiter)\n```\n\n### 안전 확인·템플릿\n\n```bash\n--dry-run                          # 실제 실행 없이 권한/유효성만 확인(일부 명령)\naws ec2 run-instances --generate-cli-skeleton > params.json   # 입력 JSON 템플릿\n```\n\n## 자주 하는 실수\n\n- 리전 미지정 → 엉뚱한 리전 조회. 프로파일·환경변수·`--region`으로 명확히.\n- 액세스 키를 코드·저장소에 커밋 → 유출. 역할/SSO/Secret Manager 사용.\n- `--query`와 `--filters`를 혼동 → 큰 결과를 다 받아 클라이언트에서 거르며 느려짐.\n\n## 참고한 공식 문서\n\n- [Configuration and credential files](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)\n- [Configure the AWS CLI with IAM Identity Center (SSO)](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html)\n- [Controlling command output](https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-output.html)\n"
+        },
+        {
+          "id": "aws/commands/aws-cli-cheatsheet",
+          "topicId": "aws",
+          "sourcePath": "aws/commands/aws-cli-cheatsheet.md",
+          "category": "commands",
+          "categoryLabel": "명령어",
+          "title": "AWS CLI 서비스별 치트시트",
+          "summary": "자주 쓰는 명령을 서비스·작업별로 모읍니다. 리전은 서울 ap-northeast-2 기준이며, 계정 ID·리소스 ID·시크릿은 예시입니다. 배경은 01-aws-cli-basics, 02-auth-config-and-output 참고.",
+          "difficulty": "참고",
+          "readTime": 3,
+          "tags": [
+            "Storage",
+            "Security",
+            "Operations"
+          ],
+          "sections": [
+            "시작·신원 확인",
+            "S3 (스토리지)",
+            "EC2 (인스턴스)",
+            "ECR + Docker (컨테이너 이미지)",
+            "시크릿·설정",
+            "Lambda / CloudWatch Logs",
+            "IAM (권한)",
+            "자주 쓰는 패턴",
+            "실전 조합 예시",
+            "참고한 공식 문서"
+          ],
+          "order": 1999,
+          "body": "# AWS CLI 서비스별 치트시트\n\n자주 쓰는 명령을 서비스·작업별로 모읍니다. 리전은 서울 `ap-northeast-2` 기준이며, 계정 ID·리소스 ID·시크릿은 예시입니다. 배경은 [01-aws-cli-basics](../concepts/01-aws-cli-basics.md), [02-auth-config-and-output](../concepts/02-auth-config-and-output.md) 참고.\n\n## 시작·신원 확인\n\n```bash\naws configure                          # 키·리전·출력포맷 설정\naws sts get-caller-identity            # 지금 어떤 계정/역할인가 (가장 먼저)\naws configure list-profiles\n```\n\n## S3 (스토리지)\n\n```bash\naws s3 ls                                              # 버킷 목록\naws s3 ls s3://my-bucket/logs/                         # 버킷 내부\naws s3 cp ./backup.tar.gz s3://my-bucket/backups/      # 업로드\naws s3 cp s3://my-bucket/data.csv .                    # 다운로드\naws s3 sync ./dist s3://my-bucket/site --delete        # 폴더 동기화(변경분만, 삭제 반영)\naws s3 presign s3://my-bucket/file.zip --expires-in 3600   # 1시간 임시 URL\n```\n\n## EC2 (인스턴스)\n\n```bash\n# 실행 중 인스턴스를 표로\naws ec2 describe-instances \\\n  --filters \"Name=instance-state-name,Values=running\" \\\n  --query 'Reservations[].Instances[].{ID:InstanceId,Type:InstanceType,IP:PrivateIpAddress}' \\\n  --output table\n\naws ec2 start-instances --instance-ids i-0abc123\naws ec2 stop-instances  --instance-ids i-0abc123\naws ec2 wait instance-running --instance-ids i-0abc123   # 켜질 때까지 대기\n```\n\n## ECR + Docker (컨테이너 이미지)\n\n```bash\n# ECR 로그인 (Docker에 자격증명 전달)\naws ecr get-login-password --region ap-northeast-2 \\\n  | docker login --username AWS --password-stdin 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com\n\n# 태깅 후 푸시\ndocker tag myapp:latest 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/myapp:latest\ndocker push          123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/myapp:latest\n```\n\n## 시크릿·설정\n\n```bash\n# Secrets Manager — 비밀번호 조회\naws secretsmanager get-secret-value \\\n  --secret-id prod/kafka/keystore-password \\\n  --query SecretString --output text\n\n# SSM Parameter Store — 암호화 파라미터 조회\naws ssm get-parameter --name /prod/db/password --with-decryption \\\n  --query Parameter.Value --output text\n```\n\n## Lambda / CloudWatch Logs\n\n```bash\naws lambda invoke --function-name order-processor --payload '{\"id\":1}' out.json\naws logs tail /aws/lambda/order-processor --follow      # 실시간 로그 (tail -f 처럼, v2)\n```\n\n## IAM (권한)\n\n```bash\naws iam list-users\naws iam list-attached-role-policies --role-name kafka-node-role\n```\n\n## 자주 쓰는 패턴\n\n```bash\n# ① --query + --output table (사람이 보기 좋게)\naws ec2 describe-volumes --query 'Volumes[].{ID:VolumeId,Size:Size,State:State}' --output table\n\n# ② jq 파이프 (프로그래밍적으로 가공)\naws ec2 describe-instances --output json | jq -r '.Reservations[].Instances[].InstanceId'\n\n# ③ 프로파일로 계정/환경 전환\naws s3 ls --profile prod\n\n# ④ 안전 확인 (권한만 검증, 실제 실행 안 함)\naws ec2 stop-instances --instance-ids i-0abc123 --dry-run\n\n# ⑤ 입력 템플릿 생성 (복잡한 명령)\naws ec2 run-instances --generate-cli-skeleton > params.json\n```\n\n## 실전 조합 예시\n\n```bash\n# 실행 중인 인스턴스 ID를 모아 순차 정지\nfor id in $(aws ec2 describe-instances \\\n    --filters \"Name=instance-state-name,Values=running\" \\\n    --query 'Reservations[].Instances[].InstanceId' --output text); do\n  echo \"stopping $id\"\n  aws ec2 stop-instances --instance-ids \"$id\"\ndone\n```\n\n## 참고한 공식 문서\n\n- [AWS CLI Command Reference](https://docs.aws.amazon.com/cli/latest/reference/)\n- [aws s3 (high-level)](https://docs.aws.amazon.com/cli/latest/userguide/cli-services-s3-commands.html)\n"
         }
       ]
     }

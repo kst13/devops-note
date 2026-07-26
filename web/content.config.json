@@ -25,5 +25,14 @@
     "accentSoft": "#eceaff",
     "order": 3,
     "tags": ["Streaming", "HA", "Security"]
+  },
+  "aws": {
+    "title": "AWS CLI",
+    "kicker": "CLOUD TOOLING",
+    "description": "터미널에서 AWS를 조작·자동화하는 CLI의 개념, 인증·설정, 서비스별 명령어를 정리합니다.",
+    "accent": "#ec7211",
+    "accentSoft": "#fdecd8",
+    "order": 4,
+    "tags": ["Cloud", "CLI", "Automation"]
   }
 }

@@ -18,6 +18,7 @@ DevOps 관련 개념, 실습 예제, 운영 중 만난 문제와 해결 과정�
 docker/            Docker 핵심 개념, 명령어, 예제, 트러블슈팅 기록
 redis/             Redis 설정, 운영, 트러블슈팅 기록
 kafka/             Kafka 클러스터 설계, 설치, 운영 기록
+aws/               AWS CLI 개념, 인증·설정, 서비스별 명령어
 ```
 
 각 주제 디렉터리는 필요에 따라 아래 구조를 따릅니다.
@@ -46,6 +47,7 @@ examples/          직접 실행해볼 수 있는 최소 예제
 - [Docker](docker/README.md)
 - [Redis](redis/README.md)
 - [Kafka](kafka/README.md)
+- [AWS CLI](aws/README.md)
 
 ## 학습 사이트
 
