@@ -36,7 +36,7 @@ KRaft에서 각 노드는 broker 역할, controller 역할, 또는 둘 다를 �
 
 주의할 점:
 
-- combined 모드는 broker 부하와 controller 부하가 한 프로세스에 섞입니다. 트래픽이 커지면(수십 broker 규모) controller를 **분리(dedicated)** 하는 것을 검토합니다. 3대에서는 겸용이 맞습니다.
+- combined 모드는 broker 부하와 controller 부하가 한 프로세스에 섞입니다. 트래픽이 커지면(수십 broker 규모) controller를 **분리(dedicated)** 하는 것을 검토합니다. 3대에서는 겸용이 맞습니다. combined/dedicated의 프로세스 구조와 서버 수 판단은 [11. 브로커·컨트롤러·주키퍼 프로세스 구조와 failover 원리](11-broker-controller-zookeeper-and-failover.md)를 참고합니다.
 - controller quorum 정족수를 잃으면(3대 중 2대 다운) 메타데이터 쓰기가 멈춥니다. 3대를 서로 다른 랙/AZ에 배치해 동시 장애 확률을 낮춥니다.
 
 ## 2. 복제와 ISR: 무손실 설정 (가장 중요)

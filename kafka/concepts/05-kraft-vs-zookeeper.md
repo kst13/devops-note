@@ -80,6 +80,10 @@ Kafka는 처음부터 메타데이터(브로커 목록, 컨트롤러 선출, 토
 
 한 줄 요약: **ZooKeeper 대비 운영·성능·확장에서 이득이 크고, 유일한 실질 단점은 역사가 짧아 운영 노하우를 새로 쌓아야 한다는 점** 입니다. 신규 구축에서는 트레이드오프가 명확히 KRaft 쪽으로 기웁니다.
 
+## 이어지는 문서
+
+프로세스가 실제로 어떻게 뜨는지(combined/dedicated), 장애 시 failover가 왜 빠른지는 [브로커·컨트롤러·주키퍼 프로세스 구조와 failover 원리](11-broker-controller-zookeeper-and-failover.md)에서 더 자세히 다룹니다.
+
 ## 참고한 공식 문서
 
 - [KIP-500: Replace ZooKeeper with a Self-Managed Metadata Quorum](https://cwiki.apache.org/confluence/display/KAFKA/KIP-500)
