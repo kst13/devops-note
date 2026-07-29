@@ -21,6 +21,8 @@ commands/          Kafka CLI와 운영 명령어 치트시트
 examples/          직접 실행해볼 수 있는 예제
 ```
 
+> **Kafka를 사용하는 개발자라면 [Kafka 사용 원칙(개발자용)](concepts/12-usage-principles.md)을 먼저 읽으세요.** 안전하게 쓰기 위한 규칙과 접속 템플릿이 정리돼 있습니다.
+
 ## 추천 학습 순서
 
 1. [Kafka 핵심 개념: 토픽, 파티션, 브로커, 컨트롤러](concepts/01-kafka-basics.md)
@@ -34,6 +36,7 @@ examples/          직접 실행해볼 수 있는 예제
 9. [개념 정리 Q&A (실무 관점)](concepts/09-concepts-qna.md)
 10. [보안: 암호화(TLS)와 인증(SASL·mTLS)](concepts/10-security-tls-and-auth.md)
 11. [브로커·컨트롤러·주키퍼 프로세스 구조와 failover 원리](concepts/11-broker-controller-zookeeper-and-failover.md)
+12. [Kafka 사용 원칙 (개발자용)](concepts/12-usage-principles.md)
 
 실행 가능한 예제(둘 다 KRaft, 보안만 다름):
 
