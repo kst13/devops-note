@@ -152,13 +152,38 @@ DON'T: `ack.acknowledge()`를 처리 **전에** 호출하기 / 리스너 안에�
 
 ## 6. 접속 설정 (`application.yml`)
 
-Spring Boot는 `application.yml`에 모아둡니다. 비밀번호·키는 **환경변수/Secret Manager로 주입**(하드코딩 금지).
+Spring Boot는 `application.yml`에 모아둡니다. **프로듀서/컨슈머 설정은 두 버전이 동일**하고, **접속·보안 부분만** 다릅니다. 비밀번호·키는 **환경변수/Secret Manager로 주입**(하드코딩 금지).
+
+### ① PLAINTEXT (로컬·사설망, 인증·암호화 없음)
 
 ```yaml
 spring:
   kafka:
-    bootstrap-servers: kafka1:9094,kafka2:9094,kafka3:9094   # 3대 모두 (환경에 맞게 교체)
-    properties:
+    bootstrap-servers: kafka1:9092,kafka2:9092,kafka3:9092   # 포트 9092, 보안 설정 없음
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: notification-service          # 서비스별 고유
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.osstem.*"
+    listener:
+      ack-mode: manual
+```
+
+### ② SASL_SSL (운영, SCRAM 인증 + TLS 암호화)
+
+```yaml
+spring:
+  kafka:
+    bootstrap-servers: kafka1:9094,kafka2:9094,kafka3:9094   # 포트 9094
+    properties:                                              # ★ 보안 블록 추가 (아래만 다름)
       security.protocol: SASL_SSL
       sasl.mechanism: SCRAM-SHA-512
       sasl.jaas.config: >
@@ -185,8 +210,26 @@ spring:
       ack-mode: manual                        # 수동 커밋 (위 5번 코드와 짝)
 ```
 
+**차이는 딱 두 곳**: 포트(`9092` → `9094`)와 `spring.kafka.properties`의 보안 블록(SASL_SSL은 추가).
+
 - `${KAFKA_USER}`/`${KAFKA_PASSWORD}` 계정은 **관리자에게 발급**받습니다. 남의 계정을 쓰지 마세요.
-- 로컬 개발용(PLAINTEXT) 클러스터를 쓸 땐 `security.protocol` 이하 보안 설정을 빼고 포트만 `9092`로 바꾸면 됩니다.
+
+### 프로파일로 분리 (권장)
+
+로컬은 PLAINTEXT, 스테이징/운영은 SASL_SSL로 **코드 변경 없이** 전환하려면 Spring Profile로 나눕니다.
+
+```text
+application.yml            # 공통(producer/consumer/listener 설정)
+application-local.yml      # PLAINTEXT (bootstrap 9092, 보안 없음)
+application-stage.yml      # SASL_SSL  (bootstrap 9094 + properties 보안 블록)
+```
+
+```bash
+java -jar app.jar --spring.profiles.active=local   # 로컬
+java -jar app.jar --spring.profiles.active=stage   # 스테이징
+```
+
+- 공통 설정(acks=all, ack-mode 등)은 `application.yml`에 두고 **접속·보안만 프로파일별 파일**에 둡니다.
 
 ## 7. 자주 하는 실수
 
