@@ -2148,7 +2148,12 @@ import java.time.ZoneId;
 
 public class MutableClock extends Clock {
 
-    private Instant instant;
+    /**
+     * 테스트 전용이다. advance()는 동시 독자에 대해 원자적이지 않으므로
+     * 병행 테스트에서 쓰면 LagCache 버그처럼 보이는 flaky 실패가 난다.
+     */
+    private volatile Instant instant;
+
     private final ZoneId zone;
 
     public MutableClock(Instant start) {
@@ -2293,14 +2298,6 @@ class LagCacheTest {
         assertThat(result).extracting(ConsumerGroupSummary::groupId).containsExactly("group-2");
     }
 
-    @Test
-    void invalidate하면_TTL_이내라도_다시_적재한다() {
-        cache.get(this::load);
-        cache.invalidate();
-        cache.get(this::load);
-
-        assertThat(loadCount.get()).isEqualTo(2);
-    }
 }
 ```
 
@@ -2340,6 +2337,9 @@ import java.util.function.Supplier;
 public class LagCache {
 
     private record Snapshot(List<ConsumerGroupSummary> value, Instant loadedAt) {
+        private Snapshot {
+            value = List.copyOf(value);
+        }
     }
 
     private final Clock clock;
@@ -2357,9 +2357,15 @@ public class LagCache {
         Instant now = clock.instant();
         long ttlSeconds = settings.getLong(SettingKey.LAG_CACHE_TTL_SECONDS);
 
+        // 경계는 포함이다 — loadedAt + ttl 과 정확히 같은 시각에도 아직 유효하다.
         if (current != null && !current.loadedAt().plusSeconds(ttlSeconds).isBefore(now)) {
             return current.value();
         }
+
+        // 만료 직후 동시에 들어온 요청들은 각자 loader를 돌린다. 일부러 막지 않았다.
+        // 중복 적재의 대가는 지연이지 정확성이 아니고, 사내 도구라 동시 사용자가 적다.
+        // 자동 새로고침 대시보드 때문에 여러 클라이언트가 한꺼번에 만료되는 상황이
+        // 생기면 그때 single-flight를 검토한다.
 
         // loader 가 던지면 예외를 그대로 전파한다. 실패한 값은 저장하지 않으므로
         // 캐시에 잘못된 값이 남지 않는다.
@@ -2371,12 +2377,10 @@ public class LagCache {
         snapshot = new Snapshot(loaded, now);
         return loaded;
     }
-
-    public void invalidate() {
-        snapshot = null;
-    }
 }
 ```
+
+`invalidate()` 같은 메서드는 두지 않는다. 호출자가 없는 공개 API는 배포 산출물에 실려 나가고, 그 메서드를 검증하는 테스트는 아무도 쓰지 않는 계약을 고정한다. TTL 변경은 이미 즉시 반영되므로 설정 화면도 무효화를 필요로 하지 않는다. 수동 새로고침 버튼처럼 실제 호출자가 생기는 태스크에서 메서드와 테스트를 함께 추가한다.
 
 `isBefore` 부정으로 비교한 것은 TTL 경계에서 정확히 같은 시각일 때 캐시를 유효로 보기 위한 것이다. 9초 유효, 10초 유효(경계 포함), 11초 만료 — 세 테스트가 이 경계를 고정한다.
 
@@ -2390,7 +2394,7 @@ public class LagCache {
 ./gradlew test --tests 'com.kafkaadmin.consumergroup.LagCacheTest'
 ```
 
-Expected: 7개 테스트 모두 PASS
+Expected: 6개 테스트 모두 PASS
 
 - [ ] **Step 7: 커밋**
 
