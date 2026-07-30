@@ -192,12 +192,8 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.flywaydb:flyway-core")
-    implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.apache.kafka:kafka-clients:4.0.0")
-    runtimeOnly("org.postgresql:postgresql")
 
     testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.6"))
     testImplementation("org.springframework.boot:spring-boot-starter-test")
@@ -215,6 +211,10 @@ tasks.withType<Test> {
 ```
 
 `spring-kafka`를 넣지 않는 것은 의도적이다. 이 애플리케이션은 리스너나 `KafkaTemplate`이 필요 없고 `AdminClient`·`Consumer`·`Producer`만 직접 쓴다. 얇은 의존성이 버전 충돌을 줄인다.
+
+**JDBC·Flyway·PostgreSQL 의존성은 여기서 넣지 않는다.** Task 2에서 datasource 설정과 함께 넣는다. 드라이버만 클래스패스에 올리고 `spring.datasource.url`이 없으면 Spring Boot의 `DataSourceAutoConfiguration`이 부팅을 실패시키기 때문이다. 의존성과 그 의존성을 쓸 수 있게 하는 설정은 같은 커밋에 들어가야 한다.
+
+`kafka-clients`는 지금 넣어도 안전하다. 순수 라이브러리라 Spring 자동설정을 건드리지 않는다.
 
 - [ ] **Step 5: `.gitignore` 작성**
 
@@ -345,6 +345,7 @@ git commit -m "Add Spring Boot scaffolding with Gradle Kotlin DSL"
 ## Task 2: PostgreSQL과 app_settings
 
 **Files:**
+- Modify: `build.gradle.kts`
 - Create: `compose.yaml`
 - Create: `src/main/resources/db/migration/V1__app_settings.sql`
 - Create: `src/main/java/com/kafkaadmin/settings/SettingKey.java`
@@ -356,6 +357,30 @@ git commit -m "Add Spring Boot scaffolding with Gradle Kotlin DSL"
 - Modify: `src/main/resources/application.yml`
 - Create: `src/main/resources/application-local.yml`
 - Modify: `src/test/java/com/kafkaadmin/KafkaAdminApplicationTest.java`
+
+- [ ] **Step 0: JDBC·Flyway·PostgreSQL 의존성 추가**
+
+`build.gradle.kts`의 `dependencies` 블록에서 `implementation("org.apache.kafka:kafka-clients:4.0.0")` 줄 **위에** 다음 두 줄을, 그리고 그 아래에 `runtimeOnly` 한 줄을 추가한다. 결과는 다음과 같아야 한다.
+
+```kotlin
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql")
+    implementation("org.apache.kafka:kafka-clients:4.0.0")
+    runtimeOnly("org.postgresql:postgresql")
+
+    testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.6"))
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql")
+    testImplementation("org.testcontainers:kafka")
+}
+```
+
+이 태스크가 끝날 때까지는 `./gradlew test`가 실패한다. Step 9~11에서 datasource 설정과 Testcontainers 기반 부팅 테스트를 넣어야 다시 통과한다. 이것이 Step 0을 이 태스크 안에 둔 이유다 — 의존성만 먼저 커밋하면 저장소가 깨진 상태로 남는다.
 
 - [ ] **Step 1: 로컬 PostgreSQL compose 파일 작성**
 
