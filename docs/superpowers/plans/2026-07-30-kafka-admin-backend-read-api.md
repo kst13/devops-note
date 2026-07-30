@@ -118,6 +118,12 @@ kafka-admin-web/
 
 **책임 분리 원칙:** `kafka/` 패키지 밖에서는 `org.apache.kafka.*` 타입을 절대 import 하지 않는다. 게이트웨이가 자체 DTO 레코드로 변환해서 내보낸다. 이 규칙이 깨지면 단위 테스트가 Kafka에 묶여 버린다.
 
+**빈 등록 시점 원칙:** 클래스에 `@Service`·`@Component`를 붙이는 것은 **애플리케이션 안에서 그것을 실제로 주입받는 곳이 생길 때**다. 단위 테스트가 `new`로 직접 만드는 동안에는 애노테이션이 필요 없다.
+
+이 순서를 어기면 즉시 깨진다. 컴포넌트 스캔은 애노테이션이 붙은 클래스의 생성자 의존성을 전부 요구하므로, 아직 구현체가 없는 인터페이스를 요구하는 빈 하나가 **그 태스크와 무관한 모든 `@SpringBootTest`를 실패시킨다.** 실제로 `ClusterService`(Task 5)에 `@Service`를 미리 붙였다가 Task 8에서야 생기는 `KafkaAdminGateway` 빈을 요구해 부팅 테스트와 설정 리포지터리 테스트가 함께 깨졌다. 그래서 이 계획에서 `ClusterService`는 Task 5에서 순수 클래스로 만들고 Task 12에서 애노테이션을 붙인다.
+
+각 태스크는 커밋 시점에 전체 테스트가 통과해야 한다. 다음 태스크가 고쳐줄 것을 기대하고 빨간 상태로 커밋하지 않는다.
+
 ---
 
 ## Task 1: 저장소 초기화와 Gradle 스캐폴딩
@@ -1921,14 +1927,21 @@ import com.kafkaadmin.topic.TopicBadge;
 import com.kafkaadmin.topic.TopicBadgeEvaluator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
-@Service
+/**
+ * 클러스터 건강도를 집계한다.
+ *
+ * 이 클래스에는 의도적으로 {@code @Service}를 붙이지 않는다. 아직 이것을
+ * 주입받는 곳이 없고(단위 테스트는 직접 생성한다), 컴포넌트 스캔에 올리면
+ * Task 8에서야 생기는 {@code KafkaAdminGateway} 빈을 지금 요구하게 되어
+ * 모든 {@code @SpringBootTest}가 깨진다.
+ * 실제 소비자인 컨트롤러가 생기는 Task 12에서 애노테이션을 붙인다.
+ */
 public class ClusterService {
 
     private static final Logger log = LoggerFactory.getLogger(ClusterService.class);
@@ -3899,6 +3912,7 @@ git commit -m "Add ACL overview query to Kafka gateway"
 ## Task 12: REST API
 
 **Files:**
+- Modify: `src/main/java/com/kafkaadmin/cluster/ClusterService.java` (`@Service` 부착)
 - Create: `src/main/java/com/kafkaadmin/topic/TopicListItem.java`
 - Create: `src/main/java/com/kafkaadmin/topic/TopicDetailResponse.java`
 - Create: `src/main/java/com/kafkaadmin/topic/TopicService.java`
@@ -3920,6 +3934,12 @@ git commit -m "Add ACL overview query to Kafka gateway"
 | GET | `/api/consumer-groups` | `List<ConsumerGroupSummary>` |
 | GET | `/api/consumer-groups/{groupId}` | `ConsumerGroupDetail` |
 | GET | `/api/acls` | `AclOverview` |
+
+- [ ] **Step 0: ClusterService를 빈으로 등록**
+
+`src/main/java/com/kafkaadmin/cluster/ClusterService.java`에 `@Service`를 붙이고 `org.springframework.stereotype.Service` import를 추가한다. Task 5에서 일부러 빼둔 애노테이션이다 — 이제 `ClusterController`가 주입받고, Task 8의 `KafkaAdminGatewayImpl` 빈도 존재하므로 컨텍스트가 완성된다.
+
+클래스 Javadoc에서 "Task 12에서 애노테이션을 붙인다"는 문장을 지운다. 이미 붙였으므로 사실이 아니게 된다.
 
 - [ ] **Step 1: 토픽 응답 레코드 작성**
 
