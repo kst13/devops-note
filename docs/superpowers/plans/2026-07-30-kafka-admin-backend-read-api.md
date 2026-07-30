@@ -362,7 +362,7 @@ git commit -m "Add Spring Boot scaffolding with Gradle Kotlin DSL"
 - Create: `src/test/java/com/kafkaadmin/settings/SettingsRepositoryTest.java`
 - Modify: `src/main/resources/application.yml`
 - Create: `src/main/resources/application-local.yml`
-- Create: `src/test/java/com/kafkaadmin/support/AbstractPostgresTest.java`
+- Create: `src/test/java/com/kafkaadmin/support/AbstractIntegrationTest.java`
 - Modify: `src/test/java/com/kafkaadmin/KafkaAdminApplicationTest.java`
 
 - [ ] **Step 0: JDBC·Flyway·PostgreSQL 의존성 추가**
@@ -714,7 +714,7 @@ spring:
 
 - [ ] **Step 10b: DB 테스트 공통 베이스 작성**
 
-`src/test/java/com/kafkaadmin/support/AbstractPostgresTest.java`:
+`src/test/java/com/kafkaadmin/support/AbstractIntegrationTest.java`:
 
 ```java
 package com.kafkaadmin.support;
@@ -724,7 +724,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
- * DB가 필요한 테스트의 공통 베이스.
+ * 전체 컨텍스트를 띄우는 테스트의 공통 베이스.
+ * 외부 의존성(PostgreSQL, Kafka) 접속 프로퍼티를 한곳에서 공급한다.
  *
  * 컨테이너를 한 번만 띄우고 JVM 종료까지 재사용한다. 테스트 클래스마다
  * 컨테이너를 새로 띄우면 datasource URL이 달라져 Spring 컨텍스트까지
@@ -732,7 +733,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  *
  * 명시적으로 stop 하지 않는다. Testcontainers의 Ryuk 컨테이너가 정리한다.
  */
-public abstract class AbstractPostgresTest {
+public abstract class AbstractIntegrationTest {
 
     private static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:17-alpine");
@@ -747,8 +748,27 @@ public abstract class AbstractPostgresTest {
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
     }
+
+    /**
+     * AdminClient 빈 생성만 가능하게 하는 최소 설정이다.
+     * Admin.create()는 브로커에 즉시 연결하지 않으므로 실제 Kafka 없이도 컨텍스트가 뜬다.
+     * 실제 브로커를 상대하는 검증은 KafkaAdminGatewayImplTest 가 Testcontainers 로 한다.
+     *
+     * Task 8에서 KafkaAdminGatewayImpl 이 빈이 되는 순간 이 프로퍼티가 없으면
+     * application.yml 의 ${KAFKA_BOOTSTRAP_SERVERS} 가 리터럴로 전달되어
+     * 이 태스크와 무관한 모든 @SpringBootTest 가 함께 깨진다.
+     */
+    @DynamicPropertySource
+    static void kafkaProperties(DynamicPropertyRegistry registry) {
+        registry.add("kafka.bootstrap-servers", () -> "localhost:9092");
+        registry.add("kafka.security-protocol", () -> "PLAINTEXT");
+        registry.add("kafka.request-timeout-ms", () -> 1000);
+        registry.add("kafka.api-timeout-ms", () -> 1000);
+    }
 }
 ```
+
+테스트 스코프에 `application.yml`을 두는 방식은 쓰지 않는다. 그러면 `src/main/resources/application.yml`을 완전히 가려서 실제 설정 파일의 오타를 어떤 테스트도 잡지 못한다.
 
 `@Testcontainers`와 `@Container`를 쓰지 않고 정적 초기화 블록에서 직접 띄우는 것이 싱글턴 컨테이너 관용구다. `@Container`는 클래스 단위 수명주기를 강제해서 재사용이 되지 않는다.
 
@@ -761,12 +781,12 @@ Spring이 상위 클래스의 정적 `@DynamicPropertySource`를 찾아내는지
 ```java
 package com.kafkaadmin;
 
-import com.kafkaadmin.support.AbstractPostgresTest;
+import com.kafkaadmin.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class KafkaAdminApplicationTest extends AbstractPostgresTest {
+class KafkaAdminApplicationTest extends AbstractIntegrationTest {
 
     @Test
     void 애플리케이션_컨텍스트가_로드된다() {
@@ -781,7 +801,7 @@ class KafkaAdminApplicationTest extends AbstractPostgresTest {
 ```java
 package com.kafkaadmin.settings;
 
-import com.kafkaadmin.support.AbstractPostgresTest;
+import com.kafkaadmin.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -791,7 +811,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-class SettingsRepositoryTest extends AbstractPostgresTest {
+class SettingsRepositoryTest extends AbstractIntegrationTest {
 
     @Autowired
     SettingsRepository repository;
@@ -3145,16 +3165,23 @@ public class KafkaAdminGatewayImpl implements KafkaAdminGateway {
 
     @Override
     public List<LogDirUsage> describeLogDirs() {
-        List<Integer> brokerIds = describeCluster().brokers().stream()
-                .map(BrokerInfo::id)
-                .toList();
-
         Map<Integer, Map<String, LogDirDescription>> descriptions =
-                await(admin.describeLogDirs(brokerIds).allDescriptions());
+                await(admin.describeLogDirs(brokerIds()).allDescriptions());
 
         return descriptions.entrySet().stream()
                 .map(entry -> new LogDirUsage(entry.getKey(), sumReplicaBytes(entry.getValue())))
                 .sorted(Comparator.comparingInt(LogDirUsage::brokerId))
+                .toList();
+    }
+
+    /**
+     * 브로커 id 만 필요할 때 쓴다. describeCluster()를 부르면 clusterId 와 controller 까지
+     * 함께 가져와 호출 수와 타임아웃 노출이 불필요하게 늘어난다.
+     */
+    private List<Integer> brokerIds() {
+        return await(admin.describeCluster().nodes()).stream()
+                .map(Node::id)
+                .sorted()
                 .toList();
     }
 
@@ -3295,9 +3322,18 @@ class KafkaAdminGatewayImplTest {
 
     @Test
     void 성공한_호출은_마지막_성공_시각을_기록한다() {
-        gateway.describeCluster();
+        // 추적기를 새로 만들어 호출 전후를 비교한다. 정적 필드를 공유하면
+        // 다른 테스트가 이미 성공을 기록해둬서 recordSuccess()가 망가져도 통과한다.
+        ClusterAvailabilityTracker tracker = new ClusterAvailabilityTracker(Clock.systemUTC());
+        SettingsService settings = new SettingsService(Map::of);
+        settings.reload();
+        KafkaAdminGatewayImpl freshGateway = new KafkaAdminGatewayImpl(admin, settings, tracker);
 
-        assertThat(availability.lastSuccessAt()).isPresent();
+        assertThat(tracker.lastSuccessAt()).isEmpty();
+
+        freshGateway.describeCluster();
+
+        assertThat(tracker.lastSuccessAt()).isPresent();
     }
 
     @Test
