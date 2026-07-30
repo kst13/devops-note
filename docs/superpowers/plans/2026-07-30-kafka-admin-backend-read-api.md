@@ -356,6 +356,7 @@ git commit -m "Add Spring Boot scaffolding with Gradle Kotlin DSL"
 - Create: `src/test/java/com/kafkaadmin/settings/SettingsRepositoryTest.java`
 - Modify: `src/main/resources/application.yml`
 - Create: `src/main/resources/application-local.yml`
+- Create: `src/test/java/com/kafkaadmin/support/AbstractPostgresTest.java`
 - Modify: `src/test/java/com/kafkaadmin/KafkaAdminApplicationTest.java`
 
 - [ ] **Step 0: JDBC·Flyway·PostgreSQL 의존성 추가**
@@ -391,6 +392,8 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: kafka-admin-postgres
+    # localhost 전용 개발 자격증명이며 의도적으로 커밋한다.
+    # 운영 자격증명은 환경변수로만 주입한다 — .gitignore가 .env* 와 키스토어를 막고 있다.
     environment:
       POSTGRES_DB: kafka_admin
       POSTGRES_USER: kafka_admin
@@ -571,7 +574,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class SettingsService {
@@ -579,7 +581,12 @@ public class SettingsService {
     private static final Logger log = LoggerFactory.getLogger(SettingsService.class);
 
     private final SettingsSource source;
-    private final Map<String, String> cache = new ConcurrentHashMap<>();
+
+    /**
+     * 불변 맵 참조를 통째로 교체한다. reload 중인 독자는 이전 스냅샷이나
+     * 새 스냅샷 중 하나만 보며, 두 값이 섞인 상태는 볼 수 없다.
+     */
+    private volatile Map<String, String> snapshot = Map.of();
 
     public SettingsService(SettingsSource source) {
         this.source = source;
@@ -587,14 +594,11 @@ public class SettingsService {
 
     @PostConstruct
     public void reload() {
-        Map<String, String> loaded = source.load();
-        cache.keySet().retainAll(loaded.keySet());
-        cache.putAll(loaded);
+        snapshot = Map.copyOf(source.load());
     }
 
     public String getString(SettingKey key) {
-        String value = cache.get(key.key());
-        return value != null ? value : key.defaultValue();
+        return snapshot.getOrDefault(key.key(), key.defaultValue());
     }
 
     public int getInt(SettingKey key) {
@@ -620,6 +624,8 @@ public class SettingsService {
 
 `getLong`이 파싱 실패 시 예외를 던지지 않고 기본값으로 되돌리는 것이 이 클래스의 핵심 방어다. 설정 하나의 오타가 전체 조회 API를 500으로 만들면 안 된다.
 
+캐시를 `ConcurrentHashMap`에 담고 제자리에서 갱신하지 않는 이유는 원자성이다. 맵을 지우고 다시 채우는 두 단계 사이에 읽는 쪽은 일부는 새 값, 일부는 옛 값인 상태를 볼 수 있다. 불변 맵 참조를 한 번에 바꾸면 그 창이 사라지고 코드도 더 짧아진다.
+
 - [ ] **Step 7: SettingsRepository 구현**
 
 `src/main/java/com/kafkaadmin/settings/SettingsRepository.java`:
@@ -630,8 +636,8 @@ package com.kafkaadmin.settings;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Repository
 public class SettingsRepository implements SettingsSource {
@@ -644,17 +650,17 @@ public class SettingsRepository implements SettingsSource {
 
     @Override
     public Map<String, String> load() {
-        Map<String, String> result = new HashMap<>();
-        jdbc.sql("SELECT setting_key, setting_value FROM app_settings")
-                .query((rs, rowNum) -> {
-                    result.put(rs.getString("setting_key"), rs.getString("setting_value"));
-                    return null;
-                })
-                .list();
-        return result;
+        return jdbc.sql("SELECT setting_key, setting_value FROM app_settings")
+                .query((rs, rowNum) -> Map.entry(
+                        rs.getString("setting_key"), rs.getString("setting_value")))
+                .list()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }
 ```
+
+`RowMapper`가 `null`을 반환하면서 바깥 맵에 side effect로 채우는 방식을 피한다. 이 리포지터리는 뒤에 생길 다른 리포지터리들이 베낄 본보기이므로, 처음부터 읽기 좋은 형태로 둔다.
 
 - [ ] **Step 8: 테스트 통과 확인**
 
@@ -700,35 +706,61 @@ spring:
     password: local-dev-only
 ```
 
-- [ ] **Step 11: 부팅 테스트를 Testcontainers PostgreSQL로 전환**
+- [ ] **Step 10b: DB 테스트 공통 베이스 작성**
+
+`src/test/java/com/kafkaadmin/support/AbstractPostgresTest.java`:
+
+```java
+package com.kafkaadmin.support;
+
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+
+/**
+ * DB가 필요한 테스트의 공통 베이스.
+ *
+ * 컨테이너를 한 번만 띄우고 JVM 종료까지 재사용한다. 테스트 클래스마다
+ * 컨테이너를 새로 띄우면 datasource URL이 달라져 Spring 컨텍스트까지
+ * 재사용되지 않아 스위트가 급격히 느려진다.
+ *
+ * 명시적으로 stop 하지 않는다. Testcontainers의 Ryuk 컨테이너가 정리한다.
+ */
+public abstract class AbstractPostgresTest {
+
+    private static final PostgreSQLContainer<?> POSTGRES =
+            new PostgreSQLContainer<>("postgres:17-alpine");
+
+    static {
+        POSTGRES.start();
+    }
+
+    @DynamicPropertySource
+    static void datasourceProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+    }
+}
+```
+
+`@Testcontainers`와 `@Container`를 쓰지 않고 정적 초기화 블록에서 직접 띄우는 것이 싱글턴 컨테이너 관용구다. `@Container`는 클래스 단위 수명주기를 강제해서 재사용이 되지 않는다.
+
+Spring이 상위 클래스의 정적 `@DynamicPropertySource`를 찾아내는지 **실행으로 확인한다.** 프로퍼티가 주입되지 않으면(`DataSourceBeanCreationException`, "url attribute is not specified") 베이스에 `protected static PostgreSQLContainer<?> postgres()` 접근자를 두고 각 하위 클래스에 `@DynamicPropertySource` 메서드를 남기는 방식으로 되돌린다. 컨테이너 공유라는 목적은 그대로 달성된다.
+
+- [ ] **Step 11: 부팅 테스트를 공통 베이스 기반으로 전환**
 
 `src/test/java/com/kafkaadmin/KafkaAdminApplicationTest.java` 전체를 교체:
 
 ```java
 package com.kafkaadmin;
 
+import com.kafkaadmin.support.AbstractPostgresTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest
-@Testcontainers
-class KafkaAdminApplicationTest {
-
-    @Container
-    @SuppressWarnings("resource")
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
+class KafkaAdminApplicationTest extends AbstractPostgresTest {
 
     @Test
     void 애플리케이션_컨텍스트가_로드된다() {
@@ -743,33 +775,17 @@ class KafkaAdminApplicationTest {
 ```java
 package com.kafkaadmin.settings;
 
+import com.kafkaadmin.support.AbstractPostgresTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Testcontainers
-class SettingsRepositoryTest {
-
-    @Container
-    @SuppressWarnings("resource")
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
+class SettingsRepositoryTest extends AbstractPostgresTest {
 
     @Autowired
     SettingsRepository repository;
