@@ -856,6 +856,9 @@ git commit -m "Add PostgreSQL settings store with Flyway migration"
 ```java
 package com.kafkaadmin.kafka.dto;
 
+/**
+ * @param rack broker.rack 설정이 없으면 null이다.
+ */
 public record BrokerInfo(
         int id,
         String host,
@@ -875,7 +878,11 @@ import java.util.List;
 public record ClusterInfo(
         String clusterId,
         List<BrokerInfo> brokers
-) {}
+) {
+    public ClusterInfo {
+        brokers = List.copyOf(brokers);
+    }
+}
 ```
 
 `dto/LogDirUsage.java`:
@@ -901,6 +908,8 @@ import java.util.List;
 /**
  * describeTopics 한 번으로 얻을 수 있는 파티션 복제 상태.
  * 오프셋은 별도 listOffsets 호출이 필요하므로 여기 넣지 않는다.
+ *
+ * @param leaderId 리더가 없는(offline) 파티션이면 null이다. -1 같은 센티널을 쓰지 않는다.
  */
 public record PartitionReplicaState(
         int partition,
@@ -908,6 +917,11 @@ public record PartitionReplicaState(
         List<Integer> replicaIds,
         List<Integer> inSyncReplicaIds
 ) {
+    public PartitionReplicaState {
+        replicaIds = List.copyOf(replicaIds);
+        inSyncReplicaIds = List.copyOf(inSyncReplicaIds);
+    }
+
     public boolean offline() {
         return leaderId == null;
     }
@@ -971,6 +985,10 @@ public record TopicSummary(
         long totalBytesOnDisk,
         List<PartitionReplicaState> partitions
 ) {
+    public TopicSummary {
+        partitions = List.copyOf(partitions);
+    }
+
     public int partitionCount() {
         return partitions.size();
     }
@@ -993,6 +1011,11 @@ public record TopicDetail(
         List<PartitionDetail> partitions,
         List<TopicConfigEntry> configs
 ) {
+    public TopicDetail {
+        partitions = List.copyOf(partitions);
+        configs = List.copyOf(configs);
+    }
+
     public List<PartitionReplicaState> replicaStates() {
         return partitions.stream().map(PartitionDetail::replicaState).toList();
     }
@@ -1014,7 +1037,11 @@ public record ConsumerGroupSummary(
         int memberCount,
         List<String> topics,
         long totalLag
-) {}
+) {
+    public ConsumerGroupSummary {
+        topics = List.copyOf(topics);
+    }
+}
 ```
 
 `dto/ConsumerGroupMemberInfo.java`:
@@ -1029,7 +1056,11 @@ public record ConsumerGroupMemberInfo(
         String clientId,
         String host,
         List<String> assignedPartitions
-) {}
+) {
+    public ConsumerGroupMemberInfo {
+        assignedPartitions = List.copyOf(assignedPartitions);
+    }
+}
 ```
 
 `assignedPartitions`는 `"orders-0"` 형태의 문자열 목록이다. 화면에 그대로 표시하는 값이므로 구조체로 만들 이유가 없다.
@@ -1039,6 +1070,13 @@ public record ConsumerGroupMemberInfo(
 ```java
 package com.kafkaadmin.kafka.dto;
 
+/**
+ * @param currentOffset 그룹이 이 파티션의 오프셋을 커밋한 적이 없으면 null이다.
+ *                      0과 다르다 — 0은 "다 따라잡았다"는 뜻이다.
+ * @param lag currentOffset이 null이면 함께 null이다.
+ * @param assignedClientId 이 파티션을 담당하는 살아있는 멤버가 없으면 null이다.
+ * @param assignedHost 위와 같다.
+ */
 public record PartitionLag(
         String topic,
         int partition,
@@ -1064,7 +1102,12 @@ public record ConsumerGroupDetail(
         String state,
         List<ConsumerGroupMemberInfo> members,
         List<PartitionLag> partitionLags
-) {}
+) {
+    public ConsumerGroupDetail {
+        members = List.copyOf(members);
+        partitionLags = List.copyOf(partitionLags);
+    }
+}
 ```
 
 - [ ] **Step 5: ACL DTO 작성**
@@ -1100,8 +1143,14 @@ import java.util.List;
 public record AclOverview(
         boolean authorizerEnabled,
         List<AclEntry> entries
-) {}
+) {
+    public AclOverview {
+        entries = List.copyOf(entries);
+    }
+}
 ```
+
+리스트를 가진 레코드는 모두 compact 생성자에서 `List.copyOf`로 복사한다. 이 레코드들은 Task 6부터 캐시에 담겨 여러 요청 스레드가 동시에 읽고, Task 8의 변환기는 살아있는 컬렉션에서 만들어낸다. `List.copyOf`는 null을 거부하는데 그것도 바람직하다 — null 리스트는 버그이므로 나중에 NPE로 터지는 것보다 생성 시점에 드러나는 편이 낫다.
 
 - [ ] **Step 6: 게이트웨이 인터페이스 작성**
 
@@ -1153,13 +1202,19 @@ package com.kafkaadmin.kafka;
 
 public class KafkaGatewayException extends RuntimeException {
 
+    public KafkaGatewayException(String message) {
+        super(message);
+    }
+
     public KafkaGatewayException(String message, Throwable cause) {
         super(message, cause);
     }
 }
 ```
 
-원인 예외를 반드시 보존한다. Task 7의 에러 번역기가 `getCause()`를 따라가 실제 Kafka 예외 타입을 찾아낸다.
+원인이 있을 때는 반드시 보존한다. Task 7의 에러 번역기가 `getCause()`를 따라가 실제 Kafka 예외 타입을 찾아낸다.
+
+메시지만 받는 생성자도 둔다. 원인 예외가 없는 실패(예: 응답에 토픽이 아예 없는 경우)에 가짜 예외를 만들어 넣는 것을 막기 위한 것이다. 번역기는 원인이 없는 경우를 `case null, default`로 처리한다.
 
 - [ ] **Step 8: 테스트 픽스처 작성**
 
@@ -1233,7 +1288,7 @@ import com.kafkaadmin.kafka.dto.LogDirUsage;
 import com.kafkaadmin.kafka.dto.TopicDetail;
 import com.kafkaadmin.kafka.dto.TopicSummary;
 
-import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1244,17 +1299,30 @@ import java.util.Map;
  */
 public class FakeKafkaAdminGateway implements KafkaAdminGateway {
 
+    /**
+     * 실패를 지정할 게이트웨이 메서드.
+     * 문자열 키를 쓰면 오타가 조용히 통과해 테스트가 잘못된 이유로 성공한다.
+     */
+    public enum Method {
+        DESCRIBE_CLUSTER,
+        DESCRIBE_LOG_DIRS,
+        LIST_TOPICS,
+        DESCRIBE_TOPIC,
+        LIST_CONSUMER_GROUPS,
+        DESCRIBE_CONSUMER_GROUP,
+        LIST_ACLS
+    }
+
     private ClusterInfo clusterInfo = KafkaTestFixtures.healthyCluster();
     private List<LogDirUsage> logDirs = List.of(
             new LogDirUsage(1, 1_000L), new LogDirUsage(2, 2_000L), new LogDirUsage(3, 3_000L));
-    private List<TopicSummary> topics = new ArrayList<>();
+    private List<TopicSummary> topics = List.of();
     private final Map<String, TopicDetail> topicDetails = new HashMap<>();
-    private List<ConsumerGroupSummary> consumerGroups = new ArrayList<>();
+    private List<ConsumerGroupSummary> consumerGroups = List.of();
     private final Map<String, ConsumerGroupDetail> consumerGroupDetails = new HashMap<>();
     private AclOverview aclOverview = new AclOverview(true, List.of());
 
-    private final Map<String, RuntimeException> failures = new HashMap<>();
-    private final Map<String, Integer> callCounts = new HashMap<>();
+    private final Map<Method, RuntimeException> failures = new EnumMap<>(Method.class);
 
     // --- 설정 ---
 
@@ -1269,7 +1337,7 @@ public class FakeKafkaAdminGateway implements KafkaAdminGateway {
     }
 
     public FakeKafkaAdminGateway withTopics(TopicSummary... value) {
-        this.topics = new ArrayList<>(List.of(value));
+        this.topics = List.of(value);
         return this;
     }
 
@@ -1279,7 +1347,7 @@ public class FakeKafkaAdminGateway implements KafkaAdminGateway {
     }
 
     public FakeKafkaAdminGateway withConsumerGroups(ConsumerGroupSummary... value) {
-        this.consumerGroups = new ArrayList<>(List.of(value));
+        this.consumerGroups = List.of(value);
         return this;
     }
 
@@ -1293,72 +1361,64 @@ public class FakeKafkaAdminGateway implements KafkaAdminGateway {
         return this;
     }
 
-    /** method 는 "describeCluster" 처럼 메서드 이름을 그대로 쓴다. */
-    public FakeKafkaAdminGateway failing(String method, RuntimeException exception) {
+    public FakeKafkaAdminGateway failing(Method method, RuntimeException exception) {
         failures.put(method, exception);
         return this;
-    }
-
-    public int callCount(String method) {
-        return callCounts.getOrDefault(method, 0);
     }
 
     // --- 구현 ---
 
     @Override
     public ClusterInfo describeCluster() {
-        record0("describeCluster");
+        checkFailure(Method.DESCRIBE_CLUSTER);
         return clusterInfo;
     }
 
     @Override
     public List<LogDirUsage> describeLogDirs() {
-        record0("describeLogDirs");
+        checkFailure(Method.DESCRIBE_LOG_DIRS);
         return logDirs;
     }
 
     @Override
     public List<TopicSummary> listTopics() {
-        record0("listTopics");
+        checkFailure(Method.LIST_TOPICS);
         return topics;
     }
 
     @Override
     public TopicDetail describeTopic(String name) {
-        record0("describeTopic");
+        checkFailure(Method.DESCRIBE_TOPIC);
         TopicDetail detail = topicDetails.get(name);
         if (detail == null) {
-            throw new KafkaGatewayException(
-                    "토픽 " + name + " 없음", new IllegalStateException("fixture 미설정"));
+            throw new KafkaGatewayException("토픽 " + name + " 의 fixture가 설정되지 않았습니다.");
         }
         return detail;
     }
 
     @Override
     public List<ConsumerGroupSummary> listConsumerGroups() {
-        record0("listConsumerGroups");
+        checkFailure(Method.LIST_CONSUMER_GROUPS);
         return consumerGroups;
     }
 
     @Override
     public ConsumerGroupDetail describeConsumerGroup(String groupId) {
-        record0("describeConsumerGroup");
+        checkFailure(Method.DESCRIBE_CONSUMER_GROUP);
         ConsumerGroupDetail detail = consumerGroupDetails.get(groupId);
         if (detail == null) {
-            throw new KafkaGatewayException(
-                    "그룹 " + groupId + " 없음", new IllegalStateException("fixture 미설정"));
+            throw new KafkaGatewayException("그룹 " + groupId + " 의 fixture가 설정되지 않았습니다.");
         }
         return detail;
     }
 
     @Override
     public AclOverview listAcls() {
-        record0("listAcls");
+        checkFailure(Method.LIST_ACLS);
         return aclOverview;
     }
 
-    private void record0(String method) {
-        callCounts.merge(method, 1, Integer::sum);
+    private void checkFailure(Method method) {
         RuntimeException failure = failures.get(method);
         if (failure != null) {
             throw failure;
@@ -1367,7 +1427,9 @@ public class FakeKafkaAdminGateway implements KafkaAdminGateway {
 }
 ```
 
-호출 횟수를 세는 것은 Task 6의 캐시 테스트가 "loader가 다시 불렸는가"를 확인해야 하기 때문이다.
+메서드 이름을 문자열이 아니라 enum으로 받는다. `failing("describeLogDir", ...)` 같은 오타는 아무 실패도 일으키지 않으면서 테스트를 통과시킨다 — 실패 처리를 검증하려던 테스트가 잘못된 이유로 초록불이 되는 것이 가장 위험한 결과다.
+
+호출 횟수 카운터는 두지 않는다. Task 6의 캐시 테스트는 람다 loader에 자체 `AtomicInteger`를 쓰므로 이 더블을 거치지 않는다. 필요해지는 태스크에서 추가한다.
 
 - [ ] **Step 10: 컴파일 확인**
 
@@ -1741,8 +1803,8 @@ class ClusterServiceTest {
     @Test
     void 디스크_조회가_실패해도_나머지는_보여준다() {
         gateway.withTopics(healthyTopic("orders"))
-                .failing("describeLogDirs",
-                        new KafkaGatewayException("로그 디렉터리 실패", new RuntimeException()));
+                .failing(FakeKafkaAdminGateway.Method.DESCRIBE_LOG_DIRS,
+                        new KafkaGatewayException("로그 디렉터리 조회 실패"));
 
         ClusterHealth health = service.health();
 
@@ -1755,8 +1817,8 @@ class ClusterServiceTest {
 
     @Test
     void 토픽_집계가_실패하면_partitionRisk가_null이고_경고가_붙는다() {
-        gateway.failing("listTopics",
-                new KafkaGatewayException("토픽 목록 실패", new RuntimeException()));
+        gateway.failing(FakeKafkaAdminGateway.Method.LIST_TOPICS,
+                new KafkaGatewayException("토픽 목록 조회 실패"));
 
         ClusterHealth health = service.health();
 
@@ -1768,8 +1830,8 @@ class ClusterServiceTest {
 
     @Test
     void 클러스터_조회_자체가_실패하면_예외를_전파한다() {
-        gateway.failing("describeCluster",
-                new KafkaGatewayException("연결 실패", new RuntimeException()));
+        gateway.failing(FakeKafkaAdminGateway.Method.DESCRIBE_CLUSTER,
+                new KafkaGatewayException("클러스터 연결 실패"));
 
         assertThatThrownBy(service::health)
                 .isInstanceOf(KafkaGatewayException.class);
