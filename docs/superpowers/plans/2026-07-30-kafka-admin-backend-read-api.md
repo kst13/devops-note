@@ -21,6 +21,24 @@
 | Gradle group | `com.kafkaadmin` |
 | 이 계획의 모든 경로 | `kafka-admin-web/` 저장소 루트 기준 |
 
+### 실행 환경 (2026-07-30 확인)
+
+이 머신의 기본 JDK는 25이고 `gradle`은 PATH에 없다. 둘 다 로컬에 해결책이 있어 추가 설치가 필요하지 않다.
+
+| 필요한 것 | 이 머신의 값 |
+|---|---|
+| JDK 21 | `/Library/Java/JavaVirtualMachines/ibm-semeru-open-21.jdk/Contents/Home` (IBM Semeru 21.0.10) |
+| Gradle 8.14 | `~/.gradle/wrapper/dists/gradle-8.14-bin/38aieal9i53h9rfe7vjup95b9/gradle-8.14/bin/gradle` (캐시된 배포본) |
+| Docker | 실행 중 |
+
+**모든 Gradle 명령 전에 셸에서 JDK 21을 지정한다.**
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+```
+
+기본 JDK 25로 Gradle 8.14를 실행하면 지원 범위를 벗어난다. 툴체인이 컴파일용 JDK를 따로 고르기는 하지만, Gradle 자체를 구동하는 JVM은 21로 맞추는 편이 안전하다.
+
 ---
 
 ## 파일 구조
@@ -126,15 +144,23 @@ git init
 
 - [ ] **Step 2: Gradle wrapper 생성**
 
-로컬에 Gradle이 설치되어 있지 않아도 되도록 wrapper를 먼저 만든다.
+`gradle`이 PATH에 없으므로 캐시된 배포본의 바이너리로 wrapper를 만든다. 이후 모든 명령은 생성된 `./gradlew`를 쓴다.
 
 ```bash
-gradle wrapper --gradle-version 8.14
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+GRADLE_BIN=$(ls -1 ~/.gradle/wrapper/dists/gradle-8.14-bin/*/gradle-8.14/bin/gradle | head -1)
+"$GRADLE_BIN" wrapper --gradle-version 8.14
 ```
 
-Gradle이 설치돼 있지 않으면 Homebrew로 설치한다: `brew install gradle`
-
 Expected: `gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`, `gradle/wrapper/gradle-wrapper.properties` 생성
+
+- [ ] **Step 2b: wrapper가 JDK 21로 동작하는지 확인**
+
+```bash
+./gradlew -version
+```
+
+Expected: `Gradle 8.14`, 그리고 `JVM: 21.x`. JVM이 25로 나오면 `JAVA_HOME`이 반영되지 않은 것이므로 Step 2의 `export`를 다시 실행한다.
 
 - [ ] **Step 3: `settings.gradle.kts` 작성**
 
