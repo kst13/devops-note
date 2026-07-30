@@ -2492,6 +2492,7 @@ package com.kafkaadmin.error;
 
 import com.kafkaadmin.kafka.KafkaGatewayException;
 import org.apache.kafka.common.errors.ClusterAuthorizationException;
+import org.apache.kafka.common.errors.GroupAuthorizationException;
 import org.apache.kafka.common.errors.InvalidConfigurationException;
 import org.apache.kafka.common.errors.PolicyViolationException;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
@@ -2551,8 +2552,17 @@ class KafkaErrorTranslatorTest {
         ApiError error = translateWrapped(new TopicAuthorizationException("orders"));
 
         assertThat(error.status()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(error.code()).isEqualTo("KAFKA_FORBIDDEN");
+        assertThat(error.code()).isEqualTo("TOPIC_FORBIDDEN");
         assertThat(error.message()).contains("권한");
+    }
+
+    @Test
+    void 그룹_인가_실패는_403으로_번역한다() {
+        ApiError error = translateWrapped(new GroupAuthorizationException("billing-service"));
+
+        assertThat(error.status()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(error.code()).isEqualTo("GROUP_FORBIDDEN");
+        assertThat(error.message()).contains("컨슈머 그룹");
     }
 
     @Test
@@ -2669,15 +2679,15 @@ public class KafkaErrorTranslator {
                     "브로커 정책에 의해 거부되었습니다: " + e.getMessage());
 
             case TopicAuthorizationException ignored -> new ApiError(
-                    HttpStatus.FORBIDDEN, "KAFKA_FORBIDDEN",
+                    HttpStatus.FORBIDDEN, "TOPIC_FORBIDDEN",
                     "관리자 계정에 이 토픽에 대한 권한이 없습니다.");
 
             case GroupAuthorizationException ignored -> new ApiError(
-                    HttpStatus.FORBIDDEN, "KAFKA_FORBIDDEN",
+                    HttpStatus.FORBIDDEN, "GROUP_FORBIDDEN",
                     "관리자 계정에 이 컨슈머 그룹에 대한 권한이 없습니다.");
 
             case ClusterAuthorizationException ignored -> new ApiError(
-                    HttpStatus.FORBIDDEN, "KAFKA_FORBIDDEN",
+                    HttpStatus.FORBIDDEN, "CLUSTER_FORBIDDEN",
                     "관리자 계정에 클러스터 권한이 없습니다.");
 
             case org.apache.kafka.common.errors.TimeoutException ignored -> new ApiError(
@@ -2722,7 +2732,7 @@ public class KafkaErrorTranslator {
 ./gradlew test --tests 'com.kafkaadmin.error.KafkaErrorTranslatorTest'
 ```
 
-Expected: 12개 테스트 모두 PASS
+Expected: 13개 테스트 모두 PASS
 
 - [ ] **Step 7: 전역 예외 핸들러 구현**
 
@@ -2735,12 +2745,16 @@ import com.kafkaadmin.kafka.ClusterAvailabilityTracker;
 import com.kafkaadmin.kafka.KafkaGatewayException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -2765,6 +2779,24 @@ public class GlobalExceptionHandler {
                 availability.lastSuccessAt().orElse(null)));
     }
 
+    /**
+     * Spring MVC가 이미 분류한 예외(404, 400, 405 등)는 그 상태 코드를 그대로 두고
+     * 본문만 우리 형식으로 바꾼다.
+     *
+     * Exception 전체를 잡아 500으로 만들면 클라이언트 실수가 모두 서버 오류로
+     * 보고되고, 정상적인 4xx가 ERROR 로그를 채운다.
+     */
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(Exception ex,
+                                                            Object body,
+                                                            HttpHeaders headers,
+                                                            HttpStatusCode statusCode,
+                                                            WebRequest request) {
+        log.warn("요청 처리 실패 [{}]: {}", statusCode.value(), ex.getMessage());
+        return new ResponseEntity<>(bodyFor(statusCode), headers, statusCode);
+    }
+
+    /** Kafka 와 무관한, Spring 이 분류하지 못한 예외의 최후 방어선. */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception e) {
         log.error("처리되지 않은 예외", e);
@@ -2772,8 +2804,142 @@ public class GlobalExceptionHandler {
         return ResponseEntity.internalServerError().body(new ApiErrorResponse(
                 "INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.", null));
     }
+
+    private static ApiErrorResponse bodyFor(HttpStatusCode statusCode) {
+        if (statusCode.value() == 404) {
+            return new ApiErrorResponse(
+                    "NOT_FOUND", "요청한 경로 또는 자원을 찾을 수 없습니다.", null);
+        }
+        if (statusCode.is4xxClientError()) {
+            return new ApiErrorResponse("REQUEST_INVALID", "요청이 올바르지 않습니다.", null);
+        }
+        return new ApiErrorResponse("INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.", null);
+    }
 }
 ```
+
+**`ResponseEntityExceptionHandler`를 상속하는 것이 핵심이다.** `@ExceptionHandler(Exception.class)` 하나만 두면 `ExceptionHandlerExceptionResolver`가 Spring 기본 리졸버보다 먼저 돌기 때문에, 매핑되지 않은 경로(`NoResourceFoundException`, 404여야 함)와 잘못된 경로 변수(`MethodArgumentTypeMismatchException`, 400여야 함)가 전부 500 `INTERNAL_ERROR`가 된다. 이 태스크의 목적이 "실패마다 정확한 상태"인데 정반대로 동작한다. 실제로 수정 전 테스트에서 500이 반환되는 것을 확인했다.
+
+Spring은 가장 구체적인 핸들러를 고르므로, 상속받은 핸들러들(해당 예외 타입을 명시적으로 나열한다)이 `Exception` arm보다 우선한다. `Exception` arm은 정말 분류되지 않은 예외의 최후 방어선으로만 남는다.
+
+- [ ] **Step 7b: 전역 예외 처리 테스트 작성**
+
+프로덕션 컨트롤러 없이도 검증할 수 있다. **테스트 소스에 픽스처 컨트롤러를 두는 것은 범위 침범이 아니다** — 알려진 오분류를 테스트 없이 커밋하는 것이 훨씬 나쁘다.
+
+`src/test/java/com/kafkaadmin/error/GlobalExceptionHandlerTest.java`:
+
+```java
+package com.kafkaadmin.error;
+
+import com.kafkaadmin.kafka.ClusterAvailabilityTracker;
+import com.kafkaadmin.kafka.KafkaGatewayException;
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.Instant;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * 테스트 전용 컨트롤러로 전역 예외 처리를 검증한다.
+ * Spring MVC가 스스로 분류하는 오류(404, 400)가 500으로 뭉개지지 않는지가 핵심이다.
+ */
+@WebMvcTest
+@Import({KafkaErrorTranslator.class, GlobalExceptionHandlerTest.FixtureController.class})
+class GlobalExceptionHandlerTest {
+
+    @RestController
+    static class FixtureController {
+
+        @GetMapping("/test/kafka-failure")
+        String kafkaFailure() {
+            throw new KafkaGatewayException(
+                    "토픽 조회 실패", new UnknownTopicOrPartitionException("nope"));
+        }
+
+        @GetMapping("/test/unexpected")
+        String unexpected() {
+            throw new IllegalStateException("예상치 못한 오류");
+        }
+
+        @GetMapping("/test/number/{value}")
+        String number(@PathVariable int value) {
+            return String.valueOf(value);
+        }
+    }
+
+    @Autowired
+    MockMvc mvc;
+
+    @MockitoBean
+    ClusterAvailabilityTracker availability;
+
+    @Test
+    void Kafka_예외는_번역된_상태와_코드로_응답한다() throws Exception {
+        given(availability.lastSuccessAt()).willReturn(Optional.empty());
+
+        mvc.perform(get("/test/kafka-failure"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("TOPIC_NOT_FOUND"));
+    }
+
+    @Test
+    void Kafka_오류_응답에_마지막_성공_시각이_실린다() throws Exception {
+        given(availability.lastSuccessAt())
+                .willReturn(Optional.of(Instant.parse("2026-07-30T01:02:03Z")));
+
+        mvc.perform(get("/test/kafka-failure"))
+                .andExpect(jsonPath("$.lastKafkaSuccessAt").value("2026-07-30T01:02:03Z"));
+    }
+
+    @Test
+    void 매핑되지_않은_경로는_404이고_500이_아니다() throws Exception {
+        mvc.perform(get("/test/no-such-path"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 경로_변수_타입이_틀리면_400이고_500이_아니다() throws Exception {
+        mvc.perform(get("/test/number/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("REQUEST_INVALID"));
+    }
+
+    @Test
+    void 분류되지_않은_예외는_500_INTERNAL_ERROR다() throws Exception {
+        mvc.perform(get("/test/unexpected"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
+    }
+
+    @Test
+    void 오류_응답에_스택_트레이스가_없다() throws Exception {
+        given(availability.lastSuccessAt()).willReturn(Optional.empty());
+
+        String body = mvc.perform(get("/test/kafka-failure"))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body)
+                .doesNotContain("com.kafkaadmin")
+                .doesNotContain("UnknownTopicOrPartitionException");
+    }
+}
+```
+
+**`@WebMvcTest(controllers = FixtureController.class)`로는 중첩 정적 컨트롤러가 등록되지 않는다.** 요청이 정적 자원 조회로 취급돼 `NoResourceFoundException`이 되고, Critical과 무관한 거짓 실패가 난다. 필터 없이 `@WebMvcTest` + `@Import`로 등록한다. `@ControllerAdvice`는 `@WebMvcTest`가 자동으로 잡으므로 `GlobalExceptionHandler`는 import하지 않는다 — 중복 빈이 된다.
 
 - [ ] **Step 8: 전체 테스트 실행**
 
