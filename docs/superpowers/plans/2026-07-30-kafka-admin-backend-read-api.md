@@ -3418,25 +3418,13 @@ kafka:
 
 포트는 devops-note 저장소의 `kafka/examples/compose-3node-kraft-plaintext/docker-compose.yml`이 노출하는 값에 맞춘다. Task 13에서 실제 값을 확인해 필요하면 수정한다.
 
-- [ ] **Step 8: 부팅 테스트에 Kafka 프로퍼티 주입**
+- [ ] **Step 8: 부팅 테스트가 Kafka 프로퍼티를 물려받는지 확인**
 
-`src/test/java/com/kafkaadmin/KafkaAdminApplicationTest.java`의 `datasource` 메서드를 다음으로 교체:
+Task 2의 `AbstractIntegrationTest`가 이미 `kafka.*` 프로퍼티를 공급하므로 개별 테스트 클래스에 추가할 것이 없다. `KafkaAdminApplicationTest`와 `SettingsRepositoryTest`가 모두 그것을 상속하고 있는지만 확인한다.
 
-```java
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        // AdminClient 빈 생성만 확인한다. 실제 브로커에 연결하지는 않는다.
-        registry.add("kafka.bootstrap-servers", () -> "localhost:9092");
-        registry.add("kafka.security-protocol", () -> "PLAINTEXT");
-        registry.add("kafka.request-timeout-ms", () -> 1000);
-        registry.add("kafka.api-timeout-ms", () -> 1000);
-    }
-```
+**이 단계를 건너뛰면 이 태스크와 무관한 테스트가 함께 깨진다.** `KafkaAdminGatewayImpl`이 `@Component`가 되는 순간 모든 `@SpringBootTest`가 `Admin` 빈을 만들려 하고, `application.yml`의 `${KAFKA_BOOTSTRAP_SERVERS}`는 기본값이 없어 리터럴 문자열로 전달되어 `ConfigException: Invalid url in bootstrap.servers`로 실패한다. 실제로 이 순서로 겪었다.
 
-`Admin.create()`는 브로커에 즉시 연결하지 않으므로 이 테스트는 Kafka 없이 통과한다. 컨텍스트 로드만 확인하는 것이 목적이다.
+`KafkaAdminGatewayImplTest`는 이 베이스를 상속하지 않는다 — Spring 컨텍스트를 쓰지 않고 Testcontainers Kafka를 직접 상대한다.
 
 - [ ] **Step 9: 전체 테스트 실행**
 
