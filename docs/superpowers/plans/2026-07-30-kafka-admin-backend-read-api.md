@@ -2598,9 +2598,16 @@ class KafkaErrorTranslatorTest {
 
     @Test
     void 원인이_없는_게이트웨이_예외도_처리한다() {
-        ApiError error = translator.translate(
-                new KafkaGatewayException("원인 없음", null));
+        ApiError error = translator.translate(new KafkaGatewayException("원인 없음"));
 
+        assertThat(error.code()).isEqualTo("KAFKA_UNAVAILABLE");
+    }
+
+    @Test
+    void null이_들어와도_예외를_던지지_않는다() {
+        ApiError error = translator.translate(null);
+
+        assertThat(error.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
         assertThat(error.code()).isEqualTo("KAFKA_UNAVAILABLE");
     }
 }
@@ -2705,7 +2712,9 @@ public class KafkaErrorTranslator {
 }
 ```
 
-`case null, default ->`는 Java 21 패턴 스위치 문법이다. 원인이 없는 예외에서 `switch`가 NPE를 던지는 것을 막는다.
+`case null, default ->`는 Java 21 패턴 스위치 문법이다. 이 arm은 **null 인자**로 호출된 경우를 막는다 — 예외를 처리하는 도중에 다시 예외가 나는 것은 특히 나쁜 실패 모드라서 한 토큰으로 막아둘 값이 있다.
+
+원인이 없는 예외를 막아주는 것이 **아니다.** `unwrap`은 non-null 인자로 시작해 non-null `getCause()`로만 이동하므로 절대 null을 반환하지 않는다. 원인 없는 `KafkaGatewayException`은 자기 자신으로 unwrap되어 `default` arm에 걸린다. 두 경우를 각각 테스트로 고정한다.
 
 - [ ] **Step 6: 테스트 통과 확인**
 
@@ -2713,7 +2722,7 @@ public class KafkaErrorTranslator {
 ./gradlew test --tests 'com.kafkaadmin.error.KafkaErrorTranslatorTest'
 ```
 
-Expected: 11개 테스트 모두 PASS
+Expected: 12개 테스트 모두 PASS
 
 - [ ] **Step 7: 전역 예외 핸들러 구현**
 
