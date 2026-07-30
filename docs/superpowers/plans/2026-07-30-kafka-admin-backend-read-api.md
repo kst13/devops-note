@@ -3523,7 +3523,7 @@ import java.util.stream.Collectors;
 ./gradlew test --tests 'com.kafkaadmin.kafka.KafkaAdminGatewayImplTest'
 ```
 
-Expected: 9개 테스트 모두 PASS
+Expected: 8개 테스트 모두 PASS (Task 8의 3개 + 이 태스크의 5개)
 
 `토픽_상세는_설정을_기본값_여부와_함께_반환한다`가 실패하면 `ConfigSource` 열거값을 확인한다. 브로커 기본값은 `DEFAULT_CONFIG`, 브로커 수준 설정은 `STATIC_BROKER_CONFIG`, 토픽 수준 override만 `DYNAMIC_TOPIC_CONFIG`다.
 
