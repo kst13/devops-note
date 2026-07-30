@@ -1763,15 +1763,63 @@ import java.util.List;
  * partitionRisk 가 null 이면 토픽 집계에 실패한 것이다.
  * 0 과 구분되어야 하므로 nullable 로 둔다 —
  * "위험 0건"과 "확인 못함"을 같은 화면에서 같게 보이면 안 된다.
+ *
+ * partitionRisk 에 @JsonInclude(ALWAYS) 를 붙인 이유: 누군가 전역 Jackson 설정에
+ * default-property-inclusion=non_null 을 켜면 이 필드가 JSON에서 사라지고,
+ * 그러면 "확인 못함"과 "위험 0건"을 화면에서 구분할 방법이 없어진다.
  */
 public record ClusterHealth(
         String clusterId,
         List<BrokerInfo> brokers,
         List<LogDirUsage> diskUsage,
-        PartitionRisk partitionRisk,
+        @JsonInclude(JsonInclude.Include.ALWAYS) PartitionRisk partitionRisk,
         List<String> warnings
 ) {}
 ```
+
+`import com.fasterxml.jackson.annotation.JsonInclude;` 를 추가한다.
+
+이 계약은 주석만으로는 지켜지지 않으므로 테스트로 고정한다. `src/test/java/com/kafkaadmin/cluster/ClusterHealthJsonTest.java`:
+
+```java
+package com.kafkaadmin.cluster;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.json.JsonTest;
+import org.springframework.test.context.TestPropertySource;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * partitionRisk 가 null 일 때 JSON에서 필드가 생략되지 않는지 고정한다.
+ * 위험한 전역 설정을 일부러 켠 상태로 검증한다 —
+ * 애노테이션이 실제로 그 설정을 이기는지 확인하는 것이 목적이다.
+ */
+@JsonTest
+@TestPropertySource(properties = "spring.jackson.default-property-inclusion=non_null")
+class ClusterHealthJsonTest {
+
+    @Autowired
+    ObjectMapper objectMapper;
+
+    @Test
+    void partitionRisk가_null이어도_JSON에서_생략되지_않는다() throws Exception {
+        ClusterHealth health = new ClusterHealth(
+                "test-cluster-id", List.of(), List.of(), null,
+                List.of("토픽 상태를 집계하지 못했습니다."));
+
+        String json = objectMapper.writeValueAsString(health);
+
+        assertThat(json).contains("\"partitionRisk\":null");
+    }
+}
+```
+
+`@JsonTest`는 슬라이스 테스트라 `@Service`·`@Component`를 스캔하지 않는다. 따라서 아직 없는 `KafkaAdminGateway` 빈을 요구하지 않는다.
 
 - [ ] **Step 2: 실패하는 테스트 작성**
 
@@ -1898,8 +1946,27 @@ class ClusterServiceTest {
                 .extracting(LogDirUsage::brokerId)
                 .containsExactly(1, 2, 3);
     }
+
+    @Test
+    void 디스크와_토픽_조회가_모두_실패해도_브로커는_보여준다() {
+        gateway.failing(FakeKafkaAdminGateway.Method.DESCRIBE_LOG_DIRS,
+                        new KafkaGatewayException("로그 디렉터리 조회 실패"))
+                .failing(FakeKafkaAdminGateway.Method.LIST_TOPICS,
+                        new KafkaGatewayException("토픽 목록 조회 실패"));
+
+        ClusterHealth health = service.health();
+
+        assertThat(health.brokers()).hasSize(3);
+        assertThat(health.diskUsage()).isEmpty();
+        assertThat(health.partitionRisk()).isNull();
+        assertThat(health.warnings()).hasSize(2);
+        assertThat(health.warnings().get(0)).contains("디스크");
+        assertThat(health.warnings().get(1)).contains("토픽");
+    }
 }
 ```
+
+마지막 테스트가 실제 장애 시나리오다. 브로커 하나가 죽으면 디스크 조회와 토픽 조회가 함께 실패할 수 있고, 그때도 브로커 목록은 보여야 한다. 경고 순서까지 고정하므로 나중에 `health()`에서 두 호출 순서를 바꾸면 잡힌다.
 
 마지막 두 테스트가 스펙의 두 요구를 각각 고정한다. **클러스터 조회 자체가 실패하면 예외를 던져야 한다** — 빈 화면을 200으로 돌려주면 "브로커가 0대"로 읽힌다. 반면 **부수적 조회 실패는 부분 성공으로 처리한다.**
 
@@ -1919,6 +1986,7 @@ Expected: 컴파일 실패. `cannot find symbol: class ClusterService`
 package com.kafkaadmin.cluster;
 
 import com.kafkaadmin.kafka.KafkaAdminGateway;
+import com.kafkaadmin.kafka.KafkaGatewayException;
 import com.kafkaadmin.kafka.dto.ClusterInfo;
 import com.kafkaadmin.kafka.dto.LogDirUsage;
 import com.kafkaadmin.kafka.dto.PartitionReplicaState;
@@ -1967,22 +2035,26 @@ public class ClusterService {
     }
 
     private List<LogDirUsage> diskUsage(List<String> warnings) {
+        List<LogDirUsage> usage;
         try {
-            return gateway.describeLogDirs().stream()
-                    .sorted(Comparator.comparingInt(LogDirUsage::brokerId))
-                    .toList();
-        } catch (RuntimeException e) {
+            usage = gateway.describeLogDirs();
+        } catch (KafkaGatewayException e) {
             log.warn("브로커 로그 디렉터리 조회 실패", e);
             warnings.add("브로커 디스크 사용량을 조회하지 못했습니다.");
             return List.of();
         }
+        // 정렬은 try 밖에서 한다. 정렬 버그를 Kafka 조회 실패로 잘못 보고하면
+        // 운영자가 있지도 않은 Kafka 문제를 쫓게 된다.
+        return usage.stream()
+                .sorted(Comparator.comparingInt(LogDirUsage::brokerId))
+                .toList();
     }
 
     private PartitionRisk partitionRisk(List<String> warnings) {
         List<TopicSummary> topics;
         try {
             topics = gateway.listTopics();
-        } catch (RuntimeException e) {
+        } catch (KafkaGatewayException e) {
             log.warn("토픽 목록 조회 실패", e);
             warnings.add("토픽 상태를 집계하지 못했습니다.");
             return null;
@@ -2019,7 +2091,7 @@ public class ClusterService {
 ./gradlew test --tests 'com.kafkaadmin.cluster.ClusterServiceTest'
 ```
 
-Expected: 8개 테스트 모두 PASS
+Expected: 9개 테스트 모두 PASS
 
 - [ ] **Step 6: 커밋**
 
@@ -3451,7 +3523,7 @@ import java.util.stream.Collectors;
 ./gradlew test --tests 'com.kafkaadmin.kafka.KafkaAdminGatewayImplTest'
 ```
 
-Expected: 8개 테스트 모두 PASS
+Expected: 9개 테스트 모두 PASS
 
 `토픽_상세는_설정을_기본값_여부와_함께_반환한다`가 실패하면 `ConfigSource` 열거값을 확인한다. 브로커 기본값은 `DEFAULT_CONFIG`, 브로커 수준 설정은 `STATIC_BROKER_CONFIG`, 토픽 수준 override만 `DYNAMIC_TOPIC_CONFIG`다.
 
