@@ -1462,6 +1462,13 @@ git commit -m "Add domain DTOs and KafkaAdminGateway boundary"
 ```java
 package com.kafkaadmin.topic;
 
+/**
+ * 토픽의 위험 배지.
+ *
+ * 상수는 심각도 내림차순으로 선언한다. {@code evaluate}가 {@code EnumSet}을
+ * 반환하므로 순회 순서가 선언 순서를 따르고, 그 결과 API 응답의 JSON 배열도
+ * 심각한 것부터 나온다. 화면이 이 순서에 의존하므로 상수를 재정렬하면 안 된다.
+ */
 public enum TopicBadge {
 
     /** 리더가 없는 파티션 보유. 이미 쓰기가 실패하고 있다. */
@@ -1594,8 +1601,39 @@ class TopicBadgeEvaluatorTest {
     void 파티션_목록이_비어도_설정_위험은_판정한다() {
         assertThat(evaluate(1, 1, List.of())).containsExactly(TopicBadge.RF_1);
     }
+
+    @Test
+    void 배지는_심각도_내림차순으로_반환된다() {
+        Set<TopicBadge> badges = evaluate(3, 2, List.of(offlinePartition(0)));
+
+        assertThat(badges).containsExactly(
+                TopicBadge.OFFLINE,
+                TopicBadge.BELOW_MIN_ISR,
+                TopicBadge.UNDER_REPLICATED);
+    }
+
+    @Test
+    void minISR이_RF보다_크면_BELOW_MIN_ISR만_붙는다() {
+        // Kafka는 토픽 수준에서 min.insync.replicas > RF 설정을 허용한다.
+        // 이 상태에서는 acks=all 쓰기가 영구히 실패하지만, 모든 파티션이
+        // BELOW_MIN_ISR(CRITICAL)로 잡혀 이미 충분히 드러나므로
+        // 별도 배지를 만들지 않는다.
+        Set<TopicBadge> badges = evaluate(3, 4, List.of(healthyPartition(0, 1)));
+
+        assertThat(badges).containsExactly(TopicBadge.BELOW_MIN_ISR);
+    }
+
+    @Test
+    void 리더는_있지만_ISR이_비었으면_OFFLINE이_아니다() {
+        Set<TopicBadge> badges = evaluate(3, 2, List.of(underReplicatedPartition(0, 0)));
+
+        assertThat(badges).containsExactly(
+                TopicBadge.BELOW_MIN_ISR, TopicBadge.UNDER_REPLICATED);
+    }
 }
 ```
+
+`배지는_심각도_내림차순으로_반환된다`가 위 enum 주석의 순서 계약을 실행 가능한 형태로 고정한다. 주석만으로는 IDE의 "멤버 알파벳 정렬" 한 번에 API 응답 순서가 조용히 바뀐다.
 
 `ISR이_RF보다_작으면_UNDER_REPLICATED이다`와 `ISR이_minISR보다_작으면_BELOW_MIN_ISR도_함께_붙는다`의 구분이 이 태스크의 핵심이다. ISR 2/3(minISR=2)는 아직 쓰기가 되고, ISR 1/3(minISR=2)는 쓰기가 거부된다. 대응 긴급도가 완전히 다르다.
 
@@ -1621,6 +1659,14 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * 토픽의 복제 설정과 파티션 상태를 보고 위험 배지를 판정한다.
+ *
+ * 파티션에서 나오는 세 배지({@code OFFLINE}, {@code UNDER_REPLICATED},
+ * {@code BELOW_MIN_ISR})는 의도적으로 상호 배타적이지 않다. 호출자가 각각을
+ * 독립적으로 집계하므로(ClusterService는 BELOW_MIN_ISR 보유 토픽 수를 따로 센다)
+ * 더 심각한 배지가 약한 배지를 억제하도록 바꾸면 그 집계가 조용히 틀어진다.
+ */
 @Component
 public class TopicBadgeEvaluator {
 
@@ -1664,7 +1710,7 @@ public class TopicBadgeEvaluator {
 ./gradlew test --tests 'com.kafkaadmin.topic.TopicBadgeEvaluatorTest'
 ```
 
-Expected: 9개 테스트 모두 PASS
+Expected: 12개 테스트 모두 PASS
 
 - [ ] **Step 6: 커밋**
 
