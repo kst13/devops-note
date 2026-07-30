@@ -2269,7 +2269,7 @@ class LagCacheTest {
     }
 
     @Test
-    void loader가_실패하면_예외를_전파하고_이전_스냅샷을_유지한다() {
+    void loader가_실패하면_예외를_전파하고_캐시를_오염시키지_않는다() {
         cache.get(this::load);
         clock.advance(Duration.ofSeconds(11));
 
@@ -2277,7 +2277,8 @@ class LagCacheTest {
             throw new IllegalStateException("Kafka 실패");
         })).isInstanceOf(IllegalStateException.class);
 
-        // 실패가 캐시를 비우지 않았는지 확인 — 다음 성공 호출이 새로 적재한다
+        // 실패한 호출이 캐시에 아무것도 쓰지 않았으므로
+        // 다음 호출은 정상 데이터를 새로 적재한다
         List<ConsumerGroupSummary> result = cache.get(this::load);
         assertThat(loadCount.get()).isEqualTo(2);
         assertThat(result).extracting(ConsumerGroupSummary::groupId).containsExactly("group-2");
@@ -2351,8 +2352,12 @@ public class LagCache {
             return current.value();
         }
 
-        // loader 가 던지면 예외를 그대로 전파한다.
-        // snapshot 을 미리 비우지 않으므로 실패해도 이전 값이 남는다.
+        // loader 가 던지면 예외를 그대로 전파한다. 실패한 값은 저장하지 않으므로
+        // 캐시에 잘못된 값이 남지 않는다.
+        //
+        // 실패 시 낡은 스냅샷을 대신 돌려주지 않는 것은 의도한 설계다.
+        // 장애 대응 중에 낡은 랙 숫자를 정상 값처럼 보여주는 것이
+        // 오류를 드러내는 것보다 위험하다.
         List<ConsumerGroupSummary> loaded = loader.get();
         snapshot = new Snapshot(loaded, now);
         return loaded;
@@ -2365,6 +2370,8 @@ public class LagCache {
 ```
 
 `isBefore` 부정으로 비교한 것은 TTL 경계에서 정확히 같은 시각일 때 캐시를 유효로 보기 위한 것이다. 9초 경과는 유효, 11초 경과는 만료 — 테스트가 이 경계를 고정한다.
+
+**"실패 시 이전 스냅샷이 남는다"를 계약으로 삼지 않는다.** 적재 실패는 TTL이 이미 만료된 뒤에만 일어나므로(그 전이면 캐시 값을 반환했을 것이다) 남아 있는 스냅샷은 항상 이미 낡은 상태이고, 다음 호출은 어차피 다시 적재한다. 즉 이 성질은 `get()` 밖에서 관찰되지 않는다. 관찰 가능해지는 유일한 경로는 관리자가 나중에 TTL을 늘려 낡은 스냅샷을 되살리는 경우인데, 그건 원하는 동작이 아니다. 실제로 보장하는 것은 **실패한 값이 캐시에 쓰이지 않는다**는 것 하나이고, 테스트 이름도 그렇게 붙인다.
 
 - [ ] **Step 6: 테스트 통과 확인**
 
