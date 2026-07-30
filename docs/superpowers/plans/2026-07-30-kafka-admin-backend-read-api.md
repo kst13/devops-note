@@ -2257,6 +2257,15 @@ class LagCacheTest {
     }
 
     @Test
+    void TTL과_정확히_같은_시각에는_아직_유효하다() {
+        cache.get(this::load);
+        clock.advance(Duration.ofSeconds(10));
+        cache.get(this::load);
+
+        assertThat(loadCount.get()).isEqualTo(1);
+    }
+
+    @Test
     void TTL_설정_변경이_즉시_반영된다() {
         settingValues.put(SettingKey.LAG_CACHE_TTL_SECONDS.key(), "60");
         settings.reload();
@@ -2369,7 +2378,9 @@ public class LagCache {
 }
 ```
 
-`isBefore` 부정으로 비교한 것은 TTL 경계에서 정확히 같은 시각일 때 캐시를 유효로 보기 위한 것이다. 9초 경과는 유효, 11초 경과는 만료 — 테스트가 이 경계를 고정한다.
+`isBefore` 부정으로 비교한 것은 TTL 경계에서 정확히 같은 시각일 때 캐시를 유효로 보기 위한 것이다. 9초 유효, 10초 유효(경계 포함), 11초 만료 — 세 테스트가 이 경계를 고정한다.
+
+**10초 테스트가 반드시 있어야 한다.** 9초·11초 테스트만 있으면 비교를 `isAfter(now)`로 바꿔 경계를 배타적으로 만들어도 전부 통과한다. 실제로 그 변이를 넣어보고 확인했다 — 경계를 정확히 짚는 테스트가 없으면 경계 선택은 코드에만 존재하고 아무것도 지켜주지 않는다.
 
 **"실패 시 이전 스냅샷이 남는다"를 계약으로 삼지 않는다.** 적재 실패는 TTL이 이미 만료된 뒤에만 일어나므로(그 전이면 캐시 값을 반환했을 것이다) 남아 있는 스냅샷은 항상 이미 낡은 상태이고, 다음 호출은 어차피 다시 적재한다. 즉 이 성질은 `get()` 밖에서 관찰되지 않는다. 관찰 가능해지는 유일한 경로는 관리자가 나중에 TTL을 늘려 낡은 스냅샷을 되살리는 경우인데, 그건 원하는 동작이 아니다. 실제로 보장하는 것은 **실패한 값이 캐시에 쓰이지 않는다**는 것 하나이고, 테스트 이름도 그렇게 붙인다.
 
@@ -2379,7 +2390,7 @@ public class LagCache {
 ./gradlew test --tests 'com.kafkaadmin.consumergroup.LagCacheTest'
 ```
 
-Expected: 6개 테스트 모두 PASS
+Expected: 7개 테스트 모두 PASS
 
 - [ ] **Step 7: 커밋**
 
