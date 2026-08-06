@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - 코드 위치: `~/Documents/kafka-admin` (새 git 저장소, devops-note와 별개)
-- Java 21, Spring Boot 3.5.4, Node.js 22, Vue 3
+- Java 21, Spring Boot 4.1.0 (계획 당시 3.5.4였으나 start.spring.io가 4.x만 제공 — Task 1 실행 시점에 4.1.0으로 확정), Node.js 22, Vue 3
 - AdminClient 타임아웃 5초 (`request.timeout.ms=5000`, `default.api.timeout.ms=5000`) — 스펙 "예외 처리"
 - 브로커 무응답 시 API는 503 + `{"error": "..."}` 로 응답하고 앱은 계속 동작한다
 - 비밀값(SCRAM 비밀번호, truststore 비밀번호, 초기 admin 비밀번호)은 환경변수/마운트 파일로만 주입. 코드·이미지·커밋 금지
@@ -305,18 +305,22 @@ package com.osstem.kafkaadmin.kafka;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
+// 싱글턴 컨테이너 패턴: @Container는 클래스마다 컨테이너를 재시작하는데,
+// Spring 테스트 컨텍스트는 클래스 간 캐시되므로 두 번째 IT부터 죽은 컨테이너를
+// 바라보는 Admin 빈을 재사용하게 된다. JVM당 1회 기동으로 이를 방지한다.
+// (컨테이너는 Testcontainers의 Ryuk이 JVM 종료 후 정리한다)
 @SpringBootTest
 public abstract class KafkaIntegrationTestBase {
 
-    @Container
     protected static final KafkaContainer KAFKA =
             new KafkaContainer(DockerImageName.parse("apache/kafka:4.0.0"));
+
+    static {
+        KAFKA.start();
+    }
 
     @DynamicPropertySource
     static void kafkaProps(DynamicPropertyRegistry registry) {
