@@ -88,33 +88,40 @@ class MonitorPersistenceTest {
     @Autowired AlertEventRepository alerts;
     @Autowired MonitorProperties props;
 
+    // 주의: H2가 이름 있는 인메모리 DB(jdbc:h2:mem:test)라 다른 테스트 컨텍스트와
+    // 데이터가 공유된다. 다른 IT가 커밋한 행과 섞이지 않도록 이 테스트 전용 키(pt- 접두어)를 쓴다.
     @Test
     void 기간_내_지표를_시각순으로_조회하고_오래된_것을_삭제한다() {
         Instant now = Instant.now();
-        samples.save(new MetricSample("LAG", "g1", 10, now.minus(2, ChronoUnit.HOURS)));
-        samples.save(new MetricSample("LAG", "g1", 20, now.minus(1, ChronoUnit.HOURS)));
-        samples.save(new MetricSample("LAG", "g2", 99, now.minus(1, ChronoUnit.HOURS)));
-        samples.save(new MetricSample("LAG", "g1", 5, now.minus(10, ChronoUnit.DAYS)));
+        samples.save(new MetricSample("LAG", "pt-g1", 10, now.minus(2, ChronoUnit.HOURS)));
+        samples.save(new MetricSample("LAG", "pt-g1", 20, now.minus(1, ChronoUnit.HOURS)));
+        samples.save(new MetricSample("LAG", "pt-g2", 99, now.minus(1, ChronoUnit.HOURS)));
+        samples.save(new MetricSample("LAG", "pt-g1", 5, now.minus(10, ChronoUnit.DAYS)));
 
         List<MetricSample> found = samples
                 .findByMetricTypeAndSubjectKeyAndSampledAtAfterOrderBySampledAt(
-                        "LAG", "g1", now.minus(1, ChronoUnit.DAYS));
+                        "LAG", "pt-g1", now.minus(1, ChronoUnit.DAYS));
         assertThat(found).extracting(MetricSample::getValue).containsExactly(10.0, 20.0);
 
         long deleted = samples.deleteBySampledAtBefore(now.minus(7, ChronoUnit.DAYS));
-        assertThat(deleted).isEqualTo(1);
+        assertThat(deleted).isGreaterThanOrEqualTo(1);
+        assertThat(samples.findByMetricTypeAndSubjectKeyAndSampledAtAfterOrderBySampledAt(
+                "LAG", "pt-g1", now.minus(30, ChronoUnit.DAYS)))
+                .extracting(MetricSample::getValue).containsExactly(10.0, 20.0);
     }
 
     @Test
     void 쿨다운_존재_확인과_최신_알림_조회가_동작한다() {
         Instant now = Instant.now();
-        alerts.save(new AlertEvent("LAG_HIGH", "g1", "랙 초과", 1500, 1000,
+        alerts.save(new AlertEvent("LAG_HIGH", "pt-alert-g1", "랙 초과", 1500, 1000,
                 now.minus(10, ChronoUnit.MINUTES)));
         assertThat(alerts.existsByRuleTypeAndSubjectKeyAndOccurredAtAfter(
-                "LAG_HIGH", "g1", now.minus(30, ChronoUnit.MINUTES))).isTrue();
+                "LAG_HIGH", "pt-alert-g1", now.minus(30, ChronoUnit.MINUTES))).isTrue();
         assertThat(alerts.existsByRuleTypeAndSubjectKeyAndOccurredAtAfter(
-                "LAG_HIGH", "g2", now.minus(30, ChronoUnit.MINUTES))).isFalse();
-        assertThat(alerts.findTop50ByOrderByOccurredAtDesc()).hasSize(1);
+                "LAG_HIGH", "pt-alert-g2", now.minus(30, ChronoUnit.MINUTES))).isFalse();
+        assertThat(alerts.findTop50ByOrderByOccurredAtDesc())
+                .filteredOn(a -> a.getSubjectKey().equals("pt-alert-g1"))
+                .hasSize(1);
     }
 
     @Test
@@ -190,6 +197,7 @@ public class MetricSample {
     private Long id;
     private String metricType;
     private String subjectKey;
+    @Column(name = "metric_value") // H2에서 VALUE는 예약어라 컬럼명을 피한다
     private double value;
     private Instant sampledAt;
 
@@ -229,6 +237,7 @@ public class AlertEvent {
     private String ruleType;
     private String subjectKey;
     private String message;
+    @Column(name = "alert_value") // H2 예약어(VALUE) 회피
     private double value;
     private double threshold;
     private Instant occurredAt;
@@ -936,7 +945,10 @@ public class CertExpiryChecker {
         };
         SSLContext ctx = SSLContext.getInstance("TLS");
         ctx.init(null, new TrustManager[]{trustAll}, null);
-        try (SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(host, port)) {
+        // connect에도 5초 제한: createSocket(host, port)는 접속 타임아웃이 없어
+        // 방화벽에 막힌 브로커에서 OS SYN 재시도 시간만큼(수십 초) 블록될 수 있다.
+        try (SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket()) {
+            socket.connect(new java.net.InetSocketAddress(host, port), 5000);
             socket.setSoTimeout(5000);
             socket.startHandshake();
             return (X509Certificate) socket.getSession().getPeerCertificates()[0];
@@ -1343,10 +1355,14 @@ function xOf(i: number): number {
   const n = props.points.length
   return n < 2 ? W / 2 : PAD + ((W - PAD * 2) * i) / (n - 1)
 }
+// toPolyline의 평평한 선(값 1개/전부 동일) 분기와 반드시 같은 y를 반환해야
+// 호버 마커가 선 위에 정확히 얹힌다.
 function yOf(i: number): number {
-  const max = Math.max(...values.value)
-  const v = values.value[i] ?? 0
-  if (max === 0) return H / 2
+  const vs = values.value
+  const max = Math.max(...vs)
+  const min = Math.min(...vs)
+  if (vs.length === 1 || max === min) return H / 2
+  const v = vs[i] ?? 0
   return PAD + (H - PAD * 2) - ((H - PAD * 2) * v) / max
 }
 function onMove(e: MouseEvent) {
@@ -1494,10 +1510,14 @@ interface MonitorStatus {
 const monitor = ref<MonitorStatus | null>(null)
 ```
 
-onMounted의 try 블록 안에 추가:
+onMounted의 try 블록 **뒤에** 별도 try로 추가 (감시 상태 조회가 실패해도 브로커 테이블은 유지):
 
 ```ts
+  try {
     monitor.value = await api<MonitorStatus>('/monitor/status')
+  } catch {
+    // 감시 상태 카드만 생략하고 클러스터 화면은 그대로 둔다
+  }
 ```
 
 template의 브로커 테이블 아래에 추가:
