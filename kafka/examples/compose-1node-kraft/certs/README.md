@@ -67,7 +67,8 @@ secrets/truststore.jks
 
 ```bash
 # SAN 에 localhost/127.0.0.1 이 들어갔는지 확인
-keytool -list -v -keystore kafka.keystore.jks -storepass "$STOREPASS" | grep -A1 "SubjectAlternativeName"
+keytool -exportcert -keystore kafka.keystore.jks -alias kafka -storepass "$STOREPASS" | \
+  openssl x509 -text -noout | grep -A1 "Subject Alternative Name"
 
 # 리스너 TLS 동작 확인 (기동 후)
 openssl s_client -connect localhost:9094 -CAfile ca.crt </dev/null
