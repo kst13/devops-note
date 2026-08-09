@@ -1,0 +1,72 @@
+# 로컬 학습용 단일 노드 Docker Compose (KRaft combined, SASL_SSL + mTLS)
+#
+# compose-3node-kraft 와 "노드 수만 다른" 짝 예제다. 리스너 3개 구조를 그대로
+# 유지해 두 파일을 나란히 놓고 비교할 수 있게 했다. 바뀐 것은 voters 1개,
+# advertised=localhost, 복제 계수 1, named volume 뿐이다.
+#
+# 운영 구성이 아니다. 실서버 배포는 ../compose-3node-kraft 를 사용한다.
+# 최초 1회 스토리지 포맷이 필요하다. README.md 실행 순서 참고.
+
+services:
+  kafka:
+    image: apache/kafka:4.0.0
+    container_name: kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"   # INTERNAL (단일 노드에선 실사용 없음, 아래 주석 참고)
+      - "9093:9093"   # CONTROLLER (쿼럼)
+      - "9094:9094"   # CLIENT (앱 접속)
+    environment:
+      # --- KRaft 역할/식별 ---
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+
+      # --- 리스너 정의 ---
+      # 단일 노드라 브로커 간 트래픽이 실제로는 발생하지 않지만,
+      # inter.broker.listener.name 은 반드시 존재하는 리스너를 가리켜야 하므로
+      # 3노드 예제와의 대칭성을 위해 전용 INTERNAL 리스너를 유지한다.
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,CLIENT://:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://localhost:9092,CLIENT://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:SASL_SSL,CONTROLLER:SSL,CLIENT:SASL_SSL
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # --- SASL/SCRAM (INTERNAL, CLIENT) ---
+      KAFKA_SASL_ENABLED_MECHANISMS: SCRAM-SHA-512
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: SCRAM-SHA-512
+      # 브로커 간 인증에 쓸 계정(스토리지 포맷 시 --add-scram 으로 부트스트랩한 admin)
+      KAFKA_LISTENER_NAME_INTERNAL_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required
+        username="${KAFKA_INTER_BROKER_USER}" password="${KAFKA_INTER_BROKER_PASSWORD}";
+
+      # --- TLS (모든 SSL/SASL_SSL 리스너 공통) ---
+      KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka.keystore.jks
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_KEYSTORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_KEY_PASSWORD}
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/truststore.jks
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_TRUSTSTORE_PASSWORD}
+      # 컨트롤러 리스너는 mTLS: 클라이언트 인증서를 필수로 요구 (3노드와 동일)
+      KAFKA_SSL_CLIENT_AUTH: required
+      # 인증서 SAN 이 localhost/127.0.0.1 이므로 hostname verification 을 켠 채 동작
+      KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: https
+
+      # --- 단일 노드: 복제 계수 전부 1 (브로커가 1대라 2 이상은 기동 불가) ---
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE: "false"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+      # --- 저장 위치 ---
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+
+    volumes:
+      # 로컬 학습용이므로 호스트 경로 대신 named volume 을 쓴다
+      - kafka-data:/var/lib/kafka/data
+      - ./secrets:/etc/kafka/secrets:ro
+
+volumes:
+  kafka-data:
