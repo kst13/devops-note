@@ -57,7 +57,7 @@ test("keeps the generated content catalog extensible", async () => {
     0,
   );
 
-  assert.deepEqual(topicIds, ["docker", "redis", "kafka"]);
+  assert.deepEqual(topicIds, ["docker", "redis", "kafka", "aws"]);
   assert.ok(documentCount >= 22);
   assert.ok(catalog.topics.every((topic) => topic.documents.length > 0));
   assert.ok(
