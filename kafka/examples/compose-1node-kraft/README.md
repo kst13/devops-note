@@ -24,8 +24,10 @@ secrets/             (직접 생성) keystore/truststore 배치 위치, .gitigno
 
    ```bash
    cp .env.example .env
-   # 비밀번호 4개를 채운다. KAFKA_INTER_BROKER_PASSWORD 는 4단계 --add-scram 값과 일치해야 한다.
+   # 비밀번호 4개를 채운다. KAFKA_CLUSTER_ID 는 4단계에서 채운다.
    ```
+
+   `KAFKA_INTER_BROKER_PASSWORD` 는 4단계에서 `--add-scram` 으로 심을 admin 비밀번호가 됩니다 — 아래 명령이 `.env` 를 그대로 읽어 쓰므로 따로 맞출 값은 없습니다.
 
 3. **클라이언트 설정 파일 작성** — CLI 접속에 쓸 `secrets/client-sasl-ssl.properties`:
 
@@ -39,19 +41,47 @@ secrets/             (직접 생성) keystore/truststore 배치 위치, .gitigno
    ssl.endpoint.identification.algorithm=https
    ```
 
+   `username`/`password` 는 `.env` 의 `KAFKA_INTER_BROKER_USER`/`KAFKA_INTER_BROKER_PASSWORD`, `ssl.truststore.password` 는 `KAFKA_TRUSTSTORE_PASSWORD` 와 같은 값입니다. 클라이언트는 truststore 만 있으면 됩니다 — SASL_SSL 리스너에서는 브로커가 클라이언트 인증서를 요구하지 않고(`ssl.client.auth` 는 SSL 인 CONTROLLER 리스너에만 적용됩니다) SCRAM 으로 신원을 확인합니다.
+
 4. **클러스터 ID 생성 + 스토리지 포맷 (최초 1회)** — SCRAM admin 계정을 함께 부트스트랩합니다.
 
    ```bash
+   # 4-1. 클러스터 ID 를 만들어 .env 에 기록한다 (compose 가 CLUSTER_ID 로 넘긴다)
    KAFKA_CLUSTER_ID=$(docker run --rm apache/kafka:4.0.0 /opt/kafka/bin/kafka-storage.sh random-uuid)
+   echo "KAFKA_CLUSTER_ID=$KAFKA_CLUSTER_ID" >> .env
 
-   docker compose run --rm kafka \
-     /opt/kafka/bin/kafka-storage.sh format \
-     --cluster-id "$KAFKA_CLUSTER_ID" \
-     --config /etc/kafka/server.properties \
-     --add-scram 'SCRAM-SHA-512=[name=admin,password=CHANGE_ME_ADMIN]'
+   # 4-2. .env 를 셸로 읽어 포맷 컨테이너에 넘긴다
+   set -a; . ./.env; set +a
+
+   docker compose run --rm --entrypoint bash \
+     -e CLUSTER_ID="$KAFKA_CLUSTER_ID" \
+     -e ADMIN_USER="$KAFKA_INTER_BROKER_USER" \
+     -e ADMIN_PASSWORD="$KAFKA_INTER_BROKER_PASSWORD" \
+     kafka -c '
+       set -e
+       # (a) 이미지 진입점과 같은 렌더러로 env 를 /opt/kafka/config/server.properties 로 옮긴다.
+       #     렌더러는 곧바로 내장 포맷도 실행하는데 --add-scram 을 지원하지 않으므로,
+       #     log.dirs 를 임시 경로로 돌려 그 결과를 버린다 (데이터 볼륨은 건드리지 않는다).
+       mkdir -p /tmp/discard
+       KAFKA_LOG_DIRS=/tmp/discard /opt/kafka/bin/kafka-run-class.sh kafka.docker.KafkaDockerWrapper setup \
+         --default-configs-dir /etc/kafka/docker \
+         --mounted-configs-dir /mnt/shared/config \
+         --final-configs-dir /opt/kafka/config
+
+       # (b) 실제 데이터 디렉터리를 SCRAM admin 과 함께 포맷한다
+       sed -i "s|^log.dirs=.*|log.dirs=/var/lib/kafka/data|" /opt/kafka/config/server.properties
+       /opt/kafka/bin/kafka-storage.sh format \
+         --cluster-id "$CLUSTER_ID" \
+         --config /opt/kafka/config/server.properties \
+         --add-scram "SCRAM-SHA-512=[name=$ADMIN_USER,password=$ADMIN_PASSWORD]"
+     '
    ```
 
-   `CHANGE_ME_ADMIN` 은 `.env` 의 `KAFKA_INTER_BROKER_PASSWORD`, 3단계 client 설정의 `password` 와 같은 값이어야 합니다.
+   `Formatting metadata directory /var/lib/kafka/data` 가 찍히면 성공입니다.
+
+   왜 이렇게 도는지: `docker compose run` 에 명령을 직접 주면 이미지 진입점(`/etc/kafka/docker/run`)이 건너뛰어져 `KAFKA_*` 환경변수가 properties 로 렌더링되지 않습니다. 그래서 렌더러(`KafkaDockerWrapper setup`)를 직접 호출해 env 가 반영된 `server.properties` 를 만든 뒤 그것으로 포맷합니다. `/etc/kafka/server.properties` 라는 경로는 이 이미지에 존재하지 않습니다 (기본값은 `/etc/kafka/docker/server.properties`, 렌더링 결과는 `/opt/kafka/config/server.properties`).
+
+   admin 계정을 metadata 에 심는 이유는 브로커 간 인증(INTERNAL 리스너, SCRAM-SHA-512)이 이 자격증명을 쓰기 때문입니다. 포맷 시점에 넣지 않으면 나중에 CLI 로 만들 방법이 없습니다 — 만들려면 그 CLI 가 다시 SCRAM 인증을 통과해야 하기 때문입니다.
 
 5. **기동**
 
@@ -119,4 +149,4 @@ secrets/             (직접 생성) keystore/truststore 배치 위치, .gitigno
 
 - `.env` 와 `secrets/`, `certs/` 산출물은 **커밋하지 않습니다** (루트 `.gitignore` 가 제외).
 - 앱을 붙일 때는 admin 대신 별도 SCRAM 계정을 만드세요 — [운영 치트시트](../../commands/kafka-operations-cheatsheet.md)와 07 문서 9장 참고.
-- 데이터를 초기화하려면 `docker compose down -v` 로 named volume 까지 지운 뒤 4단계(포맷)부터 다시 합니다.
+- 데이터를 초기화하려면 `docker compose down -v` 로 named volume 까지 지운 뒤 4단계(포맷)부터 다시 합니다. 이때 `.env` 의 기존 `KAFKA_CLUSTER_ID` 줄은 지우고 새로 만든 값을 넣습니다 — 볼륨을 지우지 않은 채 4단계를 다시 돌리면 `already formatted` 로 멈춥니다.

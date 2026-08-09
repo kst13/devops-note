@@ -8,6 +8,9 @@
 
 ```bash
 STOREPASS='__SET_ME__'      # keystore/truststore 비밀번호 (.env 값과 일치시킨다)
+                            # 아래 3-1 에서 -keypass 에도 같은 값을 주므로 키 비밀번호까지
+                            # 이 값이 된다. .env 의 KAFKA_KEYSTORE_PASSWORD,
+                            # KAFKA_KEY_PASSWORD, KAFKA_TRUSTSTORE_PASSWORD 셋 다 같은 값으로 채운다.
 VALID=3650                  # 유효기간(일)
 ```
 

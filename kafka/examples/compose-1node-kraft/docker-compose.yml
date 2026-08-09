@@ -21,6 +21,9 @@ services:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      # 이미지 진입점이 매 기동마다 이 값으로 스토리지 포맷을 시도한다. 4단계에서
+      # 포맷할 때 쓴 값과 다르면 "Invalid cluster.id" 로 기동이 실패하므로 .env 로 고정한다.
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
 
       # --- 리스너 정의 ---
       # 단일 노드라 브로커 간 트래픽이 실제로는 발생하지 않지만,
@@ -35,10 +38,22 @@ services:
       # --- SASL/SCRAM (INTERNAL, CLIENT) ---
       KAFKA_SASL_ENABLED_MECHANISMS: SCRAM-SHA-512
       KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: SCRAM-SHA-512
+      # JAAS 설정 키에는 반드시 메커니즘 이름이 들어가야 한다
+      # (listener.name.<리스너>.<메커니즘>.sasl.jaas.config). 메커니즘 없는
+      # listener.name.internal.sasl.jaas.config 는 브로커가 조용히 무시한다.
+      # 이미지의 env→property 변환 규칙은 `_`→`.`, `__`→`_`, `___`→`-` 이므로
+      # SCRAM___SHA___512 가 scram-sha-512 로 바뀐다.
+      #
       # 브로커 간 인증에 쓸 계정(스토리지 포맷 시 --add-scram 으로 부트스트랩한 admin)
-      KAFKA_LISTENER_NAME_INTERNAL_SASL_JAAS_CONFIG: >-
+      KAFKA_LISTENER_NAME_INTERNAL_SCRAM___SHA___512_SASL_JAAS_CONFIG: >-
         org.apache.kafka.common.security.scram.ScramLoginModule required
         username="${KAFKA_INTER_BROKER_USER}" password="${KAFKA_INTER_BROKER_PASSWORD}";
+      # CLIENT 리스너는 인증을 "받기만" 하므로 로그인 모듈 선언만 있으면 되고
+      # username/password 는 필요 없다. 이 항목을 빼면 브로커가 기동 중에
+      # "Could not find a 'KafkaServer' or 'client.KafkaServer' entry in the JAAS
+      # configuration" 으로 죽는다 — 클라이언트 접속 실패가 아니라 기동 실패다.
+      KAFKA_LISTENER_NAME_CLIENT_SCRAM___SHA___512_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required;
 
       # --- TLS (모든 SSL/SASL_SSL 리스너 공통) ---
       KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka.keystore.jks
