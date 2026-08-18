@@ -157,11 +157,34 @@ kafka-topics.sh --bootstrap-server <host>:9092 --describe --topic <토픽>
 
 설정 레벨 필요조건: `broker.id`(또는 `node.id`)는 **노드마다 유일**, `zookeeper.connect`(또는 `controller.quorum.voters`)와 `cluster.id`는 **3대 동일**.
 
+## 8. 압축은 누가 하고 누가 푸나 (`compression.type`)
+
+"프로듀서에서 압축해서 보낼 수 있다"는 말은 맞습니다. 다만 압축의 **단위·위치·해제 주체**를 알아야 설정을 어디에 두는지 헷갈리지 않습니다.
+
+```text
+프로듀서                       브로커                          컨슈머
+배치(같은 파티션행 묶음)  ──▶  받은 압축 배치를 그대로 저장  ──▶  압축 배치를 받아
+를 lz4/zstd 로 압축            (compression.type=producer)         클라이언트가 자동 해제
+```
+
+| 질문 | 답 |
+| --- | --- |
+| 메시지 하나씩 압축되나? | 아니요. **레코드 배치**(같은 파티션으로 가는 묶음)를 통째로 압축합니다. 그래서 `batch.size`·`linger.ms`로 배치를 키울수록 압축률이 좋아지고, `send().get()`으로 한 건씩 동기 전송하면 이득이 거의 없습니다 |
+| 브로커도 CPU를 쓰나? | 기본값(`compression.type=producer`)이면 **안 씁니다** — 받은 그대로 디스크에 쓰고 팔로워에 복제합니다. 브로커/토픽에 다른 코덱을 고정하면 풀어서 재압축하므로 CPU를 씁니다 |
+| 컨슈머 설정이 필요한가? | 없습니다. 배치 헤더에 코덱이 적혀 있어 클라이언트가 자동으로 풉니다. 코드도 모릅니다 |
+| 어느 코덱? | `lz4`(처리량 우선, 기본 추천) 또는 `zstd`(압축률 우선). `gzip`은 CPU 비용이 커서 대역폭이 정말 귀할 때만 |
+| 크기 한도는 압축 전? 후? | **후**입니다. 프로듀서 `max.request.size`, 브로커 `message.max.bytes`, 컨슈머 `fetch.max.bytes` 모두 압축된 크기 기준 |
+| 압축하면 보안이 되나? | 아니요. 압축은 크기만 줄입니다. 전송 보안은 TLS(SASL_SSL)가 담당 — [10](10-security-tls-and-auth.md) |
+| 순서·멱등에 영향은? | 없습니다. 압축은 배치 안 내용을 바꿀 뿐, 파티션 배정(key)·시퀀스 번호(멱등)와 무관합니다 |
+
+**설정 위치 한 줄 요약**: 프로듀서에 `compression.type=lz4`(+ `batch.size`, `linger.ms`), 브로커·토픽은 `producer`(기본) 유지, 컨슈머는 손대지 않음. 값과 Spring 예시는 [08](08-configuration-reference.md) 5·7장, [12](12-usage-principles.md) 4장.
+
 ## 관련 문서
 
 - [01. Kafka 핵심 개념](01-kafka-basics.md) · [02. Producer와 복제](02-producer-and-replication.md) · [03. Consumer와 Consumer Group](03-consumer-and-consumer-group.md)
 - [04. 브로커 내부 구조](04-broker-internals.md) · [05. KRaft vs ZooKeeper](05-kraft-vs-zookeeper.md)
 - [06. 클러스터 설계](06-cluster-design.md) · [07. 설치](07-kraft-cluster-installation.md) · [08. 설정 레퍼런스](08-configuration-reference.md)
+- [12. 사용 원칙(개발자용)](12-usage-principles.md) · [13. 메시지 키와 순서 보장](13-message-key-and-ordering.md)
 
 ## 참고한 공식 문서
 
