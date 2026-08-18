@@ -45,7 +45,10 @@ services:
       CLUSTER_ID: ${CLUSTER_ID}
 
     volumes:
-      - /data/kafka:/var/lib/kafka/data
+      # 호스트 경로는 .env 의 KAFKA_HOME_DIR 로 지정한다(절대 경로). 전용 데이터 디스크가
+      # 있으면 그 마운트 지점(예: /data/kafka)을 넣는다. 사전에 chown -R 1000:1000 필요.
+      # SASL_SSL 예제와 같은 구조(data/ 하위)라 나중에 보안 버전으로 옮기기 쉽다.
+      - ${KAFKA_HOME_DIR}/data:/var/lib/kafka/data
 
     # 컨테이너가 다른 노드 이름을 해석하도록 매핑 (DNS 있으면 생략).
     # IP 는 예시이므로 실제 값으로 바꾼다.

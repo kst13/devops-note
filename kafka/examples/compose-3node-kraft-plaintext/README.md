@@ -10,32 +10,36 @@
 
 ```text
 docker-compose.yml   3대 공용 (노드 차이는 .env 로만 주입)
-.env.example         노드별로 .env 로 복사해 NODE_ID/IP/CLUSTER_ID 지정
+.env.example         노드별로 .env 로 복사해 NODE_ID/IP/CLUSTER_ID/KAFKA_HOME_DIR 지정
+
+${KAFKA_HOME_DIR}/data   (각 노드 호스트, 저장소 밖) Kafka 로그 디렉터리 — bind mount → /var/lib/kafka/data
 ```
 
 ## 실행 순서
 
 전제: 3대 = kafka1(10.0.0.11), kafka2(10.0.0.12), kafka3(10.0.0.13). 실제 값으로 바꿔 사용합니다.
 
-1. **데이터 디렉터리 (3대 각각)**
-
-   ```bash
-   sudo mkdir -p /data/kafka && sudo chown -R 1000:1000 /data/kafka
-   ```
-
-2. **클러스터 ID 생성 (한 번, 3대 공유)**
+1. **클러스터 ID 생성 (한 번, 3대 공유)**
 
    ```bash
    docker run --rm apache/kafka:4.0.0 /opt/kafka/bin/kafka-storage.sh random-uuid
    # 출력값을 3대 .env 의 CLUSTER_ID 에 동일하게 넣는다
    ```
 
-3. **노드별 .env 작성**
+2. **노드별 .env 작성**
 
    ```bash
    cp .env.example .env
    # 서버1: KAFKA_NODE_ID=1, ADVERTISED_HOST=10.0.0.11, CLUSTER_ID=<생성값>
    # 서버2/3 도 각자 값으로
+   # KAFKA_HOME_DIR: 데이터(data/)를 둘 호스트 절대 경로 (3대 동일하게 두는 것을 권장)
+   ```
+
+3. **데이터 디렉터리 (3대 각각)** — 컨테이너 실행 UID(1000)가 쓸 수 있어야 합니다.
+
+   ```bash
+   set -a; . ./.env; set +a
+   sudo mkdir -p "${KAFKA_HOME_DIR}/data" && sudo chown -R 1000:1000 "${KAFKA_HOME_DIR}"
    ```
 
 4. **기동 (3대 각각)** — CLUSTER_ID 가 있으면 이미지가 최초 기동 시 스토리지를 자동 포맷합니다.
@@ -83,5 +87,5 @@ bootstrap.servers = 10.0.0.11:9092,10.0.0.12:9092,10.0.0.13:9092
 ## 주의
 
 - **PLAINTEXT 는 인증·암호화가 없습니다.** 신뢰된 내부망 전제이며, 외부에 포트를 열지 마세요.
-- `.env` 는 커밋하지 않습니다(루트 `.gitignore` 대상).
+- `.env` 는 커밋하지 않습니다(루트 `.gitignore` 대상). 데이터(`${KAFKA_HOME_DIR}/data`)는 저장소 밖입니다.
 - `CLUSTER_ID`·`KAFKA_CONTROLLER_QUORUM_VOTERS` 는 3대 동일해야 하나로 묶입니다.
