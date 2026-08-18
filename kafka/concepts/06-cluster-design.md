@@ -23,7 +23,8 @@ KRaft에서 각 노드는 broker 역할, controller 역할, 또는 둘 다를 �
   │ roles=broker,    │ ←→  │ roles=broker,    │ ←→  │ roles=broker,    │
   │       controller │     │       controller │     │       controller │
   └──────────────────┘     └──────────────────┘     └──────────────────┘
-        /data/kafka             /data/kafka              /data/kafka
+   ${KAFKA_HOME_DIR}/data    ${KAFKA_HOME_DIR}/data    ${KAFKA_HOME_DIR}/data
+   (호스트 전용 디스크, 예: /data/kafka — 예제 .env 의 KAFKA_HOME_DIR 로 지정)
 ```
 
 - **controller quorum이 3표**가 되어 과반(2표)만 유지되면 클러스터가 동작합니다. 즉 **1대 장애를 허용**합니다.
