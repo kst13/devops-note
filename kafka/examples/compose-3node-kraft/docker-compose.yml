@@ -12,19 +12,29 @@ services:
     image: apache/kafka:4.0.0
     container_name: kafka
     restart: unless-stopped
-    # 3대가 물리적으로 분리되어 있으므로 각 호스트 포트를 그대로 노출한다.
-    ports:
-      - "9092:9092"   # INTERNAL (브로커 간)
-      - "9093:9093"   # CONTROLLER (쿼럼)
-      - "9094:9094"   # CLIENT (앱 접속)
+    # 전용 서버에 Kafka 하나만 올리는 운영 구성이므로 호스트 네트워크를 직접 쓴다.
+    # NAT/포트포워딩 없이 호스트의 9092(브로커 간)/9093(쿼럼)/9094(앱 접속)에
+    # 바로 바인드된다 (리눅스 전용 — Docker Desktop 로컬 학습에는 브리지+ports 사용).
+    network_mode: host
     environment:
+      # 로그 시간 표시용 (메시지 타임스탬프는 epoch 라 타임존 무관). 3대 동일하게.
+      TZ: Asia/Seoul
+
       # --- KRaft 역할/식별 ---
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: ${KAFKA_NODE_ID}
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:9093,2@kafka2:9093,3@kafka3:9093
+      # 기동 시 이미지가 meta.properties 의 클러스터 ID 와 대조한다.
+      # 스토리지 포맷 때 쓴 값과 같아야 하며, 비우면 이미지 기본값과 비교해 기동 실패.
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+      # 호스트 IP 를 그대로 사용한다 (DNS/hosts 매핑 불필요). 세 노드 모두 같은 값.
+      # 여기 IP 는 예시이므로 실제 서버 IP 로 바꾼다.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@10.0.0.11:9093,2@10.0.0.12:9093,3@10.0.0.13:9093
 
       # --- 리스너 정의 ---
-      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,CLIENT://:9094
+      # CONTROLLER 는 와일드카드로 두면 기동 시 호스트명 해석을 시도하는데,
+      # host 네트워크에서 서버 호스트명이 DNS/hosts 에 없으면 기동에 실패한다.
+      # 실 IP 에 명시적으로 바인드해 호스트명 해석 자체를 피한다.
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://${ADVERTISED_HOST}:9093,CLIENT://:9094
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://${ADVERTISED_HOST}:9092,CLIENT://${ADVERTISED_HOST}:9094
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:SASL_SSL,CONTROLLER:SSL,CLIENT:SASL_SSL
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
@@ -33,10 +43,16 @@ services:
       # --- SASL/SCRAM (INTERNAL, CLIENT) ---
       KAFKA_SASL_ENABLED_MECHANISMS: SCRAM-SHA-512
       KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: SCRAM-SHA-512
-      # 브로커 간 인증에 쓸 계정(스토리지 포맷 시 --add-scram 으로 부트스트랩한 admin)
-      KAFKA_LISTENER_NAME_INTERNAL_SASL_JAAS_CONFIG: >-
+      # 리스너별 서버 JAAS. 속성명에 메커니즘(scram-sha-512)이 반드시 포함되어야 하며,
+      # env 표기에서 '-' 는 밑줄 3개(___)로 쓴다 → listener.name.*.scram-sha-512.sasl.jaas.config
+      # INTERNAL 의 username/password 는 브로커 간 클라이언트 인증용
+      # (스토리지 포맷 시 --add-scram 으로 부트스트랩한 admin 계정)
+      KAFKA_LISTENER_NAME_INTERNAL_SCRAM___SHA___512_SASL_JAAS_CONFIG: >-
         org.apache.kafka.common.security.scram.ScramLoginModule required
         username="${KAFKA_INTER_BROKER_USER}" password="${KAFKA_INTER_BROKER_PASSWORD}";
+      # CLIENT 리스너 서버 측 SCRAM — 자격증명은 메타데이터의 SCRAM 계정으로 검증
+      KAFKA_LISTENER_NAME_CLIENT_SCRAM___SHA___512_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required;
 
       # --- TLS (모든 SSL/SASL_SSL 리스너 공통) ---
       KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/${KAFKA_KEYSTORE_FILE}
@@ -44,9 +60,12 @@ services:
       KAFKA_SSL_KEY_PASSWORD: ${KAFKA_KEY_PASSWORD}
       KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/truststore.jks
       KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_TRUSTSTORE_PASSWORD}
-      # 컨트롤러 리스너는 mTLS: 클라이언트 인증서를 필수로 요구
-      KAFKA_SSL_CLIENT_AUTH: required
-      # advertised 주소와 인증서 SAN 이 일치하면 hostname verification 유지(빈 값=끄기)
+      # 컨트롤러 리스너만 mTLS(클라이언트 인증서 필수). 전역(KAFKA_SSL_CLIENT_AUTH)으로
+      # 걸면 앱 접속(9094)에도 인증서를 요구하게 되므로 리스너 단위로 지정한다.
+      # 앱 인증은 SASL/SCRAM 이 담당 — 앱은 truststore 만 있으면 된다.
+      KAFKA_LISTENER_NAME_CONTROLLER_SSL_CLIENT_AUTH: required
+      # IP 로 광고·접속하므로 인증서 SAN 에 각 노드 IP(ip:...)가 반드시 있어야
+      # hostname verification 을 유지할 수 있다(빈 값=끄기). certs/README.md 참고.
       KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: https
 
       # --- 무손실 기본값 (concepts/02 표) ---
@@ -62,12 +81,10 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
 
     volumes:
-      - /data/kafka:/var/lib/kafka/data
-      - ./secrets:/etc/kafka/secrets:ro
-
-    # 실 IP 로 광고하더라도, 컨테이너가 다른 노드 이름을 해석할 수 있게 매핑한다.
-    # (DNS 가 있으면 생략 가능. 여기 IP 는 예시이므로 실제 값으로 바꾼다.)
-    extra_hosts:
-      - "kafka1:10.0.0.11"
-      - "kafka2:10.0.0.12"
-      - "kafka3:10.0.0.13"
+      # 단일 디스크 서버라 서비스 계정(ow) 홈 아래에 둔다. ~ 확장은 실행 주체에
+      # 따라 달라지므로 절대 경로로 고정. 사전에 chown -R 1000:1000 필요.
+      # 전용 데이터 디스크가 생기면 그 마운트 지점(예: /data/kafka)으로 바꾼다.
+      - /home/ow/kafka/data:/var/lib/kafka/data
+      # keystore/truststore 배치 위치. 저장소 밖이므로 커밋될 일이 없다.
+      # UID 1000 이 읽을 수 있어야 한다 (chown -R 1000:1000, 파일 600).
+      - /home/ow/kafka/secret:/etc/kafka/secrets:ro

@@ -15,14 +15,14 @@
 docker-compose.yml   3대 공용 (노드 차이는 .env 로만 주입)
 .env.example         노드별로 .env 로 복사해 NODE_ID/IP/시크릿 지정
 certs/README.md      사설 CA + 노드별 keystore/truststore 생성 절차
-secrets/             (직접 생성) keystore/truststore 배치 위치, .gitignore 대상
+/home/ow/kafka/secret/   (각 노드에 직접 생성) keystore/truststore 배치 위치 — 저장소 밖
 ```
 
 ## 실행 순서 (요약)
 
 전제: 3대 = `kafka1`(10.0.0.11), `kafka2`(10.0.0.12), `kafka3`(10.0.0.13). 실제 값으로 바꿔 사용합니다.
 
-1. **인증서 생성** — [certs/README.md](certs/README.md) 절차로 CA·노드 keystore·공통 truststore 를 만들고, 각 노드 `secrets/` 에 배치.
+1. **인증서 생성** — [certs/README.md](certs/README.md) 절차로 CA·노드 keystore·공통 truststore 를 만들고, 각 노드 `/home/ow/kafka/secret/` 에 배치.
 
 2. **노드별 .env 작성**
 
@@ -54,10 +54,11 @@ secrets/             (직접 생성) keystore/truststore 배치 위치, .gitigno
 
 > 운영 구성으로 사용하지 않습니다. 설계·명령을 한 대에서 확인하기 위한 축소 구성입니다.
 
-한 호스트에서 3개 컨테이너를 포트만 달리해 띄우려면, 이 compose 를 서비스 3개(`kafka1/2/3`)로 복제하고 포트를 `9092/9192/9292` 식으로 나누며 `KAFKA_CONTROLLER_QUORUM_VOTERS` 를 컨테이너명 기준으로 맞춥니다. 학습 목적이라 보안을 PLAINTEXT 로 낮춰 시작해도 됩니다(운영에서는 금지). 무손실 동작(RF3, 1대 정지 시 지속)은 단일 머신에서도 동일하게 확인할 수 있습니다.
+한 호스트에서 3개 컨테이너를 포트만 달리해 띄우려면, 이 compose 를 서비스 3개(`kafka1/2/3`)로 복제하되 `network_mode: host` 를 빼고 브리지 네트워크 + `ports` 매핑으로 되돌린 뒤, 포트를 `9092/9192/9292` 식으로 나누며 `KAFKA_CONTROLLER_QUORUM_VOTERS` 를 컨테이너명 기준으로 맞춥니다. 학습 목적이라 보안을 PLAINTEXT 로 낮춰 시작해도 됩니다(운영에서는 금지). 무손실 동작(RF3, 1대 정지 시 지속)은 단일 머신에서도 동일하게 확인할 수 있습니다.
 
 ## 주의
 
-- `.env` 와 `secrets/` 는 **커밋하지 않습니다.** 저장소 루트 `.gitignore` 에 추가하세요.
-- `docker-compose.yml` 의 `extra_hosts` IP 는 예시입니다. DNS 가 있으면 제거하고, 없으면 실 IP 로 바꿉니다.
+- `.env` 는 **커밋하지 않습니다.** 저장소 루트 `.gitignore` 에 추가하세요. 인증서(`/home/ow/kafka/secret/`)는 저장소 밖이라 커밋될 일이 없지만, 백업 등으로 외부에 복사되지 않게 관리합니다.
+- 노드 간 통신은 호스트 IP 를 그대로 사용합니다(DNS/hosts 매핑 불필요). `docker-compose.yml` 의 `KAFKA_CONTROLLER_QUORUM_VOTERS` IP 는 예시이므로 실제 서버 IP 로 바꿉니다. IP 로 광고·접속하므로 인증서 SAN 에 각 노드 IP 가 반드시 포함되어야 합니다.
+- `network_mode: host` 는 리눅스 전용입니다. 컨테이너가 호스트의 9092/9093/9094 에 직접 바인드되므로 해당 포트가 비어 있어야 하고, 방화벽에서 노드 간 9092·9093, 앱 대역의 9094 접근을 허용해야 합니다.
 - 이미지 태그 `apache/kafka:4.0.0` 은 예시 고정 버전입니다. 실제 도입 시 사용할 패치 버전을 확인해 고정하세요.

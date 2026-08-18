@@ -4,6 +4,19 @@
 
 > 생성된 `*.jks`, `*.key`, `*.crt` 와 비밀번호는 **저장소에 커밋하지 않습니다.** 이 폴더는 `.gitignore` 로 제외하고, 산출물은 배포 시 각 노드에 안전하게 전달합니다.
 
+## 빠른 방법 — 스크립트로 일괄 생성
+
+[generate-certs.sh](generate-certs.sh) 상단의 세 값(`STOREPASS`, `VALID`, `NODES`)만 고치고 실행하면 아래 전 과정(CA → truststore → 노드별 keystore → SAN 검증)을 한 번에 수행합니다. keytool 이 없으면 apache/kafka 컨테이너 안에서 자동으로 재실행되므로 Docker 만 있으면 됩니다.
+
+```bash
+mkdir -p ~/kafka-certs && cd ~/kafka-certs
+cp <저장소>/kafka/examples/compose-3node-kraft/certs/generate-certs.sh .
+vi generate-certs.sh     # 상단 STOREPASS / NODES 수정
+./generate-certs.sh      # 재생성은 ./generate-certs.sh --force
+```
+
+성공하면 노드별 SAN 검증 결과와 서버별 scp 명령까지 출력됩니다. 아래는 스크립트가 하는 일을 단계별로 설명한 것입니다 — 수동으로 하고 싶거나 원리를 알고 싶을 때 참고하세요.
+
 ## 사전 준비
 
 ```bash
@@ -31,7 +44,7 @@ keytool -keystore truststore.jks -alias CARoot -import -file ca.crt \
 
 ## 3. 노드별 keystore 생성
 
-노드마다 반복합니다. `SAN` 에 그 노드의 **호스트명과 IP 를 모두** 넣는 것이 핵심입니다. 컨트롤러 리스너가 mTLS 이므로 serverAuth·clientAuth 를 함께 부여합니다.
+노드마다 반복합니다. `SAN` 에 그 노드의 **호스트명과 IP 를 모두** 넣는 것이 핵심입니다 — compose 구성이 호스트 IP 로 광고·접속하므로 특히 `ip:` 항목이 없으면 hostname verification 에 실패합니다. 컨트롤러 리스너가 mTLS 이므로 serverAuth·clientAuth 를 함께 부여합니다.
 
 ```bash
 # 예: kafka1 (다른 노드는 NODE/IP 만 바꿔 반복)
@@ -64,12 +77,19 @@ kafka2(10.0.0.12), kafka3(10.0.0.13) 에 대해 `NODE`/`IP` 만 바꿔 반복합
 
 ## 4. 배치
 
-각 노드의 `secrets/` 디렉터리(= compose 에서 `./secrets` 마운트)에 아래를 둡니다.
+각 노드의 `/home/ow/kafka/secret/` 디렉터리(compose 에서 `/etc/kafka/secrets` 로 마운트)에 아래를 둡니다.
 
 ```text
-kafka1 노드:  secrets/kafka1.keystore.jks  +  secrets/truststore.jks
-kafka2 노드:  secrets/kafka2.keystore.jks  +  secrets/truststore.jks
-kafka3 노드:  secrets/kafka3.keystore.jks  +  secrets/truststore.jks
+kafka1 노드:  /home/ow/kafka/secret/kafka1.keystore.jks  +  truststore.jks
+kafka2 노드:  /home/ow/kafka/secret/kafka2.keystore.jks  +  truststore.jks
+kafka3 노드:  /home/ow/kafka/secret/kafka3.keystore.jks  +  truststore.jks
+```
+
+컨테이너 실행 UID(1000)가 읽을 수 있어야 합니다:
+
+```bash
+sudo chown -R 1000:1000 /home/ow/kafka/secret
+chmod 600 /home/ow/kafka/secret/*.jks
 ```
 
 `.env` 의 `KAFKA_KEYSTORE_FILE` 을 각 노드의 keystore 파일명으로 맞춥니다.

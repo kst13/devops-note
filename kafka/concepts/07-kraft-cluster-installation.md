@@ -100,7 +100,8 @@ environment:
   # --- KRaft 역할/식별 ---
   KAFKA_PROCESS_ROLES: broker,controller
   KAFKA_NODE_ID: ${KAFKA_NODE_ID}                 # 노드별 1/2/3
-  KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:9093,2@kafka2:9093,3@kafka3:9093
+  # 호스트 IP 를 그대로 사용 (예시 IP — 실제 서버 IP 로 교체)
+  KAFKA_CONTROLLER_QUORUM_VOTERS: 1@10.0.0.11:9093,2@10.0.0.12:9093,3@10.0.0.13:9093
 
   # --- 리스너 정의 ---
   KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,CLIENT://:9094
@@ -125,7 +126,7 @@ environment:
 중요한 설정:
 
 - `KAFKA_PROCESS_ROLES=broker,controller`: 이 노드가 broker와 controller를 겸합니다(combined 모드).
-- `KAFKA_CONTROLLER_QUORUM_VOTERS`: **3대 모두 동일**하게 세 노드를 나열합니다. `id@host:9093` 형식.
+- `KAFKA_CONTROLLER_QUORUM_VOTERS`: **3대 모두 동일**하게 세 노드를 나열합니다. `id@host:9093` 형식. 호스트 IP 를 그대로 쓰면 DNS/hosts 매핑 없이 동작하며, 대신 인증서 SAN 에 각 노드 IP 가 포함되어야 합니다.
 - `KAFKA_ADVERTISED_LISTENERS`: 클라이언트/다른 broker가 접속할 **실제 주소**. `${ADVERTISED_HOST}`에 그 노드의 실 IP/호스트명을 넣습니다. CONTROLLER는 advertised에 넣지 않습니다(quorum voters로 알림).
 - `KAFKA_LISTENER_SECURITY_PROTOCOL_MAP`: 리스너별 보안 프로토콜. CONTROLLER는 SSL(mTLS), 나머지는 SASL_SSL.
 - 무손실 관련 값은 [06 문서](06-cluster-design.md)의 표를 그대로 broker 기본값으로 넣은 것입니다.
@@ -137,17 +138,28 @@ SASL/SCRAM·TLS 관련 env(SCRAM JAAS, keystore/truststore 경로·비밀번호)
 KRaft는 **최초 1회** 클러스터 ID를 만들고 각 노드의 로그 디렉터리를 포맷해야 합니다.
 
 ```bash
-# (1) 클러스터 ID 한 번만 생성 → 3대가 같은 값을 공유
-KAFKA_CLUSTER_ID=$(docker run --rm apache/kafka:4.0.0 /opt/kafka/bin/kafka-storage.sh random-uuid)
-echo "$KAFKA_CLUSTER_ID"   # 예: xtzWWN4bTjitpL3kfd9s5g
+# (1) 클러스터 ID 한 번만 생성 → 세 노드 .env 의 KAFKA_CLUSTER_ID 에 같은 값 기록
+#     (compose 가 CLUSTER_ID 로 주입 — 포맷과 기동 시 검증에 모두 쓰인다)
+docker run --rm apache/kafka:4.0.0 /opt/kafka/bin/kafka-storage.sh random-uuid
+# 예: xtzWWN4bTjitpL3kfd9s5g
 
 # (2) 각 노드에서 스토리지 포맷 (SCRAM 관리자 계정도 함께 부트스트랩)
-#     --add-scram 으로 broker 간/관리용 SCRAM 계정을 메타데이터에 심는다
-docker compose run --rm kafka \
-  /opt/kafka/bin/kafka-storage.sh format \
-  --cluster-id "$KAFKA_CLUSTER_ID" \
-  --config /etc/kafka/server.properties \
-  --add-scram 'SCRAM-SHA-512=[name=admin,password=CHANGE_ME_ADMIN]'
+#     apache/kafka 이미지는 server.properties 를 기동 시점에 env 로부터 생성하므로,
+#     먼저 wrapper setup 으로 설정을 생성한 뒤 --add-scram 으로 다시 포맷한다.
+#     (setup 이 SCRAM 없이 1차 포맷까지 해버리기 때문에 지우고 재포맷하는 것)
+docker compose run --rm --entrypoint bash kafka -c '
+set -e
+mkdir -p /mnt/shared/config
+/opt/kafka/bin/kafka-run-class.sh kafka.docker.KafkaDockerWrapper setup \
+  --default-configs-dir /etc/kafka/docker \
+  --mounted-configs-dir /mnt/shared/config \
+  --final-configs-dir /opt/kafka/config >/dev/null 2>&1 || true
+rm -rf /var/lib/kafka/data/*          # 최초 설치 전용! 기존 데이터가 있으면 실행 금지
+/opt/kafka/bin/kafka-storage.sh format \
+  --cluster-id "$CLUSTER_ID" \
+  --config /opt/kafka/config/server.properties \
+  --add-scram "SCRAM-SHA-512=[name=admin,password=CHANGE_ME_ADMIN]"
+'
 ```
 
 중요한 점:
