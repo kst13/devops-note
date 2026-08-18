@@ -82,8 +82,10 @@ KAFKA_LISTENER_SECURITY_PROTOCOL_MAP  → listener.security.protocol.map
 | `log.retention.bytes` | 용도별 (`-1` = 무제한) | 파티션당 크기 기준 보관 |
 | `log.segment.bytes` | (`1073741824` = 1GiB) | 세그먼트 파일 크기 |
 | `num.partitions` | 용도별 (`1`) | 자동 생성 시 기본 파티션 수(우리는 auto-create off라 영향 적음) |
+| `compression.type` (브로커·토픽) | `producer` (기본 `producer`) | 프로듀서가 보낸 압축 배치를 **그대로 저장**. `gzip`/`lz4` 등으로 고정하면 프로듀서 코덱과 다를 때 브로커가 풀어서 재압축하므로 CPU 낭비 — 코덱은 프로듀서에서 정한다 |
+| `message.max.bytes` | (`1048588` ≈ 1MB) | 브로커가 받는 레코드 배치 최대 크기. **압축 후** 기준. 프로듀서 `max.request.size`, 컨슈머 `fetch.max.bytes`와 맞춘다 |
 
-보관 설정은 토픽마다 특성이 다르므로(이벤트 소싱은 길게, 임시 큐는 짧게) 토픽 단위 오버라이드를 권장합니다.
+보관 설정은 토픽마다 특성이 다르므로(이벤트 소싱은 길게, 임시 큐는 짧게) 토픽 단위 오버라이드를 권장합니다. `compression.type`은 반대로 토픽에서 건드리지 않고 `producer`로 둡니다.
 
 ## 6. 성능·리소스 (선택, 기본값으로 시작 가능)
 
@@ -106,7 +108,13 @@ Producer:
 | --- | --- | --- |
 | `acks` | `all` (3.0+ 기본 all) | ISR 전체 확인 후 성공 |
 | `enable.idempotence` | `true` (3.0+ 기본 true) | 재시도 중복 방지 |
+| `compression.type` | `lz4` (기본 `none`) | **레코드 배치 단위** 압축. 브로커는 그대로 저장, 컨슈머는 자동 해제 → 코드 변경 없이 네트워크·디스크·복제 트래픽 감소. `lz4`(처리량 우선) 또는 `zstd`(압축률 우선). `gzip`은 CPU 비용 큼 |
+| `batch.size` | `65536` (기본 `16384`) | 파티션별 배치 최대 바이트. 압축은 배치 안에서 걸리므로 키울수록 압축률이 좋아짐 |
+| `linger.ms` | `5`~`20` (기본 `0`) | 배치를 채우기 위해 기다리는 시간. 약간의 지연을 주고 배치·압축 효율을 얻는다 |
+| `max.request.size` | (`1048576` = 1MB) | 요청 1건 최대 크기(**압축 후**). 브로커 `message.max.bytes` 이하 |
 | `bootstrap.servers` | 3대 모두 나열 | `kafka1:9094,kafka2:9094,kafka3:9094` |
+
+압축·배치 설정의 배경과 Spring 예시는 [12-usage-principles](12-usage-principles.md) 4장 참고.
 
 Consumer:
 
@@ -114,6 +122,7 @@ Consumer:
 | --- | --- | --- |
 | `enable.auto.commit` | `false` | 처리 완료 후 수동 커밋(at-least-once) |
 | `isolation.level` | `read_committed` | 트랜잭션 사용 시 |
+| `fetch.max.bytes` | (`52428800` = 50MB) | 한 번에 가져올 최대 크기(압축 후). 브로커 `message.max.bytes`보다 커야 큰 배치를 받는다. 압축 해제는 클라이언트가 자동 처리 — 별도 설정 없음 |
 | `bootstrap.servers` | 3대 모두 나열 | — |
 
 ## 8. 설정 확인·변경 방법
