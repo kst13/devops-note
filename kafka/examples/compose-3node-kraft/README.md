@@ -13,43 +13,55 @@
 
 ```text
 docker-compose.yml   3대 공용 (노드 차이는 .env 로만 주입)
-.env.example         노드별로 .env 로 복사해 NODE_ID/IP/시크릿 지정
+.env.example         노드별로 .env 로 복사해 NODE_ID/IP/KAFKA_HOME_DIR/시크릿 지정
 certs/README.md      사설 CA + 노드별 keystore/truststore 생성 절차
-${KAFKA_HOME_DIR}/secret/ (각 노드에 직접 생성) keystore/truststore 배치 위치 — 저장소 밖, .env 로 지정
+certs/generate-certs.sh   위 절차를 한 번에 수행하는 스크립트
+
+${KAFKA_HOME_DIR}/          (각 노드 호스트, 저장소 밖) .env 의 KAFKA_HOME_DIR 로 지정
+├── data/                   Kafka 로그 디렉터리 (bind mount → /var/lib/kafka/data)
+└── secret/                 keystore/truststore 배치 위치 (bind mount → /etc/kafka/secrets, 읽기 전용)
 ```
 
 ## 실행 순서 (요약)
 
 전제: 3대 = `kafka1`(10.0.0.11), `kafka2`(10.0.0.12), `kafka3`(10.0.0.13). 실제 값으로 바꿔 사용합니다.
 
-1. **인증서 생성** — [certs/README.md](certs/README.md) 절차로 CA·노드 keystore·공통 truststore 를 만들고, 각 노드 `${KAFKA_HOME_DIR}/secret/` 에 배치.
-
-2. **노드별 .env 작성**
+1. **노드별 .env 작성**
 
    ```bash
    cp .env.example .env
    # 서버1: KAFKA_NODE_ID=1, ADVERTISED_HOST=10.0.0.11, KAFKA_KEYSTORE_FILE=kafka1.keystore.jks
    # 서버2/3 도 각자 값으로
    # KAFKA_HOME_DIR: 데이터(data/)·인증서(secret/)를 둘 호스트 절대 경로 (3대 동일하게 두는 것을 권장)
+   # KAFKA_CLUSTER_ID: 3단계에서 만든 값을 3대에 같게 기록
    ```
 
-3. **클러스터 ID 생성 (한 번, 3대 공유)**
+2. **호스트 디렉터리 준비 (각 노드)** — 컨테이너 실행 UID(1000)가 읽고 쓸 수 있어야 합니다.
 
    ```bash
-   KAFKA_CLUSTER_ID=$(docker run --rm apache/kafka:4.0.0 /opt/kafka/bin/kafka-storage.sh random-uuid)
-   echo "$KAFKA_CLUSTER_ID"   # 세 노드에 같은 값 전달
+   set -a; . ./.env; set +a
+   sudo mkdir -p "${KAFKA_HOME_DIR}/data" "${KAFKA_HOME_DIR}/secret"
+   sudo chown -R 1000:1000 "${KAFKA_HOME_DIR}"
    ```
 
-4. **각 노드에서 스토리지 포맷 (최초 1회)** — SCRAM admin 계정 부트스트랩 포함. 03 문서 7장 참고.
+3. **클러스터 ID 생성 (한 번, 3대 공유)** — 출력값을 세 노드 `.env` 의 `KAFKA_CLUSTER_ID` 에 기록합니다.
 
-5. **각 노드에서 기동**
+   ```bash
+   docker run --rm apache/kafka:4.0.0 /opt/kafka/bin/kafka-storage.sh random-uuid
+   ```
+
+4. **인증서 생성·배치** — [certs/README.md](certs/README.md) 절차(또는 `certs/generate-certs.sh`)로 CA·노드 keystore·공통 truststore 를 만들고, 각 노드 `${KAFKA_HOME_DIR}/secret/` 에 복사한 뒤 `chmod 600 *.jks`.
+
+5. **각 노드에서 스토리지 포맷 (최초 1회)** — SCRAM admin 계정 부트스트랩 포함. [07 문서 7장](../../concepts/07-kraft-cluster-installation.md) 참고.
+
+6. **각 노드에서 기동**
 
    ```bash
    docker compose up -d
    docker compose logs -f kafka   # "Kafka Server started" 확인
    ```
 
-6. **검증** — controller quorum(voters 3), RF3 토픽, 1대 정지 후 무중단. 명령은 [운영 치트시트](../../commands/kafka-operations-cheatsheet.md)와 03 문서 8·10·11장 참고.
+7. **검증** — controller quorum(voters 3), RF3 토픽, 1대 정지 후 무중단. 명령은 [운영 치트시트](../../commands/kafka-operations-cheatsheet.md)와 07 문서 8·10·11장 참고.
 
 ## 로컬 학습용 (단일 머신 3컨테이너)
 
@@ -59,7 +71,7 @@ ${KAFKA_HOME_DIR}/secret/ (각 노드에 직접 생성) keystore/truststore 배�
 
 ## 주의
 
-- `.env` 는 **커밋하지 않습니다.** 저장소 루트 `.gitignore` 에 추가하세요. 인증서(`${KAFKA_HOME_DIR}/secret/`)는 저장소 밖이라 커밋될 일이 없지만, 백업 등으로 외부에 복사되지 않게 관리합니다.
+- `.env` 는 **커밋하지 않습니다** (루트 `.gitignore` 가 제외). 인증서(`${KAFKA_HOME_DIR}/secret/`)와 데이터(`${KAFKA_HOME_DIR}/data/`)는 저장소 밖이라 커밋될 일이 없지만, 인증서는 백업 등으로 외부에 복사되지 않게 관리합니다.
 - 노드 간 통신은 호스트 IP 를 그대로 사용합니다(DNS/hosts 매핑 불필요). `docker-compose.yml` 의 `KAFKA_CONTROLLER_QUORUM_VOTERS` IP 는 예시이므로 실제 서버 IP 로 바꿉니다. IP 로 광고·접속하므로 인증서 SAN 에 각 노드 IP 가 반드시 포함되어야 합니다.
 - `network_mode: host` 는 리눅스 전용입니다. 컨테이너가 호스트의 9092/9093/9094 에 직접 바인드되므로 해당 포트가 비어 있어야 하고, 방화벽에서 노드 간 9092·9093, 앱 대역의 9094 접근을 허용해야 합니다.
 - 이미지 태그 `apache/kafka:4.0.0` 은 예시 고정 버전입니다. 실제 도입 시 사용할 패치 버전을 확인해 고정하세요.
