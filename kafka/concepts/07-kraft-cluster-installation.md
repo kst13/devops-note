@@ -61,16 +61,17 @@ sudo firewall-cmd --reload
 ## 4. 설치 전 체크리스트
 
 - [ ] Docker / Docker Compose plugin 설치 (`docker --version`, `docker compose version`)
-- [ ] 데이터용 전용 디스크를 `/data/kafka`에 마운트하고 권한 부여
+- [ ] 데이터·인증서를 둘 호스트 디렉터리(`.env` 의 `KAFKA_HOME_DIR`, 예: `/data/kafka`)를 정하고 — 가능하면 전용 디스크를 마운트 — 권한 부여
 - [ ] 3대 시간 동기화 (`chronyd` 활성화) — 시계 어긋나면 TLS/타임스탬프 문제 발생
 - [ ] 3대가 서로의 호스트명/IP를 해석 가능 (`/etc/hosts` 또는 DNS)
 - [ ] 파일 디스크립터 상한 상향 (`ulimit -n` 100000 권장)
 - [ ] 방화벽 규칙 적용(3장) 및 노드 간 9092/9093 연결 확인
 
 ```bash
-sudo mkdir -p /data/kafka
+# KAFKA_HOME_DIR 은 .env 와 같은 값 (예: /data/kafka). data/ 는 로그 세그먼트, secret/ 은 keystore/truststore
+sudo mkdir -p "${KAFKA_HOME_DIR}/data" "${KAFKA_HOME_DIR}/secret"
 # apache/kafka 이미지의 기본 실행 UID(1000)에 쓰기 권한 부여
-sudo chown -R 1000:1000 /data/kafka
+sudo chown -R 1000:1000 "${KAFKA_HOME_DIR}"
 ```
 
 ## 5. TLS 인증서 준비
@@ -291,7 +292,7 @@ docker compose start kafka
 - [ ] 9092/9093은 3노드 내부, 9094만 앱 대역에 개방됨
 - [ ] SASL_SSL로만 접속 가능(평문 접속 거부), 잘못된 계정 인증 거부
 - [ ] 시크릿이 파일에 하드코딩되지 않고 Secret Manager로 주입됨
-- [ ] `/data/kafka`가 전용 디스크이고 컨테이너 재생성 후에도 데이터 보존
+- [ ] `${KAFKA_HOME_DIR}/data`가 전용 디스크이고 컨테이너 재생성 후에도 데이터 보존
 
 ## 14. 참고한 공식 문서
 
