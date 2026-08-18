@@ -79,6 +79,13 @@ secrets/             (직접 생성) keystore/truststore 배치 위치, .gitigno
 
    `Formatting metadata directory /var/lib/kafka/data` 가 찍히면 성공입니다.
 
+   여기서 `/var/lib/kafka/data` 는 compose 의 named volume `kafka-data` 입니다(`docker compose run` 도 서비스의 볼륨을 그대로 마운트합니다). 3노드 예제에서는 같은 자리에 호스트 `${KAFKA_HOME_DIR}/data` 가 bind mount 되므로 포맷 결과를 호스트에서 바로 볼 수 있지만, 이 예제는 볼륨 안에 남으므로 컨테이너를 통해 확인합니다.
+
+   ```bash
+   # 클러스터 ID 가 .env 의 KAFKA_CLUSTER_ID 와 같으면 정상
+   docker compose run --rm --entrypoint cat kafka /var/lib/kafka/data/meta.properties
+   ```
+
    왜 이렇게 도는지: `docker compose run` 에 명령을 직접 주면 이미지 진입점(`/etc/kafka/docker/run`)이 건너뛰어져 `KAFKA_*` 환경변수가 properties 로 렌더링되지 않습니다. 그래서 렌더러(`KafkaDockerWrapper setup`)를 직접 호출해 env 가 반영된 `server.properties` 를 만든 뒤 그것으로 포맷합니다. `/etc/kafka/server.properties` 라는 경로는 이 이미지에 존재하지 않습니다 (기본값은 `/etc/kafka/docker/server.properties`, 렌더링 결과는 `/opt/kafka/config/server.properties`).
 
    admin 계정을 metadata 에 심는 이유는 브로커 간 인증(INTERNAL 리스너, SCRAM-SHA-512)이 이 자격증명을 쓰기 때문입니다. 포맷 시점에 넣지 않으면 나중에 CLI 로 만들 방법이 없습니다 — 만들려면 그 CLI 가 다시 SCRAM 인증을 통과해야 하기 때문입니다.
