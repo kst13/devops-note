@@ -145,29 +145,46 @@ docker run --rm apache/kafka:4.0.0 /opt/kafka/bin/kafka-storage.sh random-uuid
 # 예: xtzWWN4bTjitpL3kfd9s5g
 
 # (2) 각 노드에서 스토리지 포맷 (SCRAM 관리자 계정도 함께 부트스트랩)
-#     apache/kafka 이미지는 server.properties 를 기동 시점에 env 로부터 생성하므로,
-#     먼저 wrapper setup 으로 설정을 생성한 뒤 --add-scram 으로 다시 포맷한다.
-#     (setup 이 SCRAM 없이 1차 포맷까지 해버리기 때문에 지우고 재포맷하는 것)
-docker compose run --rm --entrypoint bash kafka -c '
-set -e
-mkdir -p /mnt/shared/config
-/opt/kafka/bin/kafka-run-class.sh kafka.docker.KafkaDockerWrapper setup \
-  --default-configs-dir /etc/kafka/docker \
-  --mounted-configs-dir /mnt/shared/config \
-  --final-configs-dir /opt/kafka/config >/dev/null 2>&1 || true
-rm -rf /var/lib/kafka/data/*          # 최초 설치 전용! 기존 데이터가 있으면 실행 금지
-/opt/kafka/bin/kafka-storage.sh format \
-  --cluster-id "$CLUSTER_ID" \
-  --config /opt/kafka/config/server.properties \
-  --add-scram "SCRAM-SHA-512=[name=admin,password=CHANGE_ME_ADMIN]"
-'
+#     예제 디렉터리(docker-compose.yml + .env 가 있는 곳)에서 실행한다.
+#     compose 가 .env 의 KAFKA_HOME_DIR 를 읽어 ${KAFKA_HOME_DIR}/data 를 컨테이너의
+#     /var/lib/kafka/data 로 마운트하므로, 아래 포맷 결과는 호스트 ${KAFKA_HOME_DIR}/data 에 남는다.
+#     전제: 4장에서 ${KAFKA_HOME_DIR}/{data,secret} 을 만들고 chown -R 1000:1000 을 끝냈을 것.
+set -a; . ./.env; set +a          # KAFKA_CLUSTER_ID, KAFKA_INTER_BROKER_*, KAFKA_HOME_DIR 을 셸로
+
+docker compose run --rm --entrypoint bash \
+  -e CLUSTER_ID="$KAFKA_CLUSTER_ID" \
+  -e ADMIN_USER="$KAFKA_INTER_BROKER_USER" \
+  -e ADMIN_PASSWORD="$KAFKA_INTER_BROKER_PASSWORD" \
+  kafka -c '
+    set -e
+    # (a) 이미지 진입점과 같은 렌더러로 KAFKA_* env 를 /opt/kafka/config/server.properties 로 옮긴다.
+    #     렌더러는 곧바로 내장 포맷도 실행하는데 --add-scram 을 지원하지 않으므로,
+    #     log.dirs 를 임시 경로로 돌려 그 결과를 버린다 (호스트 ${KAFKA_HOME_DIR}/data 는 건드리지 않는다).
+    mkdir -p /tmp/discard
+    KAFKA_LOG_DIRS=/tmp/discard /opt/kafka/bin/kafka-run-class.sh kafka.docker.KafkaDockerWrapper setup \
+      --default-configs-dir /etc/kafka/docker \
+      --mounted-configs-dir /mnt/shared/config \
+      --final-configs-dir /opt/kafka/config
+
+    # (b) 실제 데이터 디렉터리(= 호스트 ${KAFKA_HOME_DIR}/data)를 SCRAM admin 과 함께 포맷한다
+    sed -i "s|^log.dirs=.*|log.dirs=/var/lib/kafka/data|" /opt/kafka/config/server.properties
+    /opt/kafka/bin/kafka-storage.sh format \
+      --cluster-id "$CLUSTER_ID" \
+      --config /opt/kafka/config/server.properties \
+      --add-scram "SCRAM-SHA-512=[name=$ADMIN_USER,password=$ADMIN_PASSWORD]"
+  '
+
+# (3) 호스트에서 결과 확인 — 클러스터 ID 가 .env 값과 같아야 한다
+cat "${KAFKA_HOME_DIR}/data/meta.properties"
 ```
 
 중요한 점:
 
-- 클러스터 ID는 **3대가 동일**해야 합니다. 한 번 생성해 세 노드에 같은 값으로 전달합니다.
-- 포맷은 빈 로그 디렉터리에서 최초 1회만 합니다. 이미 데이터가 있는 디렉터리를 다시 포맷하면 지워집니다.
-- `--add-scram`으로 부트스트랩한 admin 계정은 이후 다른 서비스 계정을 만들 때 씁니다.
+- 클러스터 ID는 **3대가 동일**해야 합니다. 한 번 생성해 세 노드 `.env`에 같은 값으로 기록합니다.
+- 포맷은 빈 `${KAFKA_HOME_DIR}/data`에서 최초 1회만 합니다. 이미 `meta.properties`가 있으면 `already formatted`로 멈추고, 지우고 다시 포맷하면 데이터가 사라집니다.
+- `${KAFKA_HOME_DIR}/data`가 미리 UID 1000 소유로 만들어져 있지 않으면 Docker 가 root 소유로 자동 생성해 포맷이 `Permission denied`로 실패합니다(4장 참고).
+- `--add-scram`으로 부트스트랩한 admin 계정(`.env`의 `KAFKA_INTER_BROKER_USER/PASSWORD`)은 브로커 간 인증과 이후 서비스 계정 생성에 씁니다.
+- `docker compose run`에 명령을 직접 주면 이미지 진입점이 건너뛰어져 `KAFKA_*` env 가 properties 로 렌더링되지 않기 때문에, 렌더러(`KafkaDockerWrapper setup`)를 직접 호출해 `server.properties`를 만든 뒤 그것으로 포맷합니다.
 
 ## 8. 기동과 검증
 
