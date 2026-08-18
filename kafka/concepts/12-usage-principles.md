@@ -7,6 +7,7 @@
 - ✅ 토픽은 **직접 만들지 말고 요청**하세요 (아래 "토픽 요청하기").
 - ✅ 프로듀서는 **`acks=all` + `enable.idempotence=true`**.
 - ✅ 순서가 중요하면 **메시지 key**를 지정하세요.
+- ✅ 프로듀서는 **`compression-type: lz4`** 로 압축해서 보내세요 (브로커·컨슈머는 손댈 것 없음).
 - ✅ 컨슈머는 **수동 커밋**(처리 후 `ack.acknowledge()`).
 - ✅ **자기 서비스 계정**으로만 접속하고, `bootstrap.servers`에 **브로커 3대를 모두** 적으세요.
 - ✅ 컨슈머는 **같은 메시지를 두 번 받아도 안전**하게(멱등) 처리하세요.
@@ -104,10 +105,26 @@ public class OrderEventProducer {
 }
 ```
 
-- **순서가 중요하면 반드시 key를 지정**하세요(`send(topic, key, value)`). key가 없으면 여러 파티션으로 흩어져 순서가 깨집니다.
+- **순서가 중요하면 반드시 key를 지정**하세요(`send(topic, key, value)`). key가 없으면 여러 파티션으로 흩어져 순서가 깨집니다. 어디까지 보장되고 무엇이 필요한지는 [13-message-key-and-ordering](13-message-key-and-ordering.md) 참고.
 - 유실이 허용되는 대량 로그·메트릭이면 그 토픽만 `acks=1`을 쓸 수도 있지만, **기본은 `acks=all`** 입니다.
 
 DON'T: `acks=0`으로 중요한 데이터 보내기(유실됨).
+
+### 압축해서 보내기 (`compression-type`)
+
+프로듀서가 **배치 단위로 압축**해서 보내고, 브로커는 그대로 저장하며(`compression.type=producer` 기본값), 컨슈머 라이브러리가 자동으로 풉니다. 애플리케이션 코드는 압축 여부를 모릅니다 — 설정 한 줄로 네트워크·디스크·복제 트래픽이 줄어듭니다(JSON 이벤트는 보통 3~5배).
+
+| 코덱 | 압축률 | CPU | 언제 |
+| --- | --- | --- | --- |
+| `lz4` | 중간 | 매우 낮음 | **기본 추천** — 처리량 우선 |
+| `zstd` | 높음 | 낮음~중간 | 네트워크/디스크 비용이 중요할 때 |
+| `snappy` | 중간 | 낮음 | lz4와 비슷 (오래된 클라이언트 호환) |
+| `gzip` | 높음 | 높음 | CPU 여유가 크고 대역폭이 귀할 때만 |
+
+- 압축은 **레코드 배치**(같은 파티션으로 가는 메시지 묶음)에 걸립니다. `batch-size`(기본 16KB)를 키우고 `linger.ms`를 조금 주면 배치가 커져 압축률이 좋아집니다. 메시지를 하나씩 `send().get()`으로 동기 전송하면 배치가 1건이라 압축 이득이 거의 없습니다.
+- 브로커·토픽의 `compression.type`은 기본값 `producer`로 둡니다. 다른 코덱을 지정하면 브로커가 풀어서 다시 압축하느라 CPU를 씁니다.
+- `max.request.size`·`message.max.bytes` 한도는 **압축 후 크기** 기준입니다.
+- 압축은 암호화가 아닙니다. 전송 보안은 SASL_SSL(아래 6번)이 담당합니다.
 
 ## 5. 컨슈머 (메시지 받기)
 
@@ -162,8 +179,11 @@ spring:
     bootstrap-servers: kafka1:9092,kafka2:9092,kafka3:9092   # 포트 9092, 보안 설정 없음
     producer:
       acks: all
+      compression-type: lz4                   # 배치 단위 압축 (none|gzip|snappy|lz4|zstd)
+      batch-size: 65536                       # 배치를 키워야 압축률이 나옴 (기본 16384)
       properties:
         enable.idempotence: true
+        linger.ms: 20                         # 배치를 채울 시간을 조금 줌
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     consumer:
@@ -194,8 +214,11 @@ spring:
       ssl.endpoint.identification.algorithm: https
     producer:
       acks: all
+      compression-type: lz4                   # 배치 단위 압축 (none|gzip|snappy|lz4|zstd)
+      batch-size: 65536                       # 배치를 키워야 압축률이 나옴 (기본 16384)
       properties:
         enable.idempotence: true
+        linger.ms: 20                         # 배치를 채울 시간을 조금 줌
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     consumer:
@@ -229,7 +252,7 @@ java -jar app.jar --spring.profiles.active=local   # 로컬
 java -jar app.jar --spring.profiles.active=stage   # 스테이징
 ```
 
-- 공통 설정(acks=all, ack-mode 등)은 `application.yml`에 두고 **접속·보안만 프로파일별 파일**에 둡니다.
+- 공통 설정(acks=all, compression-type, ack-mode 등)은 `application.yml`에 두고 **접속·보안만 프로파일별 파일**에 둡니다.
 
 ## 7. 자주 하는 실수
 
@@ -241,11 +264,14 @@ java -jar app.jar --spring.profiles.active=stage   # 스테이징
 | 접속 실패/권한 오류 | 계정·ACL·truststore | 발급받은 계정·인증서 확인 |
 | 컨슈머 늘려도 안 빨라짐 | 파티션 수 < 컨슈머 수 | 파티션 증설 요청 |
 | `JsonDeserializer` 오류 | 신뢰 패키지 미설정 | `spring.json.trusted.packages` 지정 |
+| 네트워크·디스크 사용량이 큼 | 압축 없이 전송, 배치가 작음 | `compression-type: lz4` + `batch-size`/`linger.ms` |
+| 압축을 켰는데 브로커 CPU 상승 | 토픽 `compression.type`이 프로듀서 코덱과 달라 재압축 | 토픽은 `producer`(기본)로 두기 |
 
 ## 더 읽을거리
 
 - 개념: [Kafka 핵심 개념](01-kafka-basics.md) · [Producer와 복제](02-producer-and-replication.md) · [Consumer와 Consumer Group](03-consumer-and-consumer-group.md)
 - 실무 Q&A(순서 시뮬레이션·멱등 등): [09-concepts-qna](09-concepts-qna.md)
+- 키·순서·선착순 설계: [13-message-key-and-ordering](13-message-key-and-ordering.md)
 - 보안(왜 계정·TLS가 필요한가): [10-security-tls-and-auth](10-security-tls-and-auth.md)
 - 명령어: [운영 치트시트](../commands/kafka-operations-cheatsheet.md)
 
