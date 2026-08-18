@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 3노드 Kafka 클러스터용 TLS 인증서 일괄 생성 스크립트
 #
-# 사용법: 아래 "설정" 세 값만 고친 뒤 실행한다.
+# 사용법: 아래 "설정" 의 STOREPASS/VALID/NODES 를 고친 뒤 실행한다.
 #   ./generate-certs.sh          # 생성 (기존 산출물이 있으면 중단)
 #   ./generate-certs.sh --force  # 기존 산출물을 지우고 처음부터 재생성
 #
@@ -10,10 +10,13 @@
 # 산출물은 스크립트를 실행한 현재 디렉터리에 생긴다.
 set -euo pipefail
 
-# ===== 설정: 여기 세 값만 수정 =====
+# ===== 설정: 여기만 수정 =====
 STOREPASS='__SET_ME__'    # keystore/truststore 비밀번호 (.env 의 비밀번호 3개와 동일하게)
 VALID=3650                # 인증서 유효기간(일) — 3650 = 약 10년
 NODES="kafka1:10.0.0.11 kafka2:10.0.0.12 kafka3:10.0.0.13"    # 이름:실제서버IP
+# (선택) 마지막에 출력하는 scp 안내용 — 서버 접속 계정과 .env 의 KAFKA_HOME_DIR
+DEPLOY_USER='kafka'
+KAFKA_HOME_DIR='/home/kafka/kafka'
 # ===================================
 
 # keytool 이 없으면 kafka 이미지 안에서 재실행 (현재 디렉터리를 /work 로 마운트)
@@ -108,6 +111,6 @@ echo "다음 단계 — 각 서버로 배포:"
 for pair in $NODES; do
   NODE="${pair%%:*}"
   IP="${pair##*:}"
-  echo "  scp ${NODE}.keystore.jks truststore.jks ow@${IP}:/home/ow/kafka/secret/"
+  echo "  scp ${NODE}.keystore.jks truststore.jks ${DEPLOY_USER}@${IP}:${KAFKA_HOME_DIR}/secret/"
 done
 echo "  * ca.key 는 서버에 올리지 말 것 — 재발급용으로 안전한 곳에 별도 보관"

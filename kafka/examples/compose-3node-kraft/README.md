@@ -15,14 +15,14 @@
 docker-compose.yml   3대 공용 (노드 차이는 .env 로만 주입)
 .env.example         노드별로 .env 로 복사해 NODE_ID/IP/시크릿 지정
 certs/README.md      사설 CA + 노드별 keystore/truststore 생성 절차
-/home/ow/kafka/secret/   (각 노드에 직접 생성) keystore/truststore 배치 위치 — 저장소 밖
+${KAFKA_HOME_DIR}/secret/ (각 노드에 직접 생성) keystore/truststore 배치 위치 — 저장소 밖, .env 로 지정
 ```
 
 ## 실행 순서 (요약)
 
 전제: 3대 = `kafka1`(10.0.0.11), `kafka2`(10.0.0.12), `kafka3`(10.0.0.13). 실제 값으로 바꿔 사용합니다.
 
-1. **인증서 생성** — [certs/README.md](certs/README.md) 절차로 CA·노드 keystore·공통 truststore 를 만들고, 각 노드 `/home/ow/kafka/secret/` 에 배치.
+1. **인증서 생성** — [certs/README.md](certs/README.md) 절차로 CA·노드 keystore·공통 truststore 를 만들고, 각 노드 `${KAFKA_HOME_DIR}/secret/` 에 배치.
 
 2. **노드별 .env 작성**
 
@@ -30,6 +30,7 @@ certs/README.md      사설 CA + 노드별 keystore/truststore 생성 절차
    cp .env.example .env
    # 서버1: KAFKA_NODE_ID=1, ADVERTISED_HOST=10.0.0.11, KAFKA_KEYSTORE_FILE=kafka1.keystore.jks
    # 서버2/3 도 각자 값으로
+   # KAFKA_HOME_DIR: 데이터(data/)·인증서(secret/)를 둘 호스트 절대 경로 (3대 동일하게 두는 것을 권장)
    ```
 
 3. **클러스터 ID 생성 (한 번, 3대 공유)**
@@ -58,7 +59,7 @@ certs/README.md      사설 CA + 노드별 keystore/truststore 생성 절차
 
 ## 주의
 
-- `.env` 는 **커밋하지 않습니다.** 저장소 루트 `.gitignore` 에 추가하세요. 인증서(`/home/ow/kafka/secret/`)는 저장소 밖이라 커밋될 일이 없지만, 백업 등으로 외부에 복사되지 않게 관리합니다.
+- `.env` 는 **커밋하지 않습니다.** 저장소 루트 `.gitignore` 에 추가하세요. 인증서(`${KAFKA_HOME_DIR}/secret/`)는 저장소 밖이라 커밋될 일이 없지만, 백업 등으로 외부에 복사되지 않게 관리합니다.
 - 노드 간 통신은 호스트 IP 를 그대로 사용합니다(DNS/hosts 매핑 불필요). `docker-compose.yml` 의 `KAFKA_CONTROLLER_QUORUM_VOTERS` IP 는 예시이므로 실제 서버 IP 로 바꿉니다. IP 로 광고·접속하므로 인증서 SAN 에 각 노드 IP 가 반드시 포함되어야 합니다.
 - `network_mode: host` 는 리눅스 전용입니다. 컨테이너가 호스트의 9092/9093/9094 에 직접 바인드되므로 해당 포트가 비어 있어야 하고, 방화벽에서 노드 간 9092·9093, 앱 대역의 9094 접근을 허용해야 합니다.
 - 이미지 태그 `apache/kafka:4.0.0` 은 예시 고정 버전입니다. 실제 도입 시 사용할 패치 버전을 확인해 고정하세요.

@@ -6,7 +6,7 @@
 
 ## 빠른 방법 — 스크립트로 일괄 생성
 
-[generate-certs.sh](generate-certs.sh) 상단의 세 값(`STOREPASS`, `VALID`, `NODES`)만 고치고 실행하면 아래 전 과정(CA → truststore → 노드별 keystore → SAN 검증)을 한 번에 수행합니다. keytool 이 없으면 apache/kafka 컨테이너 안에서 자동으로 재실행되므로 Docker 만 있으면 됩니다.
+[generate-certs.sh](generate-certs.sh) 상단의 세 값(`STOREPASS`, `VALID`, `NODES`)만 고치고 실행하면(마지막에 출력되는 scp 안내를 맞추려면 `DEPLOY_USER`, `KAFKA_HOME_DIR` 도 함께) 아래 전 과정(CA → truststore → 노드별 keystore → SAN 검증)을 한 번에 수행합니다. keytool 이 없으면 apache/kafka 컨테이너 안에서 자동으로 재실행되므로 Docker 만 있으면 됩니다.
 
 ```bash
 mkdir -p ~/kafka-certs && cd ~/kafka-certs
@@ -77,19 +77,19 @@ kafka2(10.0.0.12), kafka3(10.0.0.13) 에 대해 `NODE`/`IP` 만 바꿔 반복합
 
 ## 4. 배치
 
-각 노드의 `/home/ow/kafka/secret/` 디렉터리(compose 에서 `/etc/kafka/secrets` 로 마운트)에 아래를 둡니다.
+각 노드의 `${KAFKA_HOME_DIR}/secret/` 디렉터리(`.env` 의 `KAFKA_HOME_DIR`, compose 에서 `/etc/kafka/secrets` 로 마운트)에 아래를 둡니다.
 
 ```text
-kafka1 노드:  /home/ow/kafka/secret/kafka1.keystore.jks  +  truststore.jks
-kafka2 노드:  /home/ow/kafka/secret/kafka2.keystore.jks  +  truststore.jks
-kafka3 노드:  /home/ow/kafka/secret/kafka3.keystore.jks  +  truststore.jks
+kafka1 노드:  ${KAFKA_HOME_DIR}/secret/kafka1.keystore.jks  +  truststore.jks
+kafka2 노드:  ${KAFKA_HOME_DIR}/secret/kafka2.keystore.jks  +  truststore.jks
+kafka3 노드:  ${KAFKA_HOME_DIR}/secret/kafka3.keystore.jks  +  truststore.jks
 ```
 
 컨테이너 실행 UID(1000)가 읽을 수 있어야 합니다:
 
 ```bash
-sudo chown -R 1000:1000 /home/ow/kafka/secret
-chmod 600 /home/ow/kafka/secret/*.jks
+sudo chown -R 1000:1000 "${KAFKA_HOME_DIR}/secret"
+chmod 600 "${KAFKA_HOME_DIR}"/secret/*.jks
 ```
 
 `.env` 의 `KAFKA_KEYSTORE_FILE` 을 각 노드의 keystore 파일명으로 맞춥니다.

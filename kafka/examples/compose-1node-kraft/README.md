@@ -140,7 +140,7 @@ secrets/             (직접 생성) keystore/truststore 배치 위치, .gitigno
 | `KAFKA_CONTROLLER_QUORUM_VOTERS` | `1@localhost:9093` | `1@10.0.0.11:9093,2@10.0.0.12:9093,3@10.0.0.13:9093` (실 IP) |
 | advertised 주소 | `localhost` 고정 | 실 IP (.env 주입) |
 | 복제 계수 (RF/min.insync 등) | 전부 1 | 3 / 2 |
-| 데이터 볼륨 | named volume | 호스트 경로 bind mount (`/home/ow/kafka/data`) |
+| 데이터 볼륨 | named volume | 호스트 경로 bind mount (`${KAFKA_HOME_DIR}/data`, .env 로 지정) |
 | INTERNAL 리스너 | 구조상 유지 (실사용 없음) | 브로커 간 복제 트래픽 |
 
 리스너 3개 구조, SCRAM-SHA-512, keystore/truststore, 컨트롤러 mTLS, hostname verification 은 동일합니다.

@@ -81,10 +81,10 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
 
     volumes:
-      # 단일 디스크 서버라 서비스 계정(ow) 홈 아래에 둔다. ~ 확장은 실행 주체에
-      # 따라 달라지므로 절대 경로로 고정. 사전에 chown -R 1000:1000 필요.
-      # 전용 데이터 디스크가 생기면 그 마운트 지점(예: /data/kafka)으로 바꾼다.
-      - /home/ow/kafka/data:/var/lib/kafka/data
+      # 호스트 경로는 .env 의 KAFKA_HOME_DIR 로 지정한다(절대 경로 — ~ 확장은 실행 주체에
+      # 따라 달라진다). 단일 디스크면 서비스 계정 홈, 전용 데이터 디스크가 있으면 그
+      # 마운트 지점(예: /data/kafka)을 넣는다. 사전에 chown -R 1000:1000 필요.
+      - ${KAFKA_HOME_DIR}/data:/var/lib/kafka/data
       # keystore/truststore 배치 위치. 저장소 밖이므로 커밋될 일이 없다.
       # UID 1000 이 읽을 수 있어야 한다 (chown -R 1000:1000, 파일 600).
-      - /home/ow/kafka/secret:/etc/kafka/secrets:ro
+      - ${KAFKA_HOME_DIR}/secret:/etc/kafka/secrets:ro
