@@ -2,6 +2,8 @@
 # 3노드 Kafka 클러스터용 TLS 인증서 일괄 생성 스크립트
 #
 # 사용법: 아래 "설정" 의 STOREPASS/VALID/NODES 를 고친 뒤 실행한다.
+#   DEPLOY_USER/KAFKA_HOME_DIR 는 마지막 scp 안내에만 쓰이며, 노드 .env 의 값과 같게 둔다
+#   (환경변수로 넘겨도 된다: set -a; . ./.env; set +a; ./generate-certs.sh).
 #   ./generate-certs.sh          # 생성 (기존 산출물이 있으면 중단)
 #   ./generate-certs.sh --force  # 기존 산출물을 지우고 처음부터 재생성
 #
@@ -14,15 +16,17 @@ set -euo pipefail
 STOREPASS='__SET_ME__'    # keystore/truststore 비밀번호 (.env 의 비밀번호 3개와 동일하게)
 VALID=3650                # 인증서 유효기간(일) — 3650 = 약 10년
 NODES="kafka1:10.0.0.11 kafka2:10.0.0.12 kafka3:10.0.0.13"    # 이름:실제서버IP
-# (선택) 마지막에 출력하는 scp 안내용 — 서버 접속 계정과 .env 의 KAFKA_HOME_DIR
-DEPLOY_USER='kafka'
-KAFKA_HOME_DIR='/home/kafka/kafka'
+# (선택) 마지막에 출력하는 scp 안내용 — 서버 접속 계정과 노드 .env 의 KAFKA_HOME_DIR
+#        (같은 이름의 환경변수가 있으면 그 값을 우선 사용)
+DEPLOY_USER="${DEPLOY_USER:-kafka}"
+KAFKA_HOME_DIR="${KAFKA_HOME_DIR:-/home/kafka/kafka}"
 # ===================================
 
 # keytool 이 없으면 kafka 이미지 안에서 재실행 (현재 디렉터리를 /work 로 마운트)
 if ! command -v keytool >/dev/null 2>&1; then
   echo "keytool 이 없어 apache/kafka 컨테이너 안에서 다시 실행합니다..."
   exec docker run --rm -v "$PWD":/work -w /work --entrypoint bash \
+    -e DEPLOY_USER -e KAFKA_HOME_DIR \
     apache/kafka:4.0.0 "./$(basename "$0")" "$@"
 fi
 
@@ -40,6 +44,13 @@ for pair in $NODES; do
       ;;
   esac
 done
+case "$KAFKA_HOME_DIR" in
+  /*) ;;
+  *)
+    echo "오류: KAFKA_HOME_DIR 는 절대 경로여야 합니다 (.env 와 동일하게): ${KAFKA_HOME_DIR}" >&2
+    exit 1
+    ;;
+esac
 
 # --- 기존 산출물 처리 ---
 if ls ./*.jks >/dev/null 2>&1; then
@@ -113,4 +124,6 @@ for pair in $NODES; do
   IP="${pair##*:}"
   echo "  scp ${NODE}.keystore.jks truststore.jks ${DEPLOY_USER}@${IP}:${KAFKA_HOME_DIR}/secret/"
 done
+echo "  * ${KAFKA_HOME_DIR}/secret 은 각 서버에 미리 만들어 둔다 (3노드 README 2단계)"
+echo "  * 복사 후 각 서버에서: sudo chown -R 1000:1000 ${KAFKA_HOME_DIR}/secret && sudo chmod 600 ${KAFKA_HOME_DIR}/secret/*.jks"
 echo "  * ca.key 는 서버에 올리지 말 것 — 재발급용으로 안전한 곳에 별도 보관"

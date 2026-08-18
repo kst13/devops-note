@@ -6,7 +6,7 @@
 
 ## 빠른 방법 — 스크립트로 일괄 생성
 
-[generate-certs.sh](generate-certs.sh) 상단의 설정(`STOREPASS`, `VALID`, `NODES`, 그리고 scp 안내용 `DEPLOY_USER`·`KAFKA_HOME_DIR` — 노드 `.env` 의 값과 같게)을 고치고 실행하면 아래 전 과정(CA → truststore → 노드별 keystore → SAN 검증)을 한 번에 수행합니다. keytool 이 없으면 apache/kafka 컨테이너 안에서 자동으로 재실행되므로 Docker 만 있으면 됩니다.
+[generate-certs.sh](generate-certs.sh) 상단의 설정(`STOREPASS`, `VALID`, `NODES`, 그리고 scp 안내용 `DEPLOY_USER`·`KAFKA_HOME_DIR` — 노드 `.env` 의 값과 같게. 같은 이름의 환경변수가 있으면 그 값을 우선 씁니다)을 고치고 실행하면 아래 전 과정(CA → truststore → 노드별 keystore → SAN 검증)을 한 번에 수행합니다. keytool 이 없으면 apache/kafka 컨테이너 안에서 자동으로 재실행되므로 Docker 만 있으면 됩니다.
 
 ```bash
 mkdir -p ~/kafka-certs && cd ~/kafka-certs
