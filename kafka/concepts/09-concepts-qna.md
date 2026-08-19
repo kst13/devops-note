@@ -179,6 +179,61 @@ kafka-topics.sh --bootstrap-server <host>:9092 --describe --topic <토픽>
 
 **설정 위치 한 줄 요약**: 프로듀서에 `compression.type=lz4`(+ `batch.size`, `linger.ms`), 브로커·토픽은 `producer`(기본) 유지, 컨슈머는 손대지 않음. 값과 Spring 예시는 [08](08-configuration-reference.md) 5·7장, [12](12-usage-principles.md) 4장.
 
+## 9. 토픽 이름은 실무에서 어떻게 짓나 (업계 패턴 비교)
+
+공개된 통계는 없지만(토픽 이름은 회사 내부 자산), 벤더 가이드·관리 도구 업체의 고객 관찰·도구 기본값·공개 기술 블로그가 모두 같은 방향을 가리킵니다: **소문자 + `.` 계층 + 도메인 우선 이벤트명**이 대다수이고, 규모가 커지면 거기에 분류 자리나 범위 접두사를 덧붙입니다. 이 클러스터의 규칙([12](12-usage-principles.md) 2장)은 그 다수 관행과 같습니다.
+
+### 모두가 동의하는 원칙
+
+| 원칙 | 이유 |
+| --- | --- |
+| 소문자만 | `Order`/`order`가 공존 가능해 사고 원인 |
+| 구분자는 하나로 고정(계층은 `.`) | Kafka가 메트릭 이름에서 `.`을 `_`로 바꾸므로 `a.b`와 `a_b`가 JMX 메트릭에서 충돌(생성 시 경고) |
+| "무슨 데이터인가"로 짓고 "누가 쓰는가"로 짓지 않는다 | 컨슈머·팀·서비스·제품명은 바뀌고 도메인·이벤트는 안 바뀜 |
+| 바뀌는 메타데이터는 이름 밖으로 | 파티션 수·보존 기간·스키마·소유 팀 → 설정·카탈로그·태그로 |
+| 첫 운영 배포 전에 정하고 자동 검증 | 나중에 바꾸면 데이터 마이그레이션 + 모든 앱 수정 |
+
+### 실무 패턴 4종 (같은 "주문 결제 완료" 이벤트로 비교)
+
+| 패턴 | 예 | 이름이 말해 주는 것 | 어울리는 조직 |
+| --- | --- | --- | --- |
+| **A. 도메인.엔티티.이벤트** | `order.paid` / `commerce.order.paid` | 도메인, 무슨 일(과거형) | 도메인 이벤트 위주, 토픽 수십~수백. **가장 흔함**. 이 클러스터 |
+| **B. 도메인.분류.대상.버전** | `commerce.fct.order-paid.0` | + 메시지 성격: `fct` 사실/이벤트 · `cdc` 변경 캡처(현재 상태) · `cmd` 명령 · `sys` 내부용, + 스키마 세대 | 데이터 플랫폼·다팀 공유, CDC·명령·내부 토픽 혼재, 수백 개 이상 |
+| **C. 범위/조직 접두사** | `public.commerce.order.paid` / `private.commerce.enrichment` / `blue.test-1` | + 남이 구독해도 되는 공식 계약인지, 또는 팀 자율 공간(prefixed ACL) | 팀 많고 개발 클러스터 공유, 데이터 계약 도입 |
+| **D. 환경/리전/테넌트 접두사** | `prod.commerce.order.paid` / `us-east.orders` / `tenant-a.orders` | + 어느 환경·리전·테넌트 | 한 클러스터를 여러 환경이 공유할 때만, 멀티리전(MirrorMaker 2 기본 `<source-cluster>.<topic>`), 멀티테넌트 |
+
+- **A의 핵심 결정**: 이벤트별 토픽(`order.created`, `order.paid`) vs 엔티티별 토픽(`order.events` + 타입 필드). 이벤트별로 나누면 구독은 정밀하지만 **같은 주문의 이벤트가 토픽 사이로 갈라져 순서를 잃습니다.** 순서가 필요하면 엔티티별 한 토픽 + 키=엔티티 ID.
+- **B의 분류 자리는 정책의 손잡이**: `fct`는 재생 안전·보존 기간 기반, `cdc`는 `cleanup.policy=compact`·키=PK, `cmd`는 한 컨슈머 그룹만 처리, `sys`는 타 팀 구독 금지 → 분류별로 보존·compaction·ACL을 일괄 적용.
+- **C의 팀 접두사**는 "바뀌는 것을 넣지 마라"와 충돌하므로 **개발 클러스터의 자율 공간에만**(이 클러스터의 `sandbox.`), 운영 토픽 이름에는 팀명을 넣지 않음.
+- **D는 대부분 피함**: 환경별로 이름이 다르면 앱 설정이 환경마다 달라지고 운영에서 `dev.`를 구독하는 사고가 남. 환경은 클러스터(`bootstrap.servers`)로 분리하고 이름은 동일하게.
+
+실제로는 **A를 기본으로 필요한 자리만 빌리는 혼합형**이 가장 많습니다: `commerce.order.paid`(이벤트) + `cdc.orders.orders`(CDC) + `sandbox.<팀>.*`(개발 자율) + 클러스터로 환경 분리.
+
+### 진영이 갈리는 지점
+
+| 쟁점 | 다수 | 이유 |
+| --- | --- | --- |
+| 환경(dev/prod)을 이름에? | 넣지 않음 | 위 D 참고 |
+| 버전을 이름에? | Schema Registry 있으면 넣지 않음, 없으면 깨질 때만 `.v2` | 토픽 난립 방지 vs 호환 깨지는 변경의 명시 |
+| 팀/서비스명을 이름에? | 넣지 않음 | 소유권은 태그·카탈로그·ACL로 |
+| 구분자 | 계층 `.`, 단어 연결 `-` | `_`는 메트릭 충돌로 기피, camelCase는 드묾 |
+
+### 도구가 만드는 파생 이름 (규칙이 이것들과 충돌하지 않게)
+
+| 종류 | 관례 |
+| --- | --- |
+| 재시도 / DLQ | `<topic>.retry`, `<topic>.retry.5s`, `<topic>.dlq` — Uber 재처리 아키텍처(단계별 재시도 토픽), Spring Kafka 기본 `-retry-N`/`-dlt` |
+| Kafka Streams 내부 | `<application.id>-<store>-changelog`, `<application.id>-<name>-repartition` |
+| CDC (Debezium) | `<server>.<schema>.<table>` (`pg1.public.orders`) |
+| Kafka Connect 내부 | `connect-configs`, `connect-offsets`, `connect-status` |
+| MirrorMaker 2 | `<source-cluster>.<topic>` |
+
+### 지키게 만드는 방법
+
+- 브로커 `auto.create.topics.enable=false` + 토픽 생성은 GitOps/IaC(Strimzi `KafkaTopic`, Terraform 등)로만 → PR에서 이름 정규식·파티션 수·보존 한도 검사, 커밋 이력이 승인 기록.
+- 개발 클러스터는 팀/`sandbox.` 접두사 + prefixed ACL로 자율 생성, 운영은 승인.
+- 소유자·연락처·데이터 등급은 이름이 아니라 메타데이터(태그·카탈로그)로.
+
 ## 관련 문서
 
 - [01. Kafka 핵심 개념](01-kafka-basics.md) · [02. Producer와 복제](02-producer-and-replication.md) · [03. Consumer와 Consumer Group](03-consumer-and-consumer-group.md)
@@ -191,3 +246,4 @@ kafka-topics.sh --bootstrap-server <host>:9092 --describe --topic <토픽>
 - [Kafka Design](https://kafka.apache.org/documentation/#design)
 - [Producer Configs](https://kafka.apache.org/documentation/#producerconfigs) / [Consumer Configs](https://kafka.apache.org/documentation/#consumerconfigs)
 - [KRaft Overview](https://kafka.apache.org/documentation/#kraft)
+- 토픽 명명(업계 자료): [Confluent — Topic Naming Convention](https://www.confluent.io/learn/kafka-topic-naming-convention/) · [Conduktor — Rules & Restrictions](https://www.conduktor.io/kafka/kafka-topics-naming-convention) · [Kadeck — 5 recommendations](https://www.kadeck.com/blog/kafka-topic-naming-conventions-5-recommendations-with-examples) · [devshawn — Topic Naming Conventions](https://dev.to/devshawn/apache-kafka-topic-naming-conventions-3do6) · [Chris Riccomini — Kafka topic naming](https://cnr.sh/posts/2017-08-29-how-paint-bike-shed-kafka-topic-naming-conventions/) · [Uber — Reliable Reprocessing and DLQ](https://www.uber.com/us/en/blog/reliable-reprocessing/) · [IBM — Taming the Kafka topics wild west](https://community.ibm.com/community/user/blogs/dale-lane1/2024/09/17/taming-the-kafka-topics-wild-west)
