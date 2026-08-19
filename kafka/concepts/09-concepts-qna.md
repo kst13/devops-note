@@ -234,6 +234,121 @@ kafka-topics.sh --bootstrap-server <host>:9092 --describe --topic <토픽>
 - 개발 클러스터는 팀/`sandbox.` 접두사 + prefixed ACL로 자율 생성, 운영은 승인.
 - 소유자·연락처·데이터 등급은 이름이 아니라 메타데이터(태그·카탈로그)로.
 
+## 10. Schema Registry와 Debezium은 무엇인가
+
+둘 다 Kafka 자체가 아니라 **주변 생태계 도구**입니다. 하나는 메시지 형식(스키마)을 관리하고, 다른 하나는 DB 변경을 Kafka로 흘려보냅니다. 9장의 "Schema Registry가 있으면 버전을 이름에 안 넣는다", "CDC 토픽은 `cdc.` 접두사"가 각각 이 둘을 가리킵니다.
+
+| | Schema Registry | Debezium |
+| --- | --- | --- |
+| 역할 | 메시지 **형식**의 중앙 저장 + 호환성 검사 | DB **변경**(INSERT/UPDATE/DELETE)을 Kafka 이벤트로 캡처(CDC) |
+| 위치 | 프로듀서/컨슈머 옆의 별도 REST 서버 | Kafka Connect 위에서 도는 소스 커넥터 |
+| 푸는 문제 | 형식 변경으로 컨슈머가 깨짐, "이 토픽 형식이 뭐지" | 이중 쓰기(DB와 Kafka 둘 중 하나만 성공), 레거시 DB 연동, 아웃박스 |
+| 없어도 되나 | 소규모 JSON + "호환 유지" 규율이면 가능 | DB 변경 캡처가 필요 없으면 불필요 |
+| 구현체 | Confluent Schema Registry, Apicurio, AWS Glue SR, Karapace | Debezium (MySQL·PostgreSQL·Oracle·SQL Server·MongoDB 등) |
+
+### Schema Registry — 왜 필요한가
+
+브로커는 메시지를 바이트로만 저장하고 형식을 모릅니다. 프로듀서가 `orderId`를 `order_id`로 바꾸거나 타입을 바꿔 보내면 브로커는 그대로 받고 **컨슈머가 역직렬화하다 터집니다.** 레지스트리는 토픽별 스키마(Avro/Protobuf/JSON Schema)를 저장하고, 프로듀서는 메시지 앞에 **스키마 ID 4바이트**만 붙여 보내며, 컨슈머는 그 ID로 스키마를 받아 읽습니다.
+
+```text
+프로듀서 ─(1) 스키마 등록/조회 → ID─▶ Schema Registry ◀─(3) ID로 스키마 조회─ 컨슈머
+    └─(2) [매직바이트][스키마ID][Avro 데이터] ─▶ Kafka 토픽 ─────────────────────┘
+```
+
+핵심 가치는 **호환성 검사**입니다. 새 스키마 등록 시 `BACKWARD`(새 스키마로 옛 데이터를 읽을 수 있나) 같은 규칙을 검사해 깨지는 변경은 등록을 거부합니다 → 컨슈머가 운영에서 터지는 대신 개발 단계에서 실패합니다. 호환이 유지되면 같은 토픽에 여러 세대 메시지가 공존하므로 토픽 이름에 `.v2`를 붙일 필요가 없습니다.
+
+**예시 — `order.created`를 Avro로 보내고 필드 추가하기**
+
+```json
+{ "type": "record", "name": "OrderCreated", "namespace": "com.example.order",
+  "fields": [
+    { "name": "orderId",     "type": "string" },
+    { "name": "customerId",  "type": "long" },
+    { "name": "totalAmount", "type": "long" },
+    { "name": "createdAt",   "type": "long", "logicalType": "timestamp-millis" }
+  ] }
+```
+
+```yaml
+spring:
+  kafka:
+    producer:
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+    consumer:
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+      properties:
+        specific.avro.reader: true
+    properties:
+      schema.registry.url: http://schema-registry:8081
+```
+
+코드는 그대로 `kafkaTemplate.send("order.created", orderId, event)`. 첫 전송 때 직렬화기가 스키마를 등록하고 ID(예: 21)를 받습니다.
+
+```bash
+curl http://schema-registry:8081/subjects/order.created-value/versions/latest
+# {"subject":"order.created-value","version":1,"id":21,"schema":"{...}"}
+```
+
+- `couponCode` 필드를 **기본값과 함께** 추가(`{ "name": "couponCode", "type": ["null","string"], "default": null }`) → 호환 변경, 버전 2 등록 성공. 옛 컨슈머는 모르는 필드를 무시하고 잘 읽습니다.
+- `customerId`를 `string`으로 바꿔 등록 → **거부**: `HTTP 409 Schema being registered is incompatible with an earlier schema`.
+
+이 저장소 예제는 `JsonSerializer`(레지스트리 없음)라, 스키마 관리는 코드 리뷰와 호환 유지 규율에 의존합니다. 프로듀서와 컨슈머를 다른 팀이 만들기 시작하거나 필드 변경 사고를 겪으면 도입을 검토합니다.
+
+### Debezium — 왜 필요한가
+
+앱이 "DB에 쓰고 Kafka에도 보내기"를 하면 둘 중 하나만 성공하는 **이중 쓰기 문제**가 있고, 레거시 시스템은 코드를 못 고칩니다. Debezium은 DB의 **트랜잭션 로그**(MySQL binlog, PostgreSQL WAL 등)를 읽어 행 단위 변경을 Kafka 이벤트로 흘려보내는 Kafka Connect 커넥터입니다.
+
+```text
+PostgreSQL ─WAL─▶ Debezium (Kafka Connect) ─▶ 토픽 <topic.prefix>.<schema>.<table>
+```
+
+**예시 — PostgreSQL `orders` 테이블 변경을 Kafka로**
+
+```sql
+-- postgresql.conf: wal_level = logical
+CREATE ROLE debezium WITH REPLICATION LOGIN PASSWORD '${DEBEZIUM_PASSWORD}';
+GRANT SELECT ON orders TO debezium;
+```
+
+```bash
+curl -X POST http://connect:8083/connectors -H 'Content-Type: application/json' -d '{
+  "name": "orders-cdc",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "${DB_HOST}", "database.port": "5432",
+    "database.user": "debezium", "database.password": "${DEBEZIUM_PASSWORD}",
+    "database.dbname": "shop",
+    "topic.prefix": "cdc.shop",
+    "table.include.list": "public.orders",
+    "plugin.name": "pgoutput"
+  }
+}'
+```
+
+`topic.prefix`가 토픽 이름 앞부분이 됩니다 → **`cdc.shop.public.orders`** (9장의 `cdc.` 접두사 규칙에 맞춘 것). 앱이 평소처럼 DB에 쓰면:
+
+```sql
+INSERT INTO orders (id, customer_id, status, total) VALUES (1001, 42, 'CREATED', 51000);
+UPDATE orders SET status = 'PAID' WHERE id = 1001;
+```
+
+Kafka에는 키 = PK(`{"id":1001}`)로 이런 이벤트가 자동 생성됩니다(같은 주문의 변경은 같은 파티션에 순서대로 — 4장의 키 원리 그대로):
+
+```json
+{ "before": { "id": 1001, "customer_id": 42, "status": "CREATED", "total": 51000 },
+  "after":  { "id": 1001, "customer_id": 42, "status": "PAID",    "total": 51000 },
+  "source": { "connector": "postgresql", "db": "shop", "table": "orders", "lsn": 24680 },
+  "op": "u", "ts_ms": 1755600000123 }
+```
+
+`op`는 `c`(insert)/`u`(update)/`d`(delete)/`r`(초기 스냅샷). `after`만 보면 현재 상태, `before`와 비교하면 무엇이 바뀌었는지 알 수 있습니다. 흔한 용도: Elasticsearch 싱크로 검색 인덱스 동기화, 캐시 무효화, DW 적재(`cleanup.policy=compact`면 토픽이 "테이블 최신 상태 사본" 역할).
+
+**아웃박스 변형**: 비즈니스 테이블을 직접 캡처하면 "테이블 행 변경"이 나옵니다. **도메인 이벤트**(`order.created`)를 트랜잭션 보장하며 내보내려면 앱이 `orders`와 `outbox` 테이블을 한 트랜잭션에 쓰고, Debezium은 `outbox`만 캡처(`table.include.list: public.outbox` + Outbox Event Router SMT)하게 합니다 → DB 커밋 = 이벤트 발행, 이중 쓰기 문제 해소. [13](13-message-key-and-ordering.md)의 "DB 순서를 따르는 아웃박스 릴레이"가 이것입니다.
+
+### 둘의 관계
+
+Debezium이 만드는 CDC 이벤트도 스키마가 있고 테이블이 바뀌면 함께 바뀌므로, 실무에서는 Connect 컨버터를 `AvroConverter` + Schema Registry로 두어 **둘을 같이** 쓰는 경우가 많습니다. 각각 독립적으로 도입할 수도 있습니다. 이 클러스터는 둘 다 없이 시작해도 되고, "다른 팀이 컨슈머를 만들기 시작" → Schema Registry, "DB 변경을 이벤트로 내보내야 함" → Debezium 순으로 필요해질 가능성이 큽니다.
+
 ## 관련 문서
 
 - [01. Kafka 핵심 개념](01-kafka-basics.md) · [02. Producer와 복제](02-producer-and-replication.md) · [03. Consumer와 Consumer Group](03-consumer-and-consumer-group.md)
@@ -246,4 +361,5 @@ kafka-topics.sh --bootstrap-server <host>:9092 --describe --topic <토픽>
 - [Kafka Design](https://kafka.apache.org/documentation/#design)
 - [Producer Configs](https://kafka.apache.org/documentation/#producerconfigs) / [Consumer Configs](https://kafka.apache.org/documentation/#consumerconfigs)
 - [KRaft Overview](https://kafka.apache.org/documentation/#kraft)
+- [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html) · [Debezium Documentation](https://debezium.io/documentation/) · [Debezium Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html)
 - 토픽 명명(업계 자료): [Confluent — Topic Naming Convention](https://www.confluent.io/learn/kafka-topic-naming-convention/) · [Conduktor — Rules & Restrictions](https://www.conduktor.io/kafka/kafka-topics-naming-convention) · [Kadeck — 5 recommendations](https://www.kadeck.com/blog/kafka-topic-naming-conventions-5-recommendations-with-examples) · [devshawn — Topic Naming Conventions](https://dev.to/devshawn/apache-kafka-topic-naming-conventions-3do6) · [Chris Riccomini — Kafka topic naming](https://cnr.sh/posts/2017-08-29-how-paint-bike-shed-kafka-topic-naming-conventions/) · [Uber — Reliable Reprocessing and DLQ](https://www.uber.com/us/en/blog/reliable-reprocessing/) · [IBM — Taming the Kafka topics wild west](https://community.ibm.com/community/user/blogs/dale-lane1/2024/09/17/taming-the-kafka-topics-wild-west)
