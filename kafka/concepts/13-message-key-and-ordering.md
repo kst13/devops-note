@@ -128,19 +128,19 @@ consumer-C ← P2 : order-4, 5, 8   을 오프셋 0→8  순서로
 docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server localhost:9094 \
   --command-config /etc/kafka/secrets/client-sasl-ssl.properties \
-  --create --topic order-events --partitions 3 --replication-factor 1
+  --create --topic commerce.order.events --partitions 3 --replication-factor 1
 
 # 키 있는 프로듀서: "키:값" 형식으로 입력
 docker compose exec -it kafka /opt/kafka/bin/kafka-console-producer.sh \
   --bootstrap-server localhost:9094 \
   --producer.config /etc/kafka/secrets/client-sasl-ssl.properties \
-  --topic order-events --property parse.key=true --property key.separator=:
+  --topic commerce.order.events --property parse.key=true --property key.separator=:
 
 # 파티션·오프셋·키를 함께 출력하는 컨슈머
 docker compose exec -it kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9094 \
   --consumer.config /etc/kafka/secrets/client-sasl-ssl.properties \
-  --topic order-events --from-beginning \
+  --topic commerce.order.events --from-beginning \
   --property print.partition=true --property print.offset=true --property print.key=true
 ```
 
@@ -167,7 +167,7 @@ public class OrderEventPublisher {
 
     public void publish(OrderEvent event) {
         // 키 = 주문 ID → 같은 주문의 이벤트는 항상 같은 파티션, 따라서 순서 보장
-        kafkaTemplate.send("order-events", event.orderId(), event);
+        kafkaTemplate.send("commerce.order.events", event.orderId(), event);
     }
 }
 ```
@@ -206,7 +206,7 @@ spring:
 그래서 컨슈머는 보통 **"이 상태 전이가 유효한가"** 를 한 번 더 확인합니다.
 
 ```java
-@KafkaListener(topics = "order-events", concurrency = "3")
+@KafkaListener(topics = "commerce.order.events", concurrency = "3")
 public void on(ConsumerRecord<String, OrderEvent> record) {
     Order order = orderRepository.findById(record.key()).orElse(null);
     OrderEvent event = record.value();
@@ -240,7 +240,7 @@ public void on(ConsumerRecord<String, OrderEvent> record) {
 ### 선택지 1. 파티션 1개 토픽
 
 ```bash
-kafka-topics.sh --create --topic order-events --partitions 1 --replication-factor 3
+kafka-topics.sh --create --topic commerce.order.events --partitions 1 --replication-factor 3
 ```
 
 - t01~t30 발생 순서가 그대로 오프셋 순서가 됩니다. 컨슈머 그룹에 컨슈머를 몇 개 띄우든 하나만 읽고 나머지는 대기합니다.

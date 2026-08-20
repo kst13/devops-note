@@ -28,21 +28,21 @@
 ## 2. 토픽 명명 규칙과 이벤트 데이터
 
 ```text
-<도메인>.<이벤트>          예) order.created, payment.completed, inventory.updated
+<도메인>.<엔티티>.<이벤트>     예) commerce.order.created, billing.payment.completed, inventory.stock.updated
 ```
 
 - 소문자 + 점(`.`)으로 구분, 도메인 먼저. 이벤트는 **과거형**(`created`, `paid`, `cancelled`). 임시/실험 토픽은 `sandbox.<이름>`.
 - 이름에 넣지 않는 것: **환경**(dev/prod — 클러스터로 분리하므로 이름은 동일), **팀·서비스명**(조직이 바뀌면 깨짐), 파티션 수·보존 기간 같은 설정값.
-- 도메인 안에 엔티티가 여럿이면 `<도메인>.<엔티티>.<이벤트>` (`commerce.order.created`, `commerce.cart.abandoned`).
-- **순서가 필요한 이벤트는 한 토픽에** — `order.created`/`order.paid`처럼 이벤트별로 나누면 같은 주문의 이벤트가 여러 토픽으로 갈라져 순서를 잃습니다. 한 주문의 상태 흐름을 순서대로 처리해야 하면 `order.events` 하나에 담고 키=orderId, 타입은 값/헤더로 구분합니다([13](13-message-key-and-ordering.md)).
+- **엔티티 자리는 항상 채웁니다(3단계 고정)** — 도메인에 엔티티가 하나뿐이어도 생략하지 않습니다(`order.created` ❌ → `commerce.order.created` ✅). 자리 수가 일정해야 이름만 보고 도메인/엔티티를 파싱할 수 있고, ACL 접두사 패턴·이름 자동 검증(정규식)이 단순해집니다.
+- **순서가 필요한 이벤트는 한 토픽에** — `commerce.order.created`/`commerce.order.paid`처럼 이벤트별로 나누면 같은 주문의 이벤트가 여러 토픽으로 갈라져 순서를 잃습니다. 한 주문의 상태 흐름을 순서대로 처리해야 하면 `commerce.order.events` 하나에 담고 키=orderId, 타입은 값/헤더로 구분합니다([13](13-message-key-and-ordering.md)).
 - 파생 토픽 접미사(고정): 재시도 `<토픽>.retry`, 실패 격리 `<토픽>.dlq`. Spring Kafka `@RetryableTopic` 을 쓰면 기본 접미사(`-retry-N`, `-dlt`)를 이 규칙에 맞게 `retryTopicSuffix`/`dltTopicSuffix` 로 지정합니다.
 - CDC(DB 변경 캡처) 토픽은 이벤트와 구분해 `cdc.<db>.<table>` (`cdc.orders.orders`). Debezium 기본값(`<server>.<schema>.<table>`)을 그대로 쓸 때도 접두사가 `cdc.` 계열이 되게 서버명을 정합니다.
-- 버전: 호환이 깨지는 스키마 변경일 때만 `.v2` 접미사로 새 토픽(`order.created.v2`), 필드 추가처럼 호환되는 변경은 이름 유지.
+- 버전: 호환이 깨지는 스키마 변경일 때만 `.v2` 접미사로 새 토픽(`commerce.order.created.v2`), 필드 추가처럼 호환되는 변경은 이름 유지.
 - 기술 제약: `[a-z0-9._-]`, 249자 이하(실무 50자 이내), `__` 접두사 금지(내부 토픽), `.`과 `_` 혼용 금지(메트릭 이름 충돌).
 
-이 규칙은 업계에서 가장 흔한 형태(소문자·`.` 계층·도메인 우선 이벤트명)와 같습니다. 다른 패턴들과의 비교는 [09 Q&A 9장](09-concepts-qna.md) 참고.
+이 규칙은 업계에서 가장 흔한 형태(소문자·`.` 계층·도메인 우선 이벤트명)와 같고, 업계에서는 엔티티 자리를 생략하기도 하지만 이 클러스터는 **3단계 고정**입니다. 다른 패턴들과의 비교는 [09 Q&A 9장](09-concepts-qna.md) 참고.
 
-메시지 값(value)은 **JSON**을 권장합니다. 예시 이벤트(`order.created`):
+메시지 값(value)은 **JSON**을 권장합니다. 예시 이벤트(`commerce.order.created`):
 
 ```json
 {
@@ -77,7 +77,7 @@ public record OrderCreatedEvent(
 
 | 항목 | 값 |
 | --- | --- |
-| 토픽명 | `order.created` |
+| 토픽명 | `commerce.order.created` |
 | 파티션 수 | 6 (동시에 몇 개 컨슈머가 병렬 처리할지 기준) |
 | 보관 기간 | 7일 |
 | 용도 | 주문 생성 이벤트 발행 |
@@ -103,11 +103,11 @@ public class OrderEventProducer {
 
     public void publish(OrderCreatedEvent event) {
         // key = orderId  →  같은 주문의 이벤트는 항상 같은 파티션 (그 안에서 순서 보장)
-        kafkaTemplate.send("order.created", event.orderId(), event)
+        kafkaTemplate.send("commerce.order.created", event.orderId(), event)
             .whenComplete((result, ex) -> {
                 if (ex != null) {
                     // 전송 실패 로깅/재처리 (acks=all 이라 여기 오면 실제 실패)
-                    log.error("order.created 발행 실패: {}", event.orderId(), ex);
+                    log.error("commerce.order.created 발행 실패: {}", event.orderId(), ex);
                 }
             });
     }
@@ -152,7 +152,7 @@ public class OrderCreatedListener {
         this.processedRepo = processedRepo;
     }
 
-    @KafkaListener(topics = "order.created", groupId = "notification-service")
+    @KafkaListener(topics = "commerce.order.created", groupId = "notification-service")
     public void handle(OrderCreatedEvent event, Acknowledgment ack) {
         // 1) 같은 메시지를 두 번 받아도 안전하게 (재시도·리밸런싱으로 중복 수신 가능)
         if (processedRepo.existsById(event.orderId())) {

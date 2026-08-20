@@ -57,7 +57,7 @@ process.roles = broker,controller  → 우리 3대 구성 (각 인스턴스가 b
 
 **순서는 "파티션 안에서만" 보장**됩니다(offset 순서, 영구). 파티션 사이 전역 순서는 보장되지 않습니다. 그래서 **순서를 지켜야 하는 단위를 key로 지정**해 같은 파티션에 모읍니다.
 
-예: 토픽 `order-events`(파티션 3개), key = 주문ID, 지켜야 할 순서 `생성 → 결제 → 배송`.
+예: 토픽 `commerce.order.events`(파티션 3개), key = 주문ID, 지켜야 할 순서 `생성 → 결제 → 배송`.
 
 ```text
  hash("1001") % 3 = 1 → 주문1001 이벤트는 항상 P1
@@ -197,12 +197,12 @@ kafka-topics.sh --bootstrap-server <host>:9092 --describe --topic <토픽>
 
 | 패턴 | 예 | 이름이 말해 주는 것 | 어울리는 조직 |
 | --- | --- | --- | --- |
-| **A. 도메인.엔티티.이벤트** | `order.paid` / `commerce.order.paid` | 도메인, 무슨 일(과거형) | 도메인 이벤트 위주, 토픽 수십~수백. **가장 흔함**. 이 클러스터 |
+| **A. 도메인.엔티티.이벤트** | `order.paid` / `commerce.order.paid` | 도메인, 무슨 일(과거형) | 도메인 이벤트 위주, 토픽 수십~수백. **가장 흔함**. 이 클러스터(엔티티 포함 3단계 고정) |
 | **B. 도메인.분류.대상.버전** | `commerce.fct.order-paid.0` | + 메시지 성격: `fct` 사실/이벤트 · `cdc` 변경 캡처(현재 상태) · `cmd` 명령 · `sys` 내부용, + 스키마 세대 | 데이터 플랫폼·다팀 공유, CDC·명령·내부 토픽 혼재, 수백 개 이상 |
 | **C. 범위/조직 접두사** | `public.commerce.order.paid` / `private.commerce.enrichment` / `blue.test-1` | + 남이 구독해도 되는 공식 계약인지, 또는 팀 자율 공간(prefixed ACL) | 팀 많고 개발 클러스터 공유, 데이터 계약 도입 |
 | **D. 환경/리전/테넌트 접두사** | `prod.commerce.order.paid` / `us-east.orders` / `tenant-a.orders` | + 어느 환경·리전·테넌트 | 한 클러스터를 여러 환경이 공유할 때만, 멀티리전(MirrorMaker 2 기본 `<source-cluster>.<topic>`), 멀티테넌트 |
 
-- **A의 핵심 결정**: 이벤트별 토픽(`order.created`, `order.paid`) vs 엔티티별 토픽(`order.events` + 타입 필드). 이벤트별로 나누면 구독은 정밀하지만 **같은 주문의 이벤트가 토픽 사이로 갈라져 순서를 잃습니다.** 순서가 필요하면 엔티티별 한 토픽 + 키=엔티티 ID.
+- **A의 핵심 결정**: 이벤트별 토픽(`commerce.order.created`, `commerce.order.paid`) vs 엔티티별 토픽(`commerce.order.events` + 타입 필드). 이벤트별로 나누면 구독은 정밀하지만 **같은 주문의 이벤트가 토픽 사이로 갈라져 순서를 잃습니다.** 순서가 필요하면 엔티티별 한 토픽 + 키=엔티티 ID.
 - **B의 분류 자리는 정책의 손잡이**: `fct`는 재생 안전·보존 기간 기반, `cdc`는 `cleanup.policy=compact`·키=PK, `cmd`는 한 컨슈머 그룹만 처리, `sys`는 타 팀 구독 금지 → 분류별로 보존·compaction·ACL을 일괄 적용.
 - **C의 팀 접두사**는 "바뀌는 것을 넣지 마라"와 충돌하므로 **개발 클러스터의 자율 공간에만**(이 클러스터의 `sandbox.`), 운영 토픽 이름에는 팀명을 넣지 않음.
 - **D는 대부분 피함**: 환경별로 이름이 다르면 앱 설정이 환경마다 달라지고 운영에서 `dev.`를 구독하는 사고가 남. 환경은 클러스터(`bootstrap.servers`)로 분리하고 이름은 동일하게.
@@ -257,7 +257,7 @@ kafka-topics.sh --bootstrap-server <host>:9092 --describe --topic <토픽>
 
 핵심 가치는 **호환성 검사**입니다. 새 스키마 등록 시 `BACKWARD`(새 스키마로 옛 데이터를 읽을 수 있나) 같은 규칙을 검사해 깨지는 변경은 등록을 거부합니다 → 컨슈머가 운영에서 터지는 대신 개발 단계에서 실패합니다. 호환이 유지되면 같은 토픽에 여러 세대 메시지가 공존하므로 토픽 이름에 `.v2`를 붙일 필요가 없습니다.
 
-**예시 — `order.created`를 Avro로 보내고 필드 추가하기**
+**예시 — `commerce.order.created`를 Avro로 보내고 필드 추가하기**
 
 ```json
 { "type": "record", "name": "OrderCreated", "namespace": "com.example.order",
@@ -282,11 +282,11 @@ spring:
       schema.registry.url: http://schema-registry:8081
 ```
 
-코드는 그대로 `kafkaTemplate.send("order.created", orderId, event)`. 첫 전송 때 직렬화기가 스키마를 등록하고 ID(예: 21)를 받습니다.
+코드는 그대로 `kafkaTemplate.send("commerce.order.created", orderId, event)`. 첫 전송 때 직렬화기가 스키마를 등록하고 ID(예: 21)를 받습니다.
 
 ```bash
-curl http://schema-registry:8081/subjects/order.created-value/versions/latest
-# {"subject":"order.created-value","version":1,"id":21,"schema":"{...}"}
+curl http://schema-registry:8081/subjects/commerce.order.created-value/versions/latest
+# {"subject":"commerce.order.created-value","version":1,"id":21,"schema":"{...}"}
 ```
 
 - `couponCode` 필드를 **기본값과 함께** 추가(`{ "name": "couponCode", "type": ["null","string"], "default": null }`) → 호환 변경, 버전 2 등록 성공. 옛 컨슈머는 모르는 필드를 무시하고 잘 읽습니다.
@@ -343,7 +343,7 @@ Kafka에는 키 = PK(`{"id":1001}`)로 이런 이벤트가 자동 생성됩니�
 
 `op`는 `c`(insert)/`u`(update)/`d`(delete)/`r`(초기 스냅샷). `after`만 보면 현재 상태, `before`와 비교하면 무엇이 바뀌었는지 알 수 있습니다. 흔한 용도: Elasticsearch 싱크로 검색 인덱스 동기화, 캐시 무효화, DW 적재(`cleanup.policy=compact`면 토픽이 "테이블 최신 상태 사본" 역할).
 
-**아웃박스 변형**: 비즈니스 테이블을 직접 캡처하면 "테이블 행 변경"이 나옵니다. **도메인 이벤트**(`order.created`)를 트랜잭션 보장하며 내보내려면 앱이 `orders`와 `outbox` 테이블을 한 트랜잭션에 쓰고, Debezium은 `outbox`만 캡처(`table.include.list: public.outbox` + Outbox Event Router SMT)하게 합니다 → DB 커밋 = 이벤트 발행, 이중 쓰기 문제 해소. [13](13-message-key-and-ordering.md)의 "DB 순서를 따르는 아웃박스 릴레이"가 이것입니다.
+**아웃박스 변형**: 비즈니스 테이블을 직접 캡처하면 "테이블 행 변경"이 나옵니다. **도메인 이벤트**(`commerce.order.created`)를 트랜잭션 보장하며 내보내려면 앱이 `orders`와 `outbox` 테이블을 한 트랜잭션에 쓰고, Debezium은 `outbox`만 캡처(`table.include.list: public.outbox` + Outbox Event Router SMT)하게 합니다 → DB 커밋 = 이벤트 발행, 이중 쓰기 문제 해소. [13](13-message-key-and-ordering.md)의 "DB 순서를 따르는 아웃박스 릴레이"가 이것입니다.
 
 ### 둘의 관계
 
