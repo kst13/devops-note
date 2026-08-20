@@ -20,12 +20,14 @@ const ignoredDirectories = new Set([
 ]);
 const categoryLabels = {
   concepts: "개념",
+  "usage-guide": "사용 가이드",
   troubleshooting: "트러블슈팅",
   commands: "명령어",
   examples: "실습",
 };
 const categoryOrder = {
   concepts: 0,
+  "usage-guide": 4,
   commands: 1,
   examples: 2,
   troubleshooting: 3,
