@@ -34,5 +34,14 @@
     "accentSoft": "#fdecd8",
     "order": 4,
     "tags": ["Cloud", "CLI", "Automation"]
+  },
+  "kubernetes": {
+    "title": "Kubernetes",
+    "kicker": "CONTAINER ORCHESTRATION",
+    "description": "로컬 k3d 실습부터 실서버 k3s 클러스터 설치까지, 쿠버네티스를 경험하는 다양한 방법을 정리합니다.",
+    "accent": "#326ce5",
+    "accentSoft": "#e7eefc",
+    "order": 5,
+    "tags": ["Orchestration", "k3s", "kubectl"]
   }
 }
