@@ -30,6 +30,14 @@ commands/          kubectl 조회, 디버깅, 리소스 조작 명령
 7. [k3s 클러스터 설치](concepts/05-k3s-cluster-installation.md)
 8. [실서버 클러스터 토폴로지](concepts/07-production-cluster-topology.md)
 
+### 예제
+
+- [도메인 기반 Ingress 라우팅](examples/ingress-routing/README.md)
+
+### 명령 매뉴얼
+
+- [k3d 실습 매뉴얼](commands/k3d-manual.md)
+
 ## 학습 기준
 
 - 예제는 k3d(k3s in Docker)로 검증하며, 실서버 절차는 k3s 기준으로 작성합니다.
