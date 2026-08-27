@@ -52,7 +52,7 @@ curl -sfL https://get.k3s.io | K3S_URL=https://server-1.example.internal:6443 \
 sudo k3s kubectl get nodes         # 새 노드가 Ready로 추가됨
 ```
 
-역할 구분은 단순합니다. server는 Control Plane(API 서버, 스케줄러, 저장소)을 실행하면서 워크로드도 받고, agent는 워크로드만 실행합니다. server가 1대면 그 서버 장애 시 클러스터 제어가 멈추므로, 고가용성이 필요하면 server를 3대로 늘리고 내장 etcd를 씁니다(첫 server를 `--cluster-init` 옵션으로 시작). HA 구성의 상세 절차는 이 문서 범위 밖이며, k3s 공식 문서의 High Availability 절을 참고합니다.
+역할 구분은 단순합니다. server는 Control Plane(API 서버, 스케줄러, 저장소)을 실행하면서 워크로드도 받고, agent는 워크로드만 실행합니다. server가 1대면 그 서버 장애 시 클러스터 제어가 멈추므로, 고가용성이 필요하면 server를 3대로 늘리고 내장 etcd를 씁니다(첫 server를 `--cluster-init` 옵션으로 시작). HA 구성의 상세 절차는 이 문서 범위 밖이며, k3s 공식 문서의 High Availability 절을 참고합니다. server를 왜 3대로 두는지, 머신을 몇 대 확보해야 하는지는 [실서버 클러스터 토폴로지](07-production-cluster-topology.md)에서 다룹니다.
 
 ## 기본 내장 컴포넌트
 
@@ -88,11 +88,60 @@ kubeconfig에는 클러스터 관리자 인증서가 통째로 들어 있습니�
 
 ## 제거
 
-k3s는 제거 스크립트도 함께 설치합니다. 실습 서버를 정리할 때 사용합니다.
+k3s는 제거 스크립트도 함께 설치합니다. 다만 이 스크립트는 실행 파일만 지우는 명령이
+아닙니다. 실행 중인 k3s와 Pod를 중지하고, 해당 노드의 로컬 클러스터 데이터·설정·CLI
+도구를 삭제합니다. 특히 기본 `local-path` StorageClass를 사용했다면 PV 데이터가 기본적으로
+`/var/lib/rancher/k3s/storage` 아래에 있으므로, 서버에서 다음 명령을 실행하면 애플리케이션
+데이터와 SQLite/내장 etcd 상태를 함께 잃을 수 있습니다. 외부 데이터베이스나 외부 스토리지
+볼륨의 데이터까지 지우는 것은 아니지만, 이를 전제로 복구된다고 가정해서는 안 됩니다.
 
 ```bash
 sudo /usr/local/bin/k3s-uninstall.sh          # server 노드
 sudo /usr/local/bin/k3s-agent-uninstall.sh    # agent 노드
 ```
+
+위 명령은 실습용으로 버릴 클러스터를 완전히 정리할 때만 사용합니다. 운영 데이터가 있거나
+잠시 멈췄다가 다시 사용할 계획이라면 먼저 목적에 맞는 대안을 선택합니다.
+
+### 데이터를 유지한 채 잠시 중지
+
+서비스만 중지하면 k3s 데이터 디렉터리와 kubeconfig는 남습니다. 중지하는 동안 API 서버와
+워크로드는 사용할 수 없으므로, 재개할 때 `start`를 실행합니다.
+
+```bash
+# server
+sudo systemctl stop k3s
+sudo systemctl start k3s   # 다시 사용할 때
+
+# agent라면 서비스 이름만 k3s-agent로 변경
+# sudo systemctl stop k3s-agent
+# sudo systemctl start k3s-agent   # 다시 사용할 때
+```
+
+### 백업 후 완전 제거
+
+완전히 제거해야 한다면 먼저 Kubernetes 오브젝트와 호스트의 로컬 데이터를 별도로 백업합니다.
+백업 파일에는 kubeconfig와 시크릿이 포함될 수 있으므로 접근 권한을 제한하고, 복구 테스트가
+끝날 때까지 삭제하지 않습니다.
+
+```bash
+# API가 살아 있는 동안 리소스 정의를 백업(민감한 값 포함 여부를 확인)
+sudo k3s kubectl get all,configmap,secret,pvc -A -o yaml \
+  > /root/k3s-resources-$(date +%F).yaml
+
+# k3s 중지 후 로컬 datastore와 local-path PV 데이터를 보관
+sudo systemctl stop k3s
+sudo tar -C /var/lib/rancher -czf /root/k3s-data-$(date +%F).tgz k3s
+sudo tar -C /etc/rancher -czf /root/k3s-config-$(date +%F).tgz k3s
+
+# 백업과 복구 가능성을 확인한 뒤에만 실행
+sudo /usr/local/bin/k3s-uninstall.sh
+```
+
+agent 노드는 해당 노드에서 `k3s-agent-uninstall.sh`를 실행합니다. 기존 클러스터에 다시
+조인할 노드라면 제거 전에 server에서 `kubectl delete node <노드명>`으로 기존 노드 등록도
+정리해야 합니다. 자세한 삭제 범위는 [K3s 공식 제거 문서](https://docs.k3s.io/kr/installation/uninstall),
+local-path의 기본 저장 위치는 [K3s 공식 스토리지 문서](https://docs.k3s.io/add-ons/storage)를
+확인합니다.
 
 여기까지 오면 로컬 실습(k3d)과 실서버 운영(k3s)이 같은 스택으로 연결됩니다. 일상 조작에 필요한 명령은 [kubectl 치트시트](../commands/kubectl-cheatsheet.md)에 정리되어 있습니다.

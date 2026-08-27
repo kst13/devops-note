@@ -21,9 +21,14 @@ commands/          kubectl 조회, 디버깅, 리소스 조작 명령
 4. [설정과 볼륨](concepts/04-config-and-volume.md)
 5. [kubectl 치트시트](commands/kubectl-cheatsheet.md)
 
+### 구조 이해
+
+6. [k3d 구조와 요청 경로](concepts/06-k3d-architecture-and-request-path.md)
+
 ### 실서버
 
-6. [k3s 클러스터 설치](concepts/05-k3s-cluster-installation.md)
+7. [k3s 클러스터 설치](concepts/05-k3s-cluster-installation.md)
+8. [실서버 클러스터 토폴로지](concepts/07-production-cluster-topology.md)
 
 ## 학습 기준
 
