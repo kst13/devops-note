@@ -29,6 +29,7 @@ commands/          kubectl 조회, 디버깅, 리소스 조작 명령
 
 7. [k3s 클러스터 설치](concepts/05-k3s-cluster-installation.md)
 8. [실서버 클러스터 토폴로지](concepts/07-production-cluster-topology.md)
+9. [스토리지와 로그](concepts/08-storage-and-logging.md)
 
 ### 예제
 
