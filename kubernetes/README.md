@@ -33,6 +33,12 @@ commands/          kubectl 조회, 디버깅, 리소스 조작 명령
 10. [외부 트래픽 진입점](concepts/09-external-traffic-entrypoint.md)
 11. [web/WAS 워크로드 설계](concepts/10-web-was-workload-design.md)
 
+### 심화
+
+12. [Job, CronJob과 멀티 컨테이너 Pod](concepts/11-job-cronjob-and-multi-container.md)
+13. [접근 제어와 Pod 보안](concepts/12-access-control-and-pod-security.md)
+14. [NetworkPolicy로 Pod 트래픽 제한](concepts/13-network-policy.md)
+
 ### 예제
 
 - [도메인 기반 Ingress 라우팅](examples/ingress-routing/README.md)
