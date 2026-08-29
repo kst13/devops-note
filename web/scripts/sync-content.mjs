@@ -149,6 +149,8 @@ for (const [index, topicId] of topicDirectories.entries()) {
       title,
       summary: extractSummary(markdown),
       difficulty: getDifficulty(category, filename),
+      // 본문 상단의 "> **CKAD 시험 범위**" 인용 표기가 있으면 UI에 CKAD 배지를 노출한다.
+      ckad: /^>\s*\*\*CKAD 시험 범위\*\*/m.test(markdown),
       readTime: Math.max(3, Math.ceil(stripMarkdown(markdown).length / 900)),
       tags: extractTags(title, markdown, topicConfig.tags ?? []),
       sections: [...markdown.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1].trim()),

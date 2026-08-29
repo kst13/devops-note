@@ -12,6 +12,7 @@ type DocumentEntry = {
   title: string;
   summary: string;
   difficulty: string;
+  ckad: boolean;
   readTime: number;
   tags: string[];
   sections: string[];
@@ -373,7 +374,7 @@ function HomeView({
                 return (
                   <button className="search-result" key={document.id} onClick={() => onOpenDocument(document.id)}>
                     <TopicMark topic={topic} small />
-                    <span><b>{document.title}</b><small>{topic.title} · {document.categoryLabel} · {document.readTime}분</small></span>
+                    <span><b>{document.title}</b><small>{topic.title} · {document.categoryLabel} · {document.readTime}분{document.ckad ? <em className="ckad-chip">CKAD</em> : null}</small></span>
                     <ArrowIcon />
                   </button>
                 );
@@ -403,7 +404,7 @@ function HomeView({
                     {trackDocuments.slice(0, 4).map((document, index) => (
                       <button key={document.id} onClick={() => onOpenDocument(document.id)}>
                         <span className={completed.has(document.id) ? "step complete" : "step"}>{completed.has(document.id) ? "✓" : index + 1}</span>
-                        <span><b>{document.title}</b><small>{document.difficulty} · {document.readTime}분</small></span>
+                        <span><b>{document.title}</b><small>{document.difficulty} · {document.readTime}분{document.ckad ? <em className="ckad-chip">CKAD</em> : null}</small></span>
                         <ArrowIcon />
                       </button>
                     ))}
@@ -497,7 +498,7 @@ function DocumentView({
                 <p>{entries[0].categoryLabel}</p>
                 {entries.map((entry, index) => (
                   <button className={entry.id === document.id ? "active" : ""} key={entry.id} onClick={() => onOpenDocument(entry.id)}>
-                    <span>{completed.has(entry.id) ? "✓" : String(index + 1).padStart(2, "0")}</span>{entry.title}
+                    <span>{completed.has(entry.id) ? "✓" : String(index + 1).padStart(2, "0")}</span>{entry.title}{entry.ckad ? <em className="ckad-chip">CKAD</em> : null}
                   </button>
                 ))}
               </div>
@@ -509,7 +510,7 @@ function DocumentView({
         <div className="reader-breadcrumb"><button onClick={onBack}>학습 홈</button><span>/</span><span>{topic.title}</span><span>/</span><strong>{document.categoryLabel}</strong></div>
         <article className="article-shell">
           <header className="article-header">
-            <div className="article-meta"><span>{document.categoryLabel}</span><span>{document.difficulty}</span><span>약 {document.readTime}분</span></div>
+            <div className="article-meta"><span>{document.categoryLabel}</span><span>{document.difficulty}</span><span>약 {document.readTime}분</span>{document.ckad ? <span className="ckad-meta">CKAD 시험 범위</span> : null}</div>
             <h1>{document.title}</h1>
             <p>{document.summary}</p>
             <div className="article-actions">

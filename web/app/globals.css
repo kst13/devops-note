@@ -635,6 +635,8 @@ footer > span { color: #778399; font-family: var(--mono); font-size: 9px; letter
 .article-header { border-bottom: 1px solid #e5e2da; padding: 68px 0 42px; }
 .article-meta { display: flex; gap: 7px; }
 .article-meta span { background: var(--topic-soft); border-radius: 3px; color: var(--topic-accent); font-family: var(--mono); font-size: 9px; font-weight: 800; padding: 6px 8px; }
+.article-meta span.ckad-meta { background: #326ce5; color: #ffffff; }
+.ckad-chip { background: #e7eefc; border-radius: 3px; color: #326ce5; display: inline-block; font-family: var(--mono); font-size: 8px; font-style: normal; font-weight: 800; letter-spacing: 0.4px; line-height: 1; margin-left: 6px; padding: 3px 5px; vertical-align: 1px; }
 .article-header h1 { font-size: clamp(38px, 4vw, 58px); letter-spacing: -.055em; line-height: 1.12; margin: 23px 0 18px; }
 .article-header > p { color: #68717c; font-size: 15px; line-height: 1.8; margin: 0; }
 .article-actions { align-items: flex-end; display: flex; justify-content: space-between; margin-top: 28px; }

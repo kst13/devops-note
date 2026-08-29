@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-01T14:04:07.613Z",
+  "generatedAt": "2026-09-01T14:04:13.640Z",
   "topics": [
     {
       "id": "docker",
@@ -24,6 +24,7 @@
           "title": "Docker 시작하기",
           "summary": "Docker Desktop 또는 Docker Engine과 Compose v2가 필요합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -52,6 +53,7 @@
           "title": "컨테이너와 이미지",
           "summary": "같은 이미지에서 여러 컨테이너를 만들 수 있으며 각 컨테이너의 writable layer는 서로 공유되지 않습니다. 영속 데이터는 writable layer에 의존하지 말고 볼륨이나 외부 저장소로 분리합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Storage",
@@ -80,6 +82,7 @@
           "title": "Dockerfile",
           "summary": "Dockerfile은 이미지를 만들기 위한 빌드 명세입니다. docker build 마지막 인자인 .은 현재 디렉터리를 빌드 컨텍스트로 전달한다는 의미입니다. COPY는 이 컨텍스트 안의 파일만 읽을 수 있습니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Operations",
@@ -109,6 +112,7 @@
           "title": "볼륨과 바인드 마운트",
           "summary": "바인드 마운트도 컨테이너와 독립적으로 유지됩니다. 다만 애플리케이션이 생성하는 영속 데이터는 호스트 경로 결합도가 낮고 Docker가 수명주기를 관리하는 named volume을 기본 선택으로 검토합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Storage",
@@ -138,6 +142,7 @@
           "title": "Docker 네트워크",
           "summary": "사용자 정의 bridge 네트워크에 연결된 컨테이너는 컨테이너명이나 network alias를 DNS 이름으로 사용할 수 있습니다. IP는 재생성 시 달라질 수 있으므로 애플리케이션 설정에 고정하지 않습니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -166,6 +171,7 @@
           "title": "Docker Compose",
           "summary": "Docker Compose는 서비스, 네트워크, 볼륨을 YAML로 정의하고 하나의 프로젝트 단위로 관리합니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -194,6 +200,7 @@
           "title": "컨테이너에서 localhost로 다른 서비스 접근하기",
           "summary": "컨테이너 안에서 localhost는 호스트 서버가 아니라 컨테이너 자기 자신입니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 8,
           "tags": [
             "Network",
@@ -225,6 +232,7 @@
           "title": "컨테이너 운영 기초",
           "summary": "컨테이너는 기본적으로 호스트가 허용하는 만큼 CPU와 메모리를 사용할 수 있습니다. 운영에서는 부하 테스트를 바탕으로 제한값과 모니터링 기준을 함께 정합니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Operations",
@@ -254,6 +262,7 @@
           "title": "Docker CLI 치트시트",
           "summary": "docker compose down -v는 named volume과 anonymous volume 데이터를 삭제할 수 있습니다. 복구할 데이터가 없는지 확인한 뒤 실행합니다.",
           "difficulty": "참고",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -281,6 +290,7 @@
           "title": "Compose 기본 실습",
           "summary": "Nginx와 Redis를 함께 실행하고 서비스 상태, 기본 네트워크, named volume을 확인합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -305,6 +315,7 @@
           "title": "Dockerfile 기본 실습",
           "summary": "정적 HTML을 Nginx 이미지에 넣고 빌드, 실행, 상태 확인, 정리까지 수행합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Container",
@@ -331,6 +342,7 @@
           "title": "Cannot connect between containers",
           "summary": "컨테이너 A에서 컨테이너 B로 접속할 수 없습니다.",
           "difficulty": "실전",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -356,6 +368,7 @@
           "title": "Container exits immediately",
           "summary": "State.ExitCode, State.Error, State.OOMKilled, health 상태를 함께 확인합니다. 자주 보는 종료 코드는 다음과 같습니다.",
           "difficulty": "실전",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Security",
@@ -380,6 +393,7 @@
           "title": "Permission denied",
           "summary": "컨테이너 안에서 파일을 읽거나 쓸 때 Permission denied가 발생합니다.",
           "difficulty": "실전",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Storage",
@@ -404,6 +418,7 @@
           "title": "Port already in use",
           "summary": "컨테이너 실행 시 호스트 포트를 사용할 수 없다는 에러가 발생합니다.",
           "difficulty": "실전",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Container",
@@ -444,6 +459,7 @@
           "title": "Redis 데이터 모델과 만료",
           "summary": "Redis는 메모리를 중심으로 동작하는 key-value 자료구조 서버입니다. 빠른 조회가 장점이지만 사용 목적에 따라 허용 가능한 데이터 유실, eviction, persistence, 고가용성 구성이 달라집니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Storage",
@@ -472,6 +488,7 @@
           "title": "Redis 운영 설정 시작하기",
           "summary": "2026-07-10 기준으로, 운영에서는 \"기본값으로 띄우기\"보다 목적별 redis.conf를 명시하고 네트워크와 인증을 닫은 뒤 메모리 상한과 persistence 방식을 먼저 정합니다. 아래 예시는 Redis 7 이상을 기준으로 하며 Redis 8에서 검증하는 출발점입니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 7,
           "tags": [
             "Network",
@@ -501,6 +518,7 @@
           "title": "Redis persistence, 백업, 복구",
           "summary": "FLUSHALL, 애플리케이션 버그, 데이터 손상이 replica에 그대로 전달될 수 있으므로 replica 자체를 백업으로 취급하지 않습니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Storage",
@@ -531,6 +549,7 @@
           "title": "Redis 여러 대 구성 방식",
           "summary": "Redis를 여러 대 묶는 방법은 하나가 아닙니다. 어떤 방식이 좋은지는 \"고가용성만 필요한지\", \"읽기 부하를 나누고 싶은지\", \"데이터를 여러 노드에 나눠 담아야 하는지\", \"멀티 리전 쓰기까지 필요한지\"에 따라 달라집니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 10,
           "tags": [
             "Network",
@@ -565,6 +584,7 @@
           "title": "Redis Cluster 설치 및 설정 방법",
           "summary": "이 문서는 Redis 여러 대 구성 방식의 선택 기준 중 \"데이터나 쓰기 처리량이 한 Redis를 넘는다\"에 해당할 때, Redis Cluster를 직접 설치하고 설정하는 절차를 정리합니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 13,
           "tags": [
             "Network",
@@ -604,6 +624,7 @@
           "title": "Redis CLI 운영 치트시트",
           "summary": "비밀번호를 -a 인자나 셸 기록에 남기지 않습니다. 가능하면 시크릿 관리 도구에서 환경 변수나 클라이언트 설정으로 주입합니다.",
           "difficulty": "참고",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -634,6 +655,7 @@
           "title": "Redis 로컬 캐시 실습",
           "summary": "로컬 전용 Redis를 실행하고 TTL, 자료구조, 원자적 카운터, 메모리 정책을 확인합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Storage",
@@ -661,6 +683,7 @@
           "title": "Redis memory pressure와 OOM",
           "summary": "데이터를 지우거나 서버를 재시작하기 전에 상태를 보존합니다.",
           "difficulty": "실전",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Storage",
@@ -705,6 +728,7 @@
           "title": "Kafka 핵심 개념: 토픽, 파티션, 브로커, 컨트롤러",
           "summary": "Kafka를 이해하기 위한 기본 개념을 정리합니다. 이 문서를 먼저 읽고 Producer와 복제, Consumer와 Consumer Group으로 넘어갑니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 5,
           "tags": [
             "Operations",
@@ -734,6 +758,7 @@
           "title": "Producer와 복제",
           "summary": "Producer의 메시지 쓰기 흐름, 복제 메커니즘, acks 설정에 따른 성공 기준, 그리고 내부 토픽의 역할을 정리합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 8,
           "tags": [
             "Network",
@@ -762,6 +787,7 @@
           "title": "Consumer와 Consumer Group",
           "summary": "토픽에서 메시지를 읽어가는 Consumer의 동작 방식, Consumer Group의 파티션 분배, 오프셋 관리, 리밸런싱을 정리합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 6,
           "tags": [
             "Operations",
@@ -788,6 +814,7 @@
           "title": "브로커 내부 구조: 네트워크 스레드, 큐, I/O 스레드",
           "summary": "브로커가 클라이언트 요청을 처리하는 내부 흐름을 정리합니다. num.network.threads, num.io.threads 등 성능 관련 설정이 실제로 어디에 작용하는지 이해하는 데 필요한 내용입니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 6,
           "tags": [
             "Network",
@@ -815,6 +842,7 @@
           "title": "KRaft 등장 배경과 ZooKeeper 대비 장단점",
           "summary": "Kafka 기본 개념에서 KRaft와 ZooKeeper의 차이를 표로 짧게 봤습니다. 이 문서는 왜 KRaft가 등장했고, ZooKeeper 대비 무엇이 낫고 무엇을 새로 신경 써야 하는지를 정리합니다. 이 판단이 실서버 3대 클러스터 설계 방식에서 KRaft combin…",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Security",
@@ -844,6 +872,7 @@
           "title": "실서버 3대 클러스터 설계 방식",
           "summary": "실서버 3대에 Kafka를 올려 MSA 서비스 간 비동기 메시징 백본으로 쓰는 상황을 기준으로, 어떤 토폴로지·복제·보안 설정을 선택해야 하는지와 그 이유를 정리합니다. 실제 설치 절차는 KRaft 3노드 클러스터 설치 및 설정 방법에서 다룹니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 6,
           "tags": [
             "Network",
@@ -872,6 +901,7 @@
           "title": "KRaft 3노드 클러스터 설치 및 설정 방법",
           "summary": "이 문서는 실서버 3대 클러스터 설계 방식에서 정한 구성(KRaft combined 3노드, RF3/minISR2, SASLSSL + mTLS)을 RHEL/Rocky/CentOS 계열에서 Docker Compose로 설치하는 절차를 정리합니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 13,
           "tags": [
             "Network",
@@ -906,6 +936,7 @@
           "title": "Kafka 설정 레퍼런스 (KRaft 3노드 기준)",
           "summary": "실서버 3대 KRaft 구성에서 쓰는 주요 설정을 한곳에 모아 정리합니다. 각 설정을 왜 그렇게 두는지의 맥락은 실서버 3대 클러스터 설계 방식과 KRaft 3노드 클러스터 설치 및 설정 방법에 있고, 이 문서는 \"무엇을 어디에 어떤 값으로\" 빠르게 찾는 용도입니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 7,
           "tags": [
             "Network",
@@ -936,6 +967,7 @@
           "title": "개념 정리 Q&A (실무 관점)",
           "summary": "앞의 개념 문서들(01~08)을 자주 헷갈리는 질문 관점에서 다시 묶고, 비교·구분·확인 방법을 보충합니다. 세부 설명은 각 원본 문서로 링크합니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 16,
           "tags": [
             "Security",
@@ -968,6 +1000,7 @@
           "title": "보안: 암호화(TLS)와 인증(SASL·mTLS)",
           "summary": "Kafka 보안을 \"무엇을 막는가\" 관점에서 정리하고, PLAINTEXT와 SASLSSL 중 무엇을 고를지, 서버 인증이 실제로 어떻게 도는지 설명합니다. 리스너 설계는 06-cluster-design, 설치는 07-kraft-cluster-installation, 인증서…",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Network",
@@ -997,6 +1030,7 @@
           "title": "브로커·컨트롤러·주키퍼 프로세스 구조와 failover 원리",
           "summary": "broker, controller, ZooKeeper가 각각 프로세스로 어떻게 존재하는지, KRaft의 combined/dedicated 모드가 이 프로세스를 어떻게 나누는지, 그리고 ZooKeeper 대비 컨트롤러 failover가 왜 빠른지를 한곳에 정리합니다. 05.…",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 7,
           "tags": [
             "Security",
@@ -1025,6 +1059,7 @@
           "title": "Kafka 사용 원칙 (개발자용)",
           "summary": "이 클러스터를 안전하게 함께 쓰기 위한 규칙입니다. 처음 Kafka를 쓰는 개발자는 이 문서만 읽어도 시작할 수 있게 정리했습니다. 샘플 코드는 Java + Spring Boot(Spring Kafka) 기준입니다. 배경이 궁금하면 각 항목의 링크를 따라가세요.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 11,
           "tags": [
             "Network",
@@ -1054,6 +1089,7 @@
           "title": "메시지 키와 순서 보장: 파티션, 전역 순서, 선착순 처리",
           "summary": "\"순서가 필요하면 키를 지정하라\"는 말의 정확한 의미와, 그것만으로 부족한 경우를 정리합니다. 3파티션 토픽에 주문 1~10이 들어오는 예시로 파티션 배정 → 브로커 로그 → 컨슈머 처리까지 따라가고, 전역 순서가 필요한 경우와 선착순(재고 차감) 설계까지 다룹니다. 샘플…",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 17,
           "tags": [
             "Network",
@@ -1082,6 +1118,7 @@
           "title": "Kafka 모니터링 — Prometheus와 Grafana",
           "summary": "Kafka는 브로커 1대가 죽어도 겉으로는 멀쩡하게 동작하도록 설계돼 있습니다. 그래서 \"아직 사고는 아니지만 안전 마진이 사라진 상태\" 는 로그에 안 나오고 메트릭으로만 보입니다. 이 문서는 무엇을 위해 모니터링하는지(목적), 다른 회사들은 어떻게 하는지(관행), 이 클…",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 5,
           "tags": [
             "Storage",
@@ -1108,6 +1145,7 @@
           "title": "Kafka 생태계 서버 배치 방안 (검토 중)",
           "summary": "실서버 3대에 Kafka 브로커와 주변 생태계(Connect, Schema Registry, 모니터링, 관리 UI)를 어떻게 나눠 올릴지에 대한 검토 문서입니다. 아직 방안이 확정되지 않았으며, 두 방안을 비교해 기록합니다. 모니터링 스택 자체의 목적·구축 방법은 14-m…",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Operations",
@@ -1134,6 +1172,7 @@
           "title": "개발자를 위한 Kafka 소개",
           "summary": "Kafka를 처음 접하는 개발자를 위한 소개 문서입니다. 왜 쓰는지부터 동작 원리, 실무에서 바로 쓰는 사용 원칙까지 — 예시는 \"주문 이벤트\" 하나로 통일해 처음부터 끝까지 같은 시나리오로 설명합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 8,
           "tags": [
             "Network",
@@ -1162,6 +1201,7 @@
           "title": "개발자를 위한 Kafka 소개",
           "summary": "Kafka를 처음 접하는 개발자를 위한 소개 문서입니다. 왜 쓰는지부터 동작 원리, 실무에서 바로 쓰는 사용 원칙까지 — 예시는 \"주문 이벤트\" 하나로 통일해 처음부터 끝까지 같은 시나리오로 설명합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 9,
           "tags": [
             "Network",
@@ -1192,6 +1232,7 @@
           "title": "Kafka 개발자 소개 세션 구성안",
           "summary": "Kafka를 처음 접하는 개발자에게 동작 원리를 이해시키고, 실무에서 바로 쓸 수 있는 사용 원칙까지 전달하는 45~60분 발표 구성안입니다. 예시는 \"주문 이벤트\" 하나로 통일해 처음부터 끝까지 같은 시나리오로 끌고 갑니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 9,
           "tags": [
             "Network",
@@ -1223,6 +1264,7 @@
           "title": "Kafka 운영 명령어 치트시트",
           "summary": "3노드 KRaft(SASLSSL) 클러스터를 기준으로 자주 쓰는 명령을 모읍니다. 배경은 설치 문서를 참고합니다.",
           "difficulty": "참고",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Security",
@@ -1250,6 +1292,7 @@
           "title": "Docker Compose 3노드 KRaft 예제",
           "summary": "실서버 3대에 KRaft combined 모드 Kafka(SASLSSL + mTLS)를 올리는 실행 가능한 최소 구성입니다. 설계 배경과 각 설정의 이유는 다음 문서에서 다룹니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Network",
@@ -1274,6 +1317,7 @@
           "title": "Docker Compose 3노드 KRaft 예제 (PLAINTEXT)",
           "summary": "신뢰된 사설망(또는 학습·검증)에서 인증·암호화 없이 빠르게 올리는 3노드 KRaft 예제입니다. 메타데이터는 KRaft(combined)이고, 무손실 설정(RF3/minISR2 등)은 그대로 포함합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Security",
@@ -1299,6 +1343,7 @@
           "title": "Docker Compose 단일 노드 KRaft 예제 (SASL_SSL)",
           "summary": "로컬 PC 한 대에서 SASLSSL(TLS 암호화 + SASL/SCRAM 인증) 흐름을 학습·검증하기 위한 단일 노드 구성입니다. 3노드 예제와 노드 수만 다르고 리스너 구조·보안 설정은 동일합니다 — 클러스터로 확장하려면 3노드 예제로 넘어갑니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 7,
           "tags": [
             "Network",
@@ -1323,6 +1368,7 @@
           "title": "Kafka 홈랩 원클릭 구축 (setup.sh)",
           "summary": "집 PC 한 대에 사내 클러스터와 같은 보안 흐름을 재현하는 스크립트입니다. 1노드 예제의 수동 절차에 더해, 실서버 구축 때 수행한 인가·계정·Schema Registry 단계까지 한 번에 자동화했습니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -1346,6 +1392,7 @@
           "title": "TLS 인증서 생성 (사설 CA + 노드별 keystore/truststore)",
           "summary": "07-kraft-cluster-installation.md 5장에서 참조하는 인증서를 만드는 절차입니다. 사설 CA 1개로 노드 3대의 keystore와 공통 truststore를 발급합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 5,
           "tags": [
             "Security",
@@ -1374,6 +1421,7 @@
           "title": "TLS 인증서 생성 (localhost 단일 keystore)",
           "summary": "3노드 절차의 축소판입니다. 사설 CA 1개로 keystore 1개와 truststore를 발급합니다. advertised 주소가 localhost이므로 SAN 도 localhost/127.0.0.1로 넣습니다 — 이래야 hostname verification(ssl.en…",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -1400,6 +1448,7 @@
           "title": "Kafka 사용 가이드 — 개요",
           "summary": "이 클러스터를 안전하게 함께 쓰기 위한 개발자용 사용 가이드 시리즈입니다. 이 폴더 하나로 완결되도록 작성했으므로, 폴더째 복사해 다른 저장소에서 그대로 사용할 수 있습니다. 샘플 코드는 Java + Spring Boot(Spring Kafka) 기준입니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Security",
@@ -1424,6 +1473,7 @@
           "title": "토픽 명명 규칙과 이벤트 데이터",
           "summary": "토픽 이름은 한 번 정하면 사실상 바꿀 수 없습니다(바꾸려면 새 토픽 + 데이터 마이그레이션 + 모든 앱 수정). 그래서 처음부터 규칙에 맞춰 짓고, 규칙은 자동으로 검증합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Security",
@@ -1450,6 +1500,7 @@
           "title": "토픽 요청하기 (직접 만들지 마세요)",
           "summary": "토픽은 아무나 만들 수 없습니다 — 서비스 계정에는 토픽 생성 권한이 없고, 브로커의 자동 생성(auto.create.topics.enable)도 꺼져 있습니다. 오타 토픽·무관리 토픽을 막고, 모든 토픽이 표준 설정(RF3 + min.insync.replicas=2)으로…",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Security",
@@ -1474,6 +1525,7 @@
           "title": "프로듀서 (메시지 보내기)",
           "summary": "핵심은 세 가지입니다. 유실 방지는 acks=all + 멱등, 순서는 key, 효율은 압축 + 배치. 앞의 둘은 설정(05 접속 설정)으로 한 번에 끝나고, key만 코드에서 챙기면 됩니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Network",
@@ -1499,6 +1551,7 @@
           "title": "컨슈머 (메시지 받기)",
           "summary": "핵심은 두 가지입니다. 처리 완료 후 수동 커밋, 그리고 같은 메시지를 두 번 받아도 안전한(멱등) 처리. Kafka는 \"최소 한 번(at-least-once)\" 전달이 기본이라, 중복 수신은 예외 상황이 아니라 정상 동작입니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Operations",
@@ -1526,6 +1579,7 @@
           "title": "접속 설정 (`application.yml`)",
           "summary": "Spring Boot 설정은 application.yml에 모아둡니다. 프로듀서/컨슈머 설정은 어느 환경이든 동일하고, 접속·보안 부분만 다릅니다. 비밀번호·키는 환경변수/Secret Manager로 주입하세요(하드코딩 금지).",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 5,
           "tags": [
             "Network",
@@ -1551,6 +1605,7 @@
           "title": "자주 하는 실수 (증상 → 원인 → 확인 → 해결)",
           "summary": "실제로 가장 자주 접수되는 문제들입니다. 각 항목을 증상 → 원인 → 확인 방법 → 해결 순으로 정리했습니다. 아래 CLI 명령은 관리자 또는 읽기 권한이 있는 계정 기준입니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Network",
@@ -1596,6 +1651,7 @@
           "title": "AWS CLI 기본 개념",
           "summary": "터미널에서 AWS 전체를 조작하는 공식 명령줄 도구입니다. 웹 콘솔에서 클릭하는 작업을 명령어·스크립트로 자동화합니다. Python 기반이고 거의 모든 AWS 서비스(수백 개) 를 커버합니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Security",
@@ -1621,6 +1677,7 @@
           "title": "인증·설정과 출력 다루기",
           "summary": "AWS CLI를 쓰기 전에 \"누구로 접속하는지(인증)\"와 \"어느 리전·어떤 형식으로 받을지(설정·출력)\"를 정합니다. 이 두 가지가 CLI 사용의 토대입니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Security",
@@ -1645,6 +1702,7 @@
           "title": "AWS CLI 서비스별 치트시트",
           "summary": "자주 쓰는 명령을 서비스·작업별로 모읍니다. 리전은 서울 ap-northeast-2 기준이며, 계정 ID·리소스 ID·시크릿은 예시입니다. 배경은 01-aws-cli-basics, 02-auth-config-and-output 참고.",
           "difficulty": "참고",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Storage",
@@ -1691,6 +1749,7 @@
           "title": "쿠버네티스 기본기",
           "summary": "쿠버네티스가 어떤 문제를 풀기 위해 존재하는지, 클러스터가 어떤 부품으로 구성되는지, \"선언적 모델\"이 무엇을 의미하는지 정리합니다. 이 문서의 내용은 k3s, kind, EKS 등 어떤 쿠버네티스를 쓰든 동일하게 적용됩니다.",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -1716,6 +1775,7 @@
           "title": "쿠버네티스를 경험하는 방법들",
           "summary": "같은 쿠버네티스라도 어떻게 실행하느냐에 따라 배우는 것이 다릅니다. 로컬 도구는 워크로드(YAML, kubectl)를 가르쳐 주지만 클러스터 운영은 가르쳐 주지 않고, 실서버 배포판은 설치·노드 관리·운영을, 관리형 서비스는 클라우드와의 결합을 가르쳐 줍니다. 이 문서는 …",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Storage",
@@ -1742,6 +1802,7 @@
           "title": "Pod, Deployment, Service",
           "summary": "쿠버네티스 워크로드의 뼈대인 세 오브젝트를 k3d 클러스터에서 직접 실행하며 익힙니다. Pod는 실행 단위, Deployment는 원하는 상태 유지, Service는 고정된 접근 지점입니다. 여기서 작성하는 YAML은 k3s, kind, EKS 어디서든 그대로 동작합니다.",
           "difficulty": "입문",
+          "ckad": true,
           "readTime": 4,
           "tags": [
             "Network",
@@ -1767,6 +1828,7 @@
           "title": "설정과 볼륨",
           "summary": "설정을 컨테이너 이미지에 굽지 않고 분리하는 방법(ConfigMap, Secret)과 컨테이너가 사라져도 데이터를 유지하는 방법(볼륨, PVC)을 다룹니다. 같은 이미지를 개발·스테이지·운영에 그대로 쓰고 설정만 바꿔 배포하는 것이 목표입니다. 실습은 이전 문서의 k3d …",
           "difficulty": "입문",
+          "ckad": true,
           "readTime": 4,
           "tags": [
             "Storage",
@@ -1792,6 +1854,7 @@
           "title": "k3s 클러스터 설치",
           "summary": "로컬 k3d에서 배운 것을 실서버로 옮깁니다. k3s를 리눅스 서버에 설치해 단일 노드 클러스터를 만들고, 노드를 추가해 멀티 노드로 확장하고, 외부에서 kubectl로 접속하는 절차를 다룹니다. k3d와 k3s는 같은 스택이므로 워크로드 실습에서 쓴 YAML이 그대로 동…",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 6,
           "tags": [
             "Network",
@@ -1818,6 +1881,7 @@
           "title": "k3d 구조와 요청 경로",
           "summary": "k3d가 Docker 위에 만들어 주는 것이 정확히 무엇인지, kubectl 명령과 브라우저 요청이 어떤 경로로 클러스터에 닿는지를 Docker 사용자의 눈으로 해부합니다. 워크로드 실습의 단일 노드 클러스터를 멀티 노드로 확장하고, Docker 경험이 쿠버네티스의 어느 …",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 8,
           "tags": [
             "Network",
@@ -1846,6 +1910,7 @@
           "title": "실서버 클러스터 토폴로지",
           "summary": "로컬 k3d의 노드 컨테이너들이 실서버에서는 머신 몇 대, 어떤 역할로 배치되는지 다룹니다. server가 3대인 이유(etcd 쿼럼), API 고정 접점, Control Plane 보호 같은 온프레미스 구축의 설계 결정과, 도입 전 검증 단계에서 무엇을 확인해야 하는지를…",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Network",
@@ -1872,6 +1937,7 @@
           "title": "스토리지와 로그",
           "summary": "Docker에서는 호스트 디렉터리를 컨테이너에 bind mount하고 컨테이너 로그를 호스트 파일로 저장하는 방식을 자주 사용합니다. Kubernetes에서는 파일 데이터의 수명과 로그의 수집 경로를 분리해 설계합니다.",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Storage",
@@ -1900,6 +1966,7 @@
           "title": "외부 트래픽 진입점",
           "summary": "클러스터 안의 라우팅(Ingress → Service → Pod)은 준비됐는데, 정작 사용자를 서버 3대 중 어느 IP로 보낼 것인가 — 온프레미스에서 web/WAS를 운영할 때 가장 먼저 부딪히는 문제를 다룹니다. 클라우드라면 LoadBalancer 타입 Service가…",
           "difficulty": "중급",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Network",
@@ -1926,6 +1993,7 @@
           "title": "web/WAS 워크로드 설계",
           "summary": "web과 WAS를 쿠버네티스에 올릴 때 기본 Deployment에 더해 실제 운영 트래픽을 받기 위해 필요한 설정들을 다룹니다. 핵심은 네 가지입니다 — 트래픽을 받아도 되는 시점을 알리는 probe, 배포 중에도 요청을 잃지 않는 롤링 전략, JVM과 리소스 제한의 관계…",
           "difficulty": "중급",
+          "ckad": true,
           "readTime": 5,
           "tags": [
             "Operations",
@@ -1952,6 +2020,7 @@
           "title": "Job, CronJob과 멀티 컨테이너 Pod",
           "summary": "Deployment는 \"계속 떠 있는 서비스\"를 위한 워크로드입니다. 이 문서는 그 밖의 실행 형태를 다룹니다 — 한 번 실행하고 끝나는 작업(Job), 주기적으로 실행되는 작업(CronJob), 그리고 Pod 하나에 컨테이너를 여러 개 두는 패턴(init, sidecar…",
           "difficulty": "중급",
+          "ckad": true,
           "readTime": 4,
           "tags": [
             "Network",
@@ -1977,6 +2046,7 @@
           "title": "접근 제어와 Pod 보안",
           "summary": "세 가지 질문에 답하는 문서입니다. 누가 클러스터 API에 무엇을 할 수 있는가(RBAC), Pod가 API를 호출할 때는 누구로 취급되는가(ServiceAccount), 컨테이너는 노드 위에서 어떤 권한으로 도는가(SecurityContext). 운영 클러스터를 여러 사…",
           "difficulty": "중급",
+          "ckad": true,
           "readTime": 5,
           "tags": [
             "Storage",
@@ -2001,6 +2071,7 @@
           "title": "NetworkPolicy로 Pod 트래픽 제한",
           "summary": "쿠버네티스의 Pod 네트워크는 기본이 전면 허용입니다 — 어느 네임스페이스의 어떤 Pod든 다른 모든 Pod에 접속할 수 있습니다. NetworkPolicy는 이 평면에 \"누가 누구와 통신할 수 있는가\"라는 방화벽 규칙을 선언하는 리소스입니다. web/WAS 구조에서 \"W…",
           "difficulty": "중급",
+          "ckad": true,
           "readTime": 3,
           "tags": [
             "Network",
@@ -2027,6 +2098,7 @@
           "title": "k3d 실습 매뉴얼",
           "summary": "이 문서는 Docker Desktop 위에 k3d 클러스터를 만들고, Traefik으로 도메인별 애플리케이션을 연결한 뒤 Rancher를 설치하는 전체 흐름을 정리합니다. 대상은 로컬 개발·학습 환경이며, 운영 서버용 k3s/RKE2 절차는 포함하지 않습니다.",
           "difficulty": "참고",
+          "ckad": false,
           "readTime": 6,
           "tags": [
             "Network",
@@ -2058,6 +2130,7 @@
           "title": "kubectl 치트시트",
           "summary": "일상 운영에서 손에 붙어야 하는 kubectl 명령을 조회, 디버깅, 리소스 조작 순으로 정리합니다. 명령 자체보다 \"어떤 상황에서 어떤 순서로 쓰는가\"를 기준으로 묶었습니다.",
           "difficulty": "참고",
+          "ckad": false,
           "readTime": 4,
           "tags": [
             "Security",
@@ -2085,6 +2158,7 @@
           "title": "도메인 기반 Ingress 라우팅 예제",
           "summary": "web-a, web-b를 각각 컨테이너 이미지로 만들고, Traefik Ingress가 도메인에 따라 서로 다른 Service로 전달하는 예제입니다. 각 web 이미지의 Nginx는 /api/ prefix를 제거한 뒤 Kubernetes 내부의 backend Service…",
           "difficulty": "입문",
+          "ckad": false,
           "readTime": 3,
           "tags": [
             "Operations",
