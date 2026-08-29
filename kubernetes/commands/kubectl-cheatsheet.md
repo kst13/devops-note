@@ -68,6 +68,19 @@ Pod가 안 뜰 때 기계적으로 밟는 순서입니다.
 4. CrashLoopBackOff면 `kubectl logs <이름> --previous`로 죽기 직전 로그 확인
 5. 떴는데 응답이 없으면 `kubectl port-forward`로 Pod에 직접 붙어 앱 문제인지 Service 문제인지 분리
 
+## 노드 점검과 배출
+
+서버 점검(OS 패치, 하드웨어 교체)으로 노드를 내릴 때는 그 위의 Pod를 먼저 안전하게 비웁니다.
+
+```bash
+kubectl cordon node-2       # 새 Pod 배치만 차단 (기존 Pod는 유지)
+kubectl drain node-2 --ignore-daemonsets --delete-emptydir-data   # 기존 Pod 배출
+# ... 노드 점검 작업 ...
+kubectl uncordon node-2     # 점검 후 배치 허용으로 복귀
+```
+
+drain은 Pod를 다른 노드로 "옮기는" 것이 아니라 종료시키는 것입니다. Deployment가 다른 노드에 새 Pod를 다시 띄워 주는 것이므로, replicas가 1인 워크로드는 drain 중 그 서비스가 끊깁니다. 점검 전에 replicas가 2 이상인지, [분산 배치](../concepts/10-web-was-workload-design.md)가 되어 있는지 확인하는 이유입니다. `--ignore-daemonsets`는 노드마다 반드시 하나씩 떠야 하는 DaemonSet Pod(로그 수집기 등)는 배출 대상에서 제외한다는 뜻이고, drain이 이 옵션 없이는 거부되므로 사실상 항상 붙입니다. 점검이 끝나면 uncordon을 잊지 않아야 합니다 — cordon 상태가 남아 있으면 그 노드는 계속 비어 있게 됩니다.
+
 ## 다음 도구: k9s
 
 kubectl이 손에 붙었다면 k9s를 쓸 차례입니다. k9s는 터미널에서 클러스터를 실시간으로 탐색하는 TUI 도구로, 위에서 정리한 조회·로그·exec 흐름을 키 입력 몇 번으로 줄여 줍니다. Pod 목록이 실시간 갱신되는 화면에서 `l`로 로그, `s`로 셸, `d`로 describe를 열고, `:svc` `:deploy`처럼 vim 스타일로 화면을 전환합니다.
