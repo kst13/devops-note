@@ -47,6 +47,20 @@ commands/          kubectl 조회, 디버깅, 리소스 조작 명령
 
 - [k3d 실습 매뉴얼](commands/k3d-manual.md)
 
+## CKAD 시험 대응
+
+CKAD(Certified Kubernetes Application Developer) 준비에 활용할 수 있도록, 시험 범위에 해당하는 문서에는 본문 상단에 **CKAD 시험 범위** 표기를 달았습니다. 도메인별 대응은 다음과 같습니다.
+
+| CKAD 도메인 (비중) | 대응 문서 |
+| --- | --- |
+| Application Design and Build (20%) | [Pod, Deployment, Service](concepts/03-pod-deployment-service.md), [설정과 볼륨](concepts/04-config-and-volume.md), [Job, CronJob과 멀티 컨테이너 Pod](concepts/11-job-cronjob-and-multi-container.md) |
+| Application Deployment (20%) | [Pod, Deployment, Service](concepts/03-pod-deployment-service.md), [web/WAS 워크로드 설계](concepts/10-web-was-workload-design.md) |
+| Application Observability and Maintenance (15%) | [web/WAS 워크로드 설계](concepts/10-web-was-workload-design.md), [kubectl 치트시트](commands/kubectl-cheatsheet.md) |
+| Application Environment, Configuration and Security (25%) | [설정과 볼륨](concepts/04-config-and-volume.md), [접근 제어와 Pod 보안](concepts/12-access-control-and-pod-security.md) |
+| Services and Networking (20%) | [Pod, Deployment, Service](concepts/03-pod-deployment-service.md), [NetworkPolicy](concepts/13-network-policy.md), [Ingress 라우팅 예제](examples/ingress-routing/README.md) |
+
+아직 다루지 않는 시험 범위: Helm·Kustomize, blue/green·canary 전략, ResourceQuota·LimitRange, CRD·Operator, API deprecation. 이 항목들은 별도 학습이 필요합니다. 반대로 클러스터 설치·토폴로지 문서(05, 07, 09)는 운영에는 필요하지만 CKAD 범위 밖입니다(CKA 영역).
+
 ## 학습 기준
 
 - 예제는 k3d(k3s in Docker)로 검증하며, 실서버 절차는 k3s 기준으로 작성합니다.

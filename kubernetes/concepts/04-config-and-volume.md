@@ -2,6 +2,8 @@
 
 설정을 컨테이너 이미지에 굽지 않고 분리하는 방법(ConfigMap, Secret)과 컨테이너가 사라져도 데이터를 유지하는 방법(볼륨, PVC)을 다룹니다. 같은 이미지를 개발·스테이지·운영에 그대로 쓰고 설정만 바꿔 배포하는 것이 목표입니다. 실습은 [이전 문서](03-pod-deployment-service.md)의 k3d 클러스터(`devops-note`)를 이어서 사용합니다.
 
+> **CKAD 시험 범위** — ConfigMap·Secret은 Application Environment, Configuration and Security(25%), 볼륨은 Application Design and Build(20%) 도메인에 해당합니다.
+
 ## ConfigMap
 
 ConfigMap은 키-값 형태의 설정 묶음입니다. 명령으로 만들 수도, YAML로 선언할 수도 있습니다.

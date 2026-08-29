@@ -1,6 +1,8 @@
 # 접근 제어와 Pod 보안
 
-세 가지 질문에 답하는 문서입니다. 누가 클러스터 API에 무엇을 할 수 있는가(RBAC), Pod가 API를 호출할 때는 누구로 취급되는가(ServiceAccount), 컨테이너는 노드 위에서 어떤 권한으로 도는가(SecurityContext). CKAD 최대 비중 도메인(환경·구성·보안 25%)의 핵심이면서, 운영 클러스터를 여러 사람·여러 앱이 쓰기 시작하면 바로 필요해지는 내용입니다.
+세 가지 질문에 답하는 문서입니다. 누가 클러스터 API에 무엇을 할 수 있는가(RBAC), Pod가 API를 호출할 때는 누구로 취급되는가(ServiceAccount), 컨테이너는 노드 위에서 어떤 권한으로 도는가(SecurityContext). 운영 클러스터를 여러 사람·여러 앱이 쓰기 시작하면 바로 필요해지는 내용입니다.
+
+> **CKAD 시험 범위** — Application Environment, Configuration and Security(25%) 도메인의 핵심입니다. 다섯 도메인 중 비중이 가장 큽니다.
 
 ## 요청이 통과하는 세 관문
 

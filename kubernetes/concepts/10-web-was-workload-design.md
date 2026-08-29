@@ -2,6 +2,8 @@
 
 web과 WAS를 쿠버네티스에 올릴 때 [기본 Deployment](03-pod-deployment-service.md)에 더해 실제 운영 트래픽을 받기 위해 필요한 설정들을 다룹니다. 핵심은 네 가지입니다 — 트래픽을 받아도 되는 시점을 알리는 probe, 배포 중에도 요청을 잃지 않는 롤링 전략, JVM과 리소스 제한의 관계, 그리고 세션 처리입니다.
 
+> **CKAD 시험 범위** — probe는 Application Observability and Maintenance(15%), 롤링 업데이트는 Application Deployment(20%), 리소스 요구량은 Application Environment, Configuration and Security(25%) 도메인에 해당합니다.
+
 ## 전체 구조
 
 [Ingress 라우팅 예제](../examples/ingress-routing/README.md)의 2계층 구조가 출발점입니다. web(정적 자원·리버스 프록시)과 WAS(애플리케이션)를 각각 Deployment + Service로 선언하고, 외부 노출은 web만 Ingress로 합니다. WAS는 ClusterIP로 클러스터 내부에만 열어 두는 것이 기본형입니다.

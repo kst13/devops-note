@@ -2,6 +2,8 @@
 
 쿠버네티스 워크로드의 뼈대인 세 오브젝트를 k3d 클러스터에서 직접 실행하며 익힙니다. Pod는 실행 단위, Deployment는 원하는 상태 유지, Service는 고정된 접근 지점입니다. 여기서 작성하는 YAML은 k3s, kind, EKS 어디서든 그대로 동작합니다.
 
+> **CKAD 시험 범위** — Application Design and Build(20%), Application Deployment(20%), Services and Networking(20%) 도메인의 기초에 해당합니다.
+
 ## 실습 준비
 
 Docker가 설치되어 있다면 k3d로 수 초 만에 클러스터를 만들 수 있습니다.

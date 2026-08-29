@@ -1,6 +1,8 @@
 # NetworkPolicy로 Pod 트래픽 제한
 
-쿠버네티스의 Pod 네트워크는 기본이 전면 허용입니다 — 어느 네임스페이스의 어떤 Pod든 다른 모든 Pod에 접속할 수 있습니다. NetworkPolicy는 이 평면에 "누가 누구와 통신할 수 있는가"라는 방화벽 규칙을 선언하는 리소스입니다. [web/WAS 구조](10-web-was-workload-design.md)에서 "WAS는 web에서만, DB는 WAS에서만 접근 가능"을 강제하는 도구이며, CKAD의 네트워킹 도메인 단골 주제입니다.
+쿠버네티스의 Pod 네트워크는 기본이 전면 허용입니다 — 어느 네임스페이스의 어떤 Pod든 다른 모든 Pod에 접속할 수 있습니다. NetworkPolicy는 이 평면에 "누가 누구와 통신할 수 있는가"라는 방화벽 규칙을 선언하는 리소스입니다. [web/WAS 구조](10-web-was-workload-design.md)에서 "WAS는 web에서만, DB는 WAS에서만 접근 가능"을 강제하는 도구입니다.
+
+> **CKAD 시험 범위** — Services and Networking(20%) 도메인의 단골 주제입니다. "특정 Pod·네임스페이스에서만 접근 허용" 유형이 거의 매 시험 출제됩니다.
 
 ## 동작 원리: 선택되는 순간 기본 거부로 바뀐다
 
