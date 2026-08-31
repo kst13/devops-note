@@ -149,6 +149,10 @@
     font-family: "IBM Plex Mono", monospace;
   }
 
+  figure { margin: 20px 0 16px; }
+  figure svg { display: block; max-width: 100%; height: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+
   footer.doc {
     margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
     color: var(--muted); font-size: 13px;
@@ -161,22 +165,20 @@
     <p class="eyebrow">Kick-off Briefing · 초안</p>
     <h1>Kafka 플랫폼 도입 — 개요·방향·일정</h1>
     <div class="meta">
-      <span>작성 <b>플랫폼팀</b></span>
-      <span>일자 <b><span class="fill">2026-__-__</span></b></span>
-      <span>상태 <b>발표 전 초안</b></span>
+      <span>작성 <b>김성태</b></span>
+      <span>일자 <b><span class="fill">2026-09-01</span></b></span>
     </div>
-    <p class="notice"><span class="fill">노란 점선 표시</span>는 발표 전에 실제 값·사례로 채울 자리입니다.</p>
   </header>
 
   <section>
     <h2><span class="no">1</span>배경 — 기존 시스템의 한계</h2>
     <p class="lede">현행 시스템 간 연동 방식이 부딪히는 문제 (실제 사례로 교체)</p>
     <ul>
-      <li><span class="fill">[사례 1]</span> <b>서비스 간 직접 API 호출</b> — 수신 서비스가 죽으면 호출 측도 실패하거나 데이터가 유실됨. 연동 대상이 늘 때마다 호출 코드가 늘어남.</li>
-      <li><span class="fill">[사례 2]</span> <b>DB 폴링 배치</b> — 실시간성이 떨어지고(배치 주기만큼 지연), 폴링 부하가 DB에 집중됨.</li>
-      <li><span class="fill">[사례 3]</span> <b>장애·재처리</b> — 전송 실패 데이터를 다시 보내는 표준 방법이 없어 수작업 복구.</li>
+      <li><b>서비스 간 직접 API 호출</b> — 수신 서비스가 죽으면 호출 측도 실패하거나 데이터가 유실됨. 연동 대상이 늘 때마다 호출 코드가 늘어남.</li>
+      <li><b>DB 폴링 배치</b> — 실시간성이 떨어지고(배치 주기만큼 지연), 폴링 부하가 DB에 집중됨.</li>
+      <li><b>장애·재처리</b> — 전송 실패 데이터를 다시 보내는 표준 방법이 없어 수작업 복구.</li>
     </ul>
-    <p><b>공통 문제:</b> 시스템 간 결합도가 높고, 유실·지연·재처리에 대한 표준 답이 없다.</p>
+    <p><b>공통 문제:</b> 시스템 간 결합도가 높고, 유실·지연·재처리에 대한 처리 문제.</p>
   </section>
 
   <section>
@@ -189,19 +191,123 @@
       <tr><td><b>결합도 감소</b></td><td>발행하는 쪽은 구독하는 쪽이 몇 개인지 몰라도 된다. 구독 서비스 추가 시 기존 시스템 무변경</td></tr>
       <tr><td><b>유연한 소비 속도</b></td><td>수신 서비스가 느리거나 잠시 죽어도 데이터가 쌓였다가 처리된다</td></tr>
     </table></div>
+
+    <figure>
+      <svg viewBox="0 0 720 216" role="img" aria-label="토픽은 읽어도 삭제되지 않는 로그로, 컨슈머 그룹마다 독립된 위치에서 자기 속도로 읽고 과거 위치로 되감아 재처리할 수 있다">
+        <defs>
+          <marker id="m2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker>
+          <marker id="m2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker>
+        </defs>
+        <text x="310" y="66" text-anchor="middle" font-size="12" font-weight="700" fill="var(--muted)">토픽 — 읽어도 삭제되지 않는 로그 (보존 기간 · 3중 복제)</text>
+        <rect x="20" y="86" width="96" height="34" rx="6" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="68" y="107" text-anchor="middle" font-size="12" fill="currentColor">발행 서비스</text>
+        <line x1="116" y1="103" x2="144" y2="103" stroke="currentColor" marker-end="url(#m2a)"/>
+        <rect x="150" y="80" width="328" height="46" rx="6" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <rect x="158" y="87" width="36" height="32" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="198" y="87" width="36" height="32" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="238" y="87" width="36" height="32" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="278" y="87" width="36" height="32" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="318" y="87" width="36" height="32" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="358" y="87" width="36" height="32" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="398" y="87" width="36" height="32" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="438" y="87" width="36" height="32" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="176" y="107" text-anchor="middle" font-size="11" fill="var(--muted)">1</text>
+        <text x="216" y="107" text-anchor="middle" font-size="11" fill="var(--muted)">2</text>
+        <text x="256" y="107" text-anchor="middle" font-size="11" fill="var(--muted)">3</text>
+        <text x="296" y="107" text-anchor="middle" font-size="11" fill="var(--muted)">4</text>
+        <text x="336" y="107" text-anchor="middle" font-size="11" fill="var(--muted)">5</text>
+        <text x="376" y="107" text-anchor="middle" font-size="11" fill="var(--muted)">6</text>
+        <text x="416" y="107" text-anchor="middle" font-size="11" fill="var(--muted)">7</text>
+        <text x="456" y="107" text-anchor="middle" font-size="11" fill="var(--muted)">8</text>
+        <rect x="556" y="24" width="150" height="34" rx="6" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="631" y="45" text-anchor="middle" font-size="12" fill="currentColor">알림 서비스 · 그룹 A</text>
+        <line x1="456" y1="85" x2="588" y2="60" stroke="currentColor" marker-end="url(#m2a)"/>
+        <text x="548" y="64" text-anchor="end" font-size="11" fill="var(--muted)">최신(8)까지 — 실시간</text>
+        <rect x="556" y="162" width="150" height="34" rx="6" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="631" y="183" text-anchor="middle" font-size="12" fill="currentColor">정산 서비스 · 그룹 B</text>
+        <line x1="340" y1="121" x2="588" y2="166" stroke="currentColor" marker-end="url(#m2a)"/>
+        <text x="548" y="146" text-anchor="end" font-size="11" fill="var(--muted)">5까지 — 자기 속도로</text>
+        <path d="M300 123 C 285 152, 225 152, 210 127" fill="none" stroke="var(--accent)" stroke-dasharray="4 3" marker-end="url(#m2b)"/>
+        <text x="256" y="164" text-anchor="middle" font-size="11" fill="var(--accent)">재처리 — 과거로 되감기</text>
+      </svg>
+      <figcaption>같은 토픽을 그룹마다 독립적으로 읽는다 — 읽는 위치(오프셋)만 다를 뿐 서로 영향이 없고, 위치를 되감으면 과거 데이터를 다시 처리할 수 있다.</figcaption>
+    </figure>
   </section>
 
   <section>
     <h2><span class="no">3</span>왜 Kafka인가</h2>
     <p class="lede">대안 대비 비교 — 이벤트 파이프라인 용도의 사실상 업계 표준</p>
     <div class="tablewrap"><table>
-      <tr><th></th><th>Kafka</th><th>전통 MQ (RabbitMQ 등)</th><th>DB 폴링</th></tr>
+      <tr><th></th><th>Kafka</th><th>전통 MQ</th><th>DB 폴링</th></tr>
       <tr><td><b>메시지 보존</b></td><td>소비해도 보존(기간제) → <b>재처리 가능</b></td><td>소비하면 삭제</td><td>가능하나 DB 부하</td></tr>
       <tr><td><b>순서 보장</b></td><td>파티션 단위 보장</td><td>큐 단위(경쟁 소비 시 깨짐)</td><td>정렬 쿼리 필요</td></tr>
       <tr><td><b>다중 구독</b></td><td>그룹별 독립 소비 — N개 서비스가 같은 데이터</td><td>익스체인지 구성 필요</td><td>각자 폴링</td></tr>
       <tr><td><b>처리량 확장</b></td><td>파티션 병렬로 수평 확장</td><td>상대적 제한</td><td>DB가 병목</td></tr>
       <tr><td><b>생태계</b></td><td>CDC(Debezium)·스키마 관리·모니터링 표준 존재</td><td>제한적</td><td><em>—</em></td></tr>
     </table></div>
+
+    <figure>
+      <svg viewBox="0 0 720 290" role="img" aria-label="직접 연동은 서비스 간 경로가 얽히고 수신 장애가 호출 측으로 전파되지만, Kafka를 경유하면 경로가 발행과 구독으로 단순해지고 신규 서비스는 구독만 추가하면 된다">
+        <defs>
+          <marker id="m1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker>
+          <marker id="m1b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker>
+          <marker id="m1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--done)"/></marker>
+        </defs>
+        <text x="165" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="var(--muted)">As-Is · 직접 연동 (경로 N×M)</text>
+        <line x1="96" y1="63" x2="230" y2="63" stroke="currentColor" stroke-opacity="0.4" marker-end="url(#m1a)"/>
+        <line x1="96" y1="63" x2="230" y2="121" stroke="currentColor" stroke-opacity="0.4" marker-end="url(#m1a)"/>
+        <line x1="96" y1="63" x2="230" y2="179" stroke="currentColor" stroke-opacity="0.4" marker-end="url(#m1a)"/>
+        <line x1="96" y1="121" x2="230" y2="63" stroke="currentColor" stroke-opacity="0.4" marker-end="url(#m1a)"/>
+        <line x1="96" y1="121" x2="230" y2="121" stroke="currentColor" stroke-opacity="0.4" marker-end="url(#m1a)"/>
+        <line x1="96" y1="121" x2="230" y2="179" stroke="currentColor" stroke-opacity="0.4" marker-end="url(#m1a)"/>
+        <line x1="96" y1="179" x2="230" y2="63" stroke="currentColor" stroke-opacity="0.4" marker-end="url(#m1a)"/>
+        <line x1="96" y1="179" x2="230" y2="121" stroke="currentColor" stroke-opacity="0.4" marker-end="url(#m1a)"/>
+        <line x1="96" y1="179" x2="230" y2="179" stroke="currentColor" stroke-opacity="0.4" marker-end="url(#m1a)"/>
+        <rect x="20" y="48" width="76" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="20" y="106" width="76" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="20" y="164" width="76" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="58" y="67" text-anchor="middle" font-size="12" fill="currentColor">주문</text>
+        <text x="58" y="125" text-anchor="middle" font-size="12" fill="currentColor">결제</text>
+        <text x="58" y="183" text-anchor="middle" font-size="12" fill="currentColor">재고</text>
+        <rect x="234" y="48" width="76" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="234" y="106" width="76" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="234" y="164" width="76" height="30" rx="5" fill="var(--surface)" stroke="var(--decide)" stroke-dasharray="5 3"/>
+        <text x="272" y="67" text-anchor="middle" font-size="12" fill="currentColor">알림</text>
+        <text x="272" y="125" text-anchor="middle" font-size="12" fill="currentColor">정산</text>
+        <text x="272" y="183" text-anchor="middle" font-size="12" fill="var(--decide)">통계</text>
+        <text x="272" y="218" text-anchor="middle" font-size="11" fill="var(--decide)">수신 장애 → 호출측 실패·유실</text>
+        <line x1="360" y1="30" x2="360" y2="260" stroke="currentColor" stroke-opacity="0.15"/>
+        <text x="555" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="var(--muted)">To-Be · Kafka 경유 (경로 N+M)</text>
+        <rect x="400" y="48" width="76" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="400" y="106" width="76" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="400" y="164" width="76" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="438" y="67" text-anchor="middle" font-size="12" fill="currentColor">주문</text>
+        <text x="438" y="125" text-anchor="middle" font-size="12" fill="currentColor">결제</text>
+        <text x="438" y="183" text-anchor="middle" font-size="12" fill="currentColor">재고</text>
+        <text x="490" y="52" text-anchor="middle" font-size="11" fill="var(--muted)">발행</text>
+        <line x1="476" y1="63" x2="504" y2="63" stroke="currentColor" marker-end="url(#m1a)"/>
+        <line x1="476" y1="121" x2="504" y2="121" stroke="currentColor" marker-end="url(#m1a)"/>
+        <line x1="476" y1="179" x2="504" y2="179" stroke="currentColor" marker-end="url(#m1a)"/>
+        <rect x="508" y="44" width="88" height="164" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="552" y="120" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">Kafka</text>
+        <text x="552" y="138" text-anchor="middle" font-size="11" fill="var(--muted)">보존 · 복제</text>
+        <text x="608" y="52" text-anchor="middle" font-size="11" fill="var(--muted)">구독</text>
+        <line x1="596" y1="63" x2="618" y2="63" stroke="var(--accent)" marker-end="url(#m1b)"/>
+        <line x1="596" y1="121" x2="618" y2="121" stroke="var(--accent)" marker-end="url(#m1b)"/>
+        <line x1="596" y1="179" x2="618" y2="179" stroke="var(--accent)" marker-end="url(#m1b)"/>
+        <rect x="622" y="48" width="82" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="622" y="106" width="82" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="622" y="164" width="82" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="663" y="67" text-anchor="middle" font-size="12" fill="currentColor">알림</text>
+        <text x="663" y="125" text-anchor="middle" font-size="12" fill="currentColor">정산</text>
+        <text x="663" y="183" text-anchor="middle" font-size="12" fill="currentColor">통계</text>
+        <path d="M560 208 C560 239, 585 239, 616 239" fill="none" stroke="var(--done)" stroke-dasharray="4 3" marker-end="url(#m1g)"/>
+        <rect x="622" y="224" width="82" height="30" rx="5" fill="var(--surface)" stroke="var(--done)" stroke-dasharray="5 3"/>
+        <text x="663" y="243" text-anchor="middle" font-size="12" fill="var(--done)">신규 서비스</text>
+        <text x="540" y="280" text-anchor="middle" font-size="11" fill="var(--done)">구독만 추가 — 발행 측 무변경</text>
+      </svg>
+      <figcaption>직접 연동은 서비스가 늘수록 경로가 곱(N×M)으로 얽히고 수신 장애가 호출 측으로 전파된다. Kafka를 경유하면 경로가 합(N+M)으로 줄고, 수신 측이 죽어도 데이터는 토픽에 쌓여 있다가 복구 후 처리된다.</figcaption>
+    </figure>
   </section>
 
   <section>
@@ -223,12 +329,49 @@
     </ul>
 
     <h3>서버 배치 (방안 B — 역할 분리, 플랫폼팀 추천)</h3>
-    <pre><code>서버1 (데이터 플레인)      서버2 (데이터 플레인)      서버3 (관제)
-─────────────────       ─────────────────       ──────────────────────
-Broker                  Broker                  Broker
-Connect ①               Connect ②               Prometheus + Alertmanager
-Schema Registry ①       Schema Registry ②       kafka_exporter · Grafana
-                                                Kafka UI · Admin Portal</code></pre>
+    <figure>
+      <svg viewBox="0 0 720 320" role="img" aria-label="방안 B 서버 배치: 서버 1과 2는 브로커와 Connect·Schema Registry 이중화 쌍으로 데이터 플레인을 이루고, 서버 3에는 브로커와 모니터링·관리 도구가 모인다. 서버 3의 관제 도구는 전부 중단돼도 데이터 흐름에 영향이 없다">
+        <defs>
+          <marker id="m3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker>
+        </defs>
+        <rect x="12" y="30" width="452" height="252" rx="10" fill="none" stroke="var(--line)"/>
+        <text x="26" y="54" font-size="12" font-weight="700" fill="var(--muted)">데이터 플레인 — Connect·SR 페일오버 쌍</text>
+        <rect x="480" y="30" width="228" height="252" rx="10" fill="none" stroke="var(--line)"/>
+        <text x="494" y="54" font-size="12" font-weight="700" fill="var(--muted)">관제</text>
+        <text x="131" y="84" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">서버 1</text>
+        <text x="345" y="84" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">서버 2</text>
+        <text x="594" y="84" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">서버 3</text>
+        <line x1="226" y1="109" x2="250" y2="109" stroke="currentColor" marker-start="url(#m3a)" marker-end="url(#m3a)"/>
+        <line x1="440" y1="109" x2="496" y2="109" stroke="currentColor" marker-start="url(#m3a)" marker-end="url(#m3a)"/>
+        <text x="238" y="128" text-anchor="middle" font-size="10" fill="var(--muted)">복제</text>
+        <text x="468" y="128" text-anchor="middle" font-size="10" fill="var(--muted)">복제</text>
+        <rect x="36" y="94" width="190" height="30" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <rect x="250" y="94" width="190" height="30" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <rect x="496" y="94" width="196" height="30" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <text x="131" y="113" text-anchor="middle" font-size="12" font-weight="700" fill="var(--accent)">Kafka Broker</text>
+        <text x="345" y="113" text-anchor="middle" font-size="12" font-weight="700" fill="var(--accent)">Kafka Broker</text>
+        <text x="594" y="113" text-anchor="middle" font-size="12" font-weight="700" fill="var(--accent)">Kafka Broker</text>
+        <line x1="226" y1="151" x2="250" y2="151" stroke="var(--muted)" stroke-dasharray="4 3" marker-start="url(#m3a)" marker-end="url(#m3a)"/>
+        <line x1="226" y1="189" x2="250" y2="189" stroke="var(--muted)" stroke-dasharray="4 3" marker-start="url(#m3a)" marker-end="url(#m3a)"/>
+        <rect x="36" y="136" width="190" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="36" y="174" width="190" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="131" y="155" text-anchor="middle" font-size="12" fill="currentColor">Kafka Connect ①</text>
+        <text x="131" y="193" text-anchor="middle" font-size="12" fill="currentColor">Schema Registry ①</text>
+        <rect x="250" y="136" width="190" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="250" y="174" width="190" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="345" y="155" text-anchor="middle" font-size="12" fill="currentColor">Kafka Connect ②</text>
+        <text x="345" y="193" text-anchor="middle" font-size="12" fill="currentColor">Schema Registry ②</text>
+        <rect x="496" y="136" width="196" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="496" y="174" width="196" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="496" y="212" width="196" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="594" y="155" text-anchor="middle" font-size="12" fill="currentColor">Prometheus · Alertmanager</text>
+        <text x="594" y="193" text-anchor="middle" font-size="12" fill="currentColor">kafka_exporter · Grafana</text>
+        <text x="594" y="231" text-anchor="middle" font-size="12" fill="currentColor">Kafka UI · Admin Portal</text>
+        <text x="238" y="304" text-anchor="middle" font-size="11" fill="var(--muted)">브로커 1대 장애에도 무손실 (RF3 + minISR 2)</text>
+        <text x="594" y="304" text-anchor="middle" font-size="11" font-weight="700" fill="var(--done)">전부 중단돼도 데이터 흐름 무영향</text>
+      </svg>
+      <figcaption>방안 B — 서버 1·2가 이중화 쌍으로 데이터 플레인을 이루고, 서버 3에 관제 도구를 집결. 어느 서버가 죽어도 메시지 흐름은 계속된다.</figcaption>
+    </figure>
     <p>서버3의 관제 컴포넌트는 전부 중단돼도 <b>데이터 흐름에 무영향</b>. 사용자 접근 방화벽은 서버3으로 단일화, 서버별 메모리 부담 균등. 방안 A(제안 원안)와의 상세 비교는 <code>kafka/concepts/15-deployment-layout-options.md</code> 참고.</p>
   </section>
 
@@ -248,13 +391,13 @@ Schema Registry ①       Schema Registry ②       kafka_exporter · Grafana
   </section>
 
   <section>
-    <h2><span class="no">6</span>운영 방식 (거버넌스)</h2>
+    <h2><span class="no">6</span>운영 방식</h2>
     <div class="tablewrap"><table>
       <tr><th>항목</th><th>방식</th></tr>
-      <tr><td><b>토픽 생성</b></td><td>개발팀 요청 → 플랫폼팀이 표준 설정으로 생성 + 계정에 권한 부여 (요청 채널: <span class="fill">미정 — 본 회의 결정</span>)</td></tr>
+      <tr><td><b>토픽 생성</b></td><td>개발팀 요청 → 플랫폼팀이 표준 설정으로 생성 + 계정에 권한 부여</td></tr>
       <tr><td><b>계정</b></td><td>서비스별 전용 계정 발급 — 자기 토픽만 접근</td></tr>
       <tr><td><b>알람 책임</b></td><td>클러스터 알람(복제·컨트롤러·디스크) = 플랫폼팀 / <b>컨슈머 lag 알람 = 해당 서비스팀</b></td></tr>
-      <tr><td><b>문의</b></td><td><span class="fill">[DevOps/플랫폼팀 채널]</span></td></tr>
+      <tr><td><b>문의</b></td><td><span class="fill">[김성태, 이정민]</span></td></tr>
     </table></div>
   </section>
 
@@ -263,21 +406,12 @@ Schema Registry ①       Schema Registry ②       kafka_exporter · Grafana
     <div class="tablewrap"><table>
       <tr><th>시기</th><th>내용</th></tr>
       <tr><td><b>완료</b></td><td>클러스터 구축 · 보안(인증·인가) · Schema Registry 이중화 · 사용 가이드</td></tr>
-      <tr><td><span class="fill">M+0</span></td><td>서버 배치 방안 확정 · 모니터링 스택 구축 (Prometheus/Grafana/알람)</td></tr>
-      <tr><td><span class="fill">M+1</span></td><td>Kafka Connect 구축 · <b>파일럿 서비스 1개 연동</b> (후보: <span class="fill">미정</span>)</td></tr>
-      <tr><td><span class="fill">M+2</span></td><td>파일럿 운영 검증 (성공 기준: <span class="fill">무손실 · lag SLA 충족</span>) → 확대 적용 가이드 배포</td></tr>
-      <tr><td><b>이후</b></td><td>서비스 순차 온보딩</td></tr>
+      <tr><td><span class="fill">9월 1째주</span></td><td>서버 배치 방안 확정</td></tr>
+      <tr><td><span class="fill">9월 2째주</span></td><td>모니터링 스택 구축 (Prometheus/Grafana/알람)</td></tr>
+      <tr><td><span class="fill">9월 3~4째주</span></td><td>파일럿 운영 검증 (성공 기준: <span class="fill">무손실 · lag SLA 충족</span>) → 확대 적용 가이드 배포</td></tr>
+      <tr><td><b>이후</b></td><td>서비스 기능 확인 및 서비스 순차 온보딩</td></tr>
     </table></div>
 
-    <div class="decide-card">
-      <h3>이 회의에서 정해야 할 것</h3>
-      <ol>
-        <li><b>서버 배치 방안</b> — A(제안 원안) vs B(역할 분리 · 플랫폼팀 추천)</li>
-        <li><b>파일럿 서비스 선정</b> — 첫 적용 대상과 담당 팀</li>
-        <li><b>토픽 요청 채널</b> — PR 방식 vs 티켓 방식</li>
-        <li><b>알람 수신 채널</b> — <span class="fill">[메신저 / 호출 체계]</span></li>
-      </ol>
-    </div>
   </section>
 
   <footer class="doc">
