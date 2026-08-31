@@ -1,0 +1,286 @@
+<meta charset="utf-8">
+<title>Kafka 플랫폼 킥오프</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #FAFBFD;
+    --surface: #FFFFFF;
+    --ink: #1C2530;
+    --muted: #5B6B7C;
+    --line: #DCE3EB;
+    --accent: #3056A0;
+    --accent-soft: #EAF0F9;
+    --done: #2E7D4F;
+    --done-soft: #E8F3EC;
+    --decide: #B4520E;
+    --decide-soft: #FBEFE4;
+    --fill-bg: #FFF7E8;
+    --fill-edge: #C9A15A;
+    --code-bg: #F2F5F9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141920;
+      --surface: #1B222C;
+      --ink: #E5EAF1;
+      --muted: #93A1B2;
+      --line: #2C3642;
+      --accent: #7DA2E0;
+      --accent-soft: #22304A;
+      --done: #6FBF8F;
+      --done-soft: #1E3328;
+      --decide: #E09A5C;
+      --decide-soft: #3A2A1B;
+      --fill-bg: #322A1A;
+      --fill-edge: #A78443;
+      --code-bg: #10151C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141920;
+    --surface: #1B222C;
+    --ink: #E5EAF1;
+    --muted: #93A1B2;
+    --line: #2C3642;
+    --accent: #7DA2E0;
+    --accent-soft: #22304A;
+    --done: #6FBF8F;
+    --done-soft: #1E3328;
+    --decide: #E09A5C;
+    --decide-soft: #3A2A1B;
+    --fill-bg: #322A1A;
+    --fill-edge: #A78443;
+    --code-bg: #10151C;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    line-height: 1.7;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 760px; margin: 0 auto; padding: 56px 24px 96px; }
+
+  header.doc { border-bottom: 2px solid var(--ink); padding-bottom: 28px; margin-bottom: 8px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 14px;
+  }
+  h1 {
+    font-family: "Noto Serif KR", serif; font-weight: 700;
+    font-size: clamp(28px, 5vw, 38px); line-height: 1.3;
+    margin: 0 0 16px; text-wrap: balance;
+  }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); font-weight: 500; }
+
+  .notice {
+    margin: 20px 0 0; padding: 12px 16px; border-radius: 6px;
+    background: var(--fill-bg); border: 1px dashed var(--fill-edge);
+    font-size: 14px; color: var(--ink);
+  }
+
+  section { margin-top: 52px; }
+  h2 {
+    font-family: "Noto Serif KR", serif; font-weight: 700;
+    font-size: 22px; line-height: 1.4; margin: 0 0 6px;
+    display: flex; align-items: baseline; gap: 12px; text-wrap: balance;
+  }
+  h2 .no {
+    font-family: "IBM Plex Mono", monospace; font-size: 14px; font-weight: 500;
+    color: var(--accent);
+  }
+  .lede { color: var(--muted); font-size: 15px; margin: 0 0 18px; }
+  h3 { font-size: 16px; font-weight: 700; margin: 26px 0 10px; }
+
+  p { margin: 0 0 14px; }
+  ul { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  .tablewrap { overflow-x: auto; margin: 0 0 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 700; white-space: nowrap; }
+  td { color: var(--ink); }
+  td em { color: var(--muted); font-style: normal; }
+
+  .chip {
+    display: inline-block; font-size: 12px; font-weight: 700;
+    padding: 2px 10px; border-radius: 999px; vertical-align: 2px; margin-left: 8px;
+  }
+  .chip.done { color: var(--done); background: var(--done-soft); }
+  .chip.next { color: var(--accent); background: var(--accent-soft); }
+
+  .fill {
+    background: var(--fill-bg); border-bottom: 1.5px dashed var(--fill-edge);
+    padding: 0 4px; border-radius: 3px;
+  }
+
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px 18px; overflow-x: auto; margin: 0 0 14px;
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.6;
+    color: var(--ink);
+  }
+  code { font-family: "IBM Plex Mono", monospace; font-size: .92em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre code { background: none; padding: 0; }
+
+  .decide-card {
+    border: 1px solid var(--decide); border-left: 4px solid var(--decide);
+    background: var(--decide-soft); border-radius: 6px;
+    padding: 18px 20px; margin: 22px 0 0;
+  }
+  .decide-card h3 { margin: 0 0 10px; color: var(--decide); font-size: 15px; letter-spacing: .04em; }
+  .decide-card ol { margin: 0; padding-left: 22px; }
+  .decide-card li { margin-bottom: 6px; }
+  .decide-card b { font-weight: 700; }
+
+  .principles { counter-reset: pr; list-style: none; padding: 0; }
+  .principles li {
+    counter-increment: pr; position: relative; padding-left: 34px; margin-bottom: 10px;
+  }
+  .principles li::before {
+    content: counter(pr); position: absolute; left: 0; top: 2px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: var(--surface);
+    font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  footer.doc {
+    margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 13px;
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="page">
+  <header class="doc">
+    <p class="eyebrow">Kick-off Briefing · 초안</p>
+    <h1>Kafka 플랫폼 도입 — 개요·방향·일정</h1>
+    <div class="meta">
+      <span>작성 <b>플랫폼팀</b></span>
+      <span>일자 <b><span class="fill">2026-__-__</span></b></span>
+      <span>상태 <b>발표 전 초안</b></span>
+    </div>
+    <p class="notice"><span class="fill">노란 점선 표시</span>는 발표 전에 실제 값·사례로 채울 자리입니다.</p>
+  </header>
+
+  <section>
+    <h2><span class="no">1</span>배경 — 기존 시스템의 한계</h2>
+    <p class="lede">현행 시스템 간 연동 방식이 부딪히는 문제 (실제 사례로 교체)</p>
+    <ul>
+      <li><span class="fill">[사례 1]</span> <b>서비스 간 직접 API 호출</b> — 수신 서비스가 죽으면 호출 측도 실패하거나 데이터가 유실됨. 연동 대상이 늘 때마다 호출 코드가 늘어남.</li>
+      <li><span class="fill">[사례 2]</span> <b>DB 폴링 배치</b> — 실시간성이 떨어지고(배치 주기만큼 지연), 폴링 부하가 DB에 집중됨.</li>
+      <li><span class="fill">[사례 3]</span> <b>장애·재처리</b> — 전송 실패 데이터를 다시 보내는 표준 방법이 없어 수작업 복구.</li>
+    </ul>
+    <p><b>공통 문제:</b> 시스템 간 결합도가 높고, 유실·지연·재처리에 대한 표준 답이 없다.</p>
+  </section>
+
+  <section>
+    <h2><span class="no">2</span>요구사항 — 필요한 것</h2>
+    <div class="tablewrap"><table>
+      <tr><th>요구</th><th>의미</th></tr>
+      <tr><td><b>무손실</b></td><td>서버 1대 장애에도 접수된 데이터는 잃지 않는다</td></tr>
+      <tr><td><b>순서 보장</b></td><td>같은 대상(주문 등)의 이벤트는 발생 순서대로 처리된다</td></tr>
+      <tr><td><b>재처리</b></td><td>장애 복구·로직 수정 후 과거 데이터를 다시 처리할 수 있다</td></tr>
+      <tr><td><b>결합도 감소</b></td><td>발행하는 쪽은 구독하는 쪽이 몇 개인지 몰라도 된다. 구독 서비스 추가 시 기존 시스템 무변경</td></tr>
+      <tr><td><b>유연한 소비 속도</b></td><td>수신 서비스가 느리거나 잠시 죽어도 데이터가 쌓였다가 처리된다</td></tr>
+    </table></div>
+  </section>
+
+  <section>
+    <h2><span class="no">3</span>왜 Kafka인가</h2>
+    <p class="lede">대안 대비 비교 — 이벤트 파이프라인 용도의 사실상 업계 표준</p>
+    <div class="tablewrap"><table>
+      <tr><th></th><th>Kafka</th><th>전통 MQ (RabbitMQ 등)</th><th>DB 폴링</th></tr>
+      <tr><td><b>메시지 보존</b></td><td>소비해도 보존(기간제) → <b>재처리 가능</b></td><td>소비하면 삭제</td><td>가능하나 DB 부하</td></tr>
+      <tr><td><b>순서 보장</b></td><td>파티션 단위 보장</td><td>큐 단위(경쟁 소비 시 깨짐)</td><td>정렬 쿼리 필요</td></tr>
+      <tr><td><b>다중 구독</b></td><td>그룹별 독립 소비 — N개 서비스가 같은 데이터</td><td>익스체인지 구성 필요</td><td>각자 폴링</td></tr>
+      <tr><td><b>처리량 확장</b></td><td>파티션 병렬로 수평 확장</td><td>상대적 제한</td><td>DB가 병목</td></tr>
+      <tr><td><b>생태계</b></td><td>CDC(Debezium)·스키마 관리·모니터링 표준 존재</td><td>제한적</td><td><em>—</em></td></tr>
+    </table></div>
+  </section>
+
+  <section>
+    <h2><span class="no">4</span>아키텍처 — 현재와 계획</h2>
+
+    <h3>구축 완료 <span class="chip done">DONE</span></h3>
+    <ul>
+      <li><b>3노드 KRaft 클러스터</b> (실서버 3대, Docker Compose) — RF3 + <code>min.insync.replicas=2</code>로 브로커 1대 장애에도 무손실</li>
+      <li><b>보안</b> — SASL/SCRAM 인증 + TLS 암호화 + ACL 인가 (서비스별 계정, 자기 토픽만 접근)</li>
+      <li><b>Schema Registry 2대 이중화</b> — 메시지 형식의 중앙 관리·호환성 검사</li>
+      <li><b>개발자 사용 가이드</b> — usage-guide 시리즈 7편</li>
+    </ul>
+
+    <h3>진행 예정 <span class="chip next">NEXT</span></h3>
+    <ul>
+      <li><b>Kafka Connect ×2</b> — DB 변경 캡처(Debezium) 등 커넥터 실행</li>
+      <li><b>모니터링</b> — Prometheus + Grafana + kafka_exporter: 클러스터 건강·컨슈머 lag 감시, 알람</li>
+      <li><b>관리 도구</b> — Kafka UI, Admin Portal</li>
+    </ul>
+
+    <h3>서버 배치 (방안 B — 역할 분리, 플랫폼팀 추천)</h3>
+    <pre><code>서버1 (데이터 플레인)      서버2 (데이터 플레인)      서버3 (관제)
+─────────────────       ─────────────────       ──────────────────────
+Broker                  Broker                  Broker
+Connect ①               Connect ②               Prometheus + Alertmanager
+Schema Registry ①       Schema Registry ②       kafka_exporter · Grafana
+                                                Kafka UI · Admin Portal</code></pre>
+    <p>서버3의 관제 컴포넌트는 전부 중단돼도 <b>데이터 흐름에 무영향</b>. 사용자 접근 방화벽은 서버3으로 단일화, 서버별 메모리 부담 균등. 방안 A(제안 원안)와의 상세 비교는 <code>kafka/concepts/15-deployment-layout-options.md</code> 참고.</p>
+  </section>
+
+  <section>
+    <h2><span class="no">5</span>개발자 사용 방법</h2>
+    <p class="lede">원칙 3가지만 지키면 시작할 수 있습니다 — 상세는 사용 가이드 시리즈</p>
+    <ol class="principles">
+      <li><b>프로듀서</b> — <code>acks=all</code> + 멱등 설정, 순서가 중요하면 <b>메시지 key</b> 지정</li>
+      <li><b>컨슈머</b> — 처리 완료 후 <b>수동 커밋</b> + <b>멱등 처리</b> (같은 메시지가 2번 와도 안전하게)</li>
+      <li><b>토픽</b> — 직접 만들지 않고 <b>요청</b> · 명명 규칙 <code>&lt;도메인&gt;.&lt;엔티티&gt;.&lt;이벤트&gt;</code></li>
+    </ol>
+    <ul>
+      <li>Java + Spring Boot 기준 샘플 코드·<code>application.yml</code> 제공 — 복사해서 시작 가능</li>
+      <li>가이드 문서: <code>kafka/usage-guide/</code> (개요 → 명명 → 토픽 요청 → 프로듀서 → 컨슈머 → 접속 설정 → 자주 하는 실수)</li>
+      <li>개발자 필요 방화벽: <b>9094</b>(브로커 3대) + <b>8081</b>(Schema Registry 2대)</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="no">6</span>운영 방식 (거버넌스)</h2>
+    <div class="tablewrap"><table>
+      <tr><th>항목</th><th>방식</th></tr>
+      <tr><td><b>토픽 생성</b></td><td>개발팀 요청 → 플랫폼팀이 표준 설정으로 생성 + 계정에 권한 부여 (요청 채널: <span class="fill">미정 — 본 회의 결정</span>)</td></tr>
+      <tr><td><b>계정</b></td><td>서비스별 전용 계정 발급 — 자기 토픽만 접근</td></tr>
+      <tr><td><b>알람 책임</b></td><td>클러스터 알람(복제·컨트롤러·디스크) = 플랫폼팀 / <b>컨슈머 lag 알람 = 해당 서비스팀</b></td></tr>
+      <tr><td><b>문의</b></td><td><span class="fill">[DevOps/플랫폼팀 채널]</span></td></tr>
+    </table></div>
+  </section>
+
+  <section>
+    <h2><span class="no">7</span>일정 및 결정 필요 사항</h2>
+    <div class="tablewrap"><table>
+      <tr><th>시기</th><th>내용</th></tr>
+      <tr><td><b>완료</b></td><td>클러스터 구축 · 보안(인증·인가) · Schema Registry 이중화 · 사용 가이드</td></tr>
+      <tr><td><span class="fill">M+0</span></td><td>서버 배치 방안 확정 · 모니터링 스택 구축 (Prometheus/Grafana/알람)</td></tr>
+      <tr><td><span class="fill">M+1</span></td><td>Kafka Connect 구축 · <b>파일럿 서비스 1개 연동</b> (후보: <span class="fill">미정</span>)</td></tr>
+      <tr><td><span class="fill">M+2</span></td><td>파일럿 운영 검증 (성공 기준: <span class="fill">무손실 · lag SLA 충족</span>) → 확대 적용 가이드 배포</td></tr>
+      <tr><td><b>이후</b></td><td>서비스 순차 온보딩</td></tr>
+    </table></div>
+
+    <div class="decide-card">
+      <h3>이 회의에서 정해야 할 것</h3>
+      <ol>
+        <li><b>서버 배치 방안</b> — A(제안 원안) vs B(역할 분리 · 플랫폼팀 추천)</li>
+        <li><b>파일럿 서비스 선정</b> — 첫 적용 대상과 담당 팀</li>
+        <li><b>토픽 요청 채널</b> — PR 방식 vs 티켓 방식</li>
+        <li><b>알람 수신 채널</b> — <span class="fill">[메신저 / 호출 체계]</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <footer class="doc">
+    Kafka 플랫폼 킥오프 브리핑 초안 · 근거 문서: kafka/usage-guide 시리즈 · concepts 14(모니터링) · 15(배치 방안)
+  </footer>
+</div>
