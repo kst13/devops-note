@@ -172,7 +172,7 @@
 
   <section>
     <h2><span class="no">1</span>배경 — 기존 시스템의 한계</h2>
-    <p class="lede">현행 시스템 간 연동 방식이 부딪히는 문제 (실제 사례로 교체)</p>
+    <p class="lede">현행 시스템 간 연동 방식이 부딪히는 문제</p>
     <ul>
       <li><b>서비스 간 직접 API 호출</b> — 수신 서비스가 죽으면 호출 측도 실패하거나 데이터가 유실됨. 연동 대상이 늘 때마다 호출 코드가 늘어남.</li>
       <li><b>DB 폴링 배치</b> — 실시간성이 떨어지고(배치 주기만큼 지연), 폴링 부하가 DB에 집중됨.</li>
@@ -236,7 +236,7 @@
 
   <section>
     <h2><span class="no">3</span>왜 Kafka인가</h2>
-    <p class="lede">대안 대비 비교 — 이벤트 파이프라인 용도의 사실상 업계 표준</p>
+    <p class="lede">대안 대비 비교</p>
     <div class="tablewrap"><table>
       <tr><th></th><th>Kafka</th><th>전통 MQ</th><th>DB 폴링</th></tr>
       <tr><td><b>메시지 보존</b></td><td>소비해도 보존(기간제) → <b>재처리 가능</b></td><td>소비하면 삭제</td><td>가능하나 DB 부하</td></tr>
@@ -321,6 +321,48 @@
       <li><b>개발자 사용 가이드</b> — usage-guide 시리즈 7편</li>
     </ul>
 
+    <figure>
+      <svg viewBox="0 0 720 300" role="img" aria-label="구축 완료 상태: 서비스 앱은 보안 경계(TLS 암호화, SCRAM 인증, ACL 인가)를 거쳐 3중 복제 클러스터에 발행·구독하고, Schema Registry 2대가 이중화되어 있다. 서버 3의 관제 자리는 다음 단계로 남아 있다">
+        <defs>
+          <marker id="m4a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker>
+        </defs>
+        <rect x="20" y="110" width="140" height="44" rx="6" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="90" y="129" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">서비스 앱</text>
+        <text x="90" y="146" text-anchor="middle" font-size="10" fill="var(--muted)">Spring Boot · 서비스별 계정</text>
+        <rect x="20" y="192" width="140" height="32" rx="6" fill="none" stroke="var(--line)" stroke-dasharray="4 3"/>
+        <text x="90" y="212" text-anchor="middle" font-size="12" fill="var(--muted)">사용 가이드 7편</text>
+        <text x="208" y="100" text-anchor="middle" font-size="11" fill="var(--muted)">발행·구독 :9094</text>
+        <line x1="160" y1="124" x2="260" y2="110" stroke="currentColor" marker-end="url(#m4a)"/>
+        <text x="208" y="182" text-anchor="middle" font-size="11" fill="var(--muted)">스키마 :8081</text>
+        <line x1="160" y1="140" x2="260" y2="163" stroke="currentColor" marker-end="url(#m4a)"/>
+        <rect x="250" y="24" width="452" height="252" rx="10" fill="none" stroke="var(--accent)"/>
+        <text x="264" y="48" font-size="12" font-weight="700" fill="var(--accent)">Kafka 클러스터 — TLS 암호화 · SCRAM 인증 · ACL 인가</text>
+        <text x="328" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">서버 1</text>
+        <text x="476" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">서버 2</text>
+        <text x="624" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">서버 3</text>
+        <line x1="390" y1="109" x2="414" y2="109" stroke="currentColor" marker-start="url(#m4a)" marker-end="url(#m4a)"/>
+        <line x1="538" y1="109" x2="562" y2="109" stroke="currentColor" marker-start="url(#m4a)" marker-end="url(#m4a)"/>
+        <text x="402" y="131" text-anchor="middle" font-size="10" fill="var(--muted)">복제</text>
+        <text x="550" y="131" text-anchor="middle" font-size="10" fill="var(--muted)">복제</text>
+        <rect x="266" y="94" width="124" height="30" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <rect x="414" y="94" width="124" height="30" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <rect x="562" y="94" width="124" height="30" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <text x="328" y="113" text-anchor="middle" font-size="12" font-weight="700" fill="var(--accent)">Broker</text>
+        <text x="476" y="113" text-anchor="middle" font-size="12" font-weight="700" fill="var(--accent)">Broker</text>
+        <text x="624" y="113" text-anchor="middle" font-size="12" font-weight="700" fill="var(--accent)">Broker</text>
+        <line x1="390" y1="165" x2="414" y2="165" stroke="var(--muted)" stroke-dasharray="4 3" marker-start="url(#m4a)" marker-end="url(#m4a)"/>
+        <text x="402" y="186" text-anchor="middle" font-size="10" fill="var(--muted)">이중화</text>
+        <rect x="266" y="150" width="124" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <rect x="414" y="150" width="124" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
+        <text x="328" y="169" text-anchor="middle" font-size="11.5" fill="currentColor">Schema Registry ①</text>
+        <text x="476" y="169" text-anchor="middle" font-size="11.5" fill="currentColor">Schema Registry ②</text>
+        <rect x="562" y="150" width="124" height="30" rx="5" fill="none" stroke="var(--line)" stroke-dasharray="4 3"/>
+        <text x="624" y="169" text-anchor="middle" font-size="11" fill="var(--muted)">관제 (다음 단계)</text>
+        <text x="476" y="250" text-anchor="middle" font-size="11" fill="var(--muted)">RF3 + min.insync.replicas=2 — 브로커 1대 장애에도 무손실</text>
+      </svg>
+      <figcaption>구축 완료 상태 — 앱은 보안 경계(암호화·인증·인가)를 거쳐서만 접속하고, 데이터는 3중 복제로 저장되며, Schema Registry가 2대로 이중화되어 있다. 서버 3의 관제 자리가 다음 단계다.</figcaption>
+    </figure>
+
     <h3>진행 예정 <span class="chip next">NEXT</span></h3>
     <ul>
       <li><b>Kafka Connect ×2</b> — DB 변경 캡처(Debezium) 등 커넥터 실행</li>
@@ -366,7 +408,7 @@
         <rect x="496" y="212" width="196" height="30" rx="5" fill="var(--surface)" stroke="var(--muted)"/>
         <text x="594" y="155" text-anchor="middle" font-size="12" fill="currentColor">Prometheus · Alertmanager</text>
         <text x="594" y="193" text-anchor="middle" font-size="12" fill="currentColor">kafka_exporter · Grafana</text>
-        <text x="594" y="231" text-anchor="middle" font-size="12" fill="currentColor">Kafka UI · Admin Portal</text>
+        <text x="594" y="231" text-anchor="middle" font-size="12" fill="currentColor">Admin Portal</text>
         <text x="238" y="304" text-anchor="middle" font-size="11" fill="var(--muted)">브로커 1대 장애에도 무손실 (RF3 + minISR 2)</text>
         <text x="594" y="304" text-anchor="middle" font-size="11" font-weight="700" fill="var(--done)">전부 중단돼도 데이터 흐름 무영향</text>
       </svg>
@@ -394,15 +436,15 @@
     <h2><span class="no">6</span>운영 방식</h2>
     <div class="tablewrap"><table>
       <tr><th>항목</th><th>방식</th></tr>
-      <tr><td><b>토픽 생성</b></td><td>개발팀 요청 → 플랫폼팀이 표준 설정으로 생성 + 계정에 권한 부여</td></tr>
+      <tr><td><b>토픽 생성</b></td><td>개발팀 요청 → 표준 설정으로 생성 + 계정에 권한 부여</td></tr>
       <tr><td><b>계정</b></td><td>서비스별 전용 계정 발급 — 자기 토픽만 접근</td></tr>
-      <tr><td><b>알람 책임</b></td><td>클러스터 알람(복제·컨트롤러·디스크) = 플랫폼팀 / <b>컨슈머 lag 알람 = 해당 서비스팀</b></td></tr>
+      <tr><td><b>알람 책임</b></td><td><b>컨슈머 lag 알람 = 해당 서비스팀</b></td></tr>
       <tr><td><b>문의</b></td><td><span class="fill">[김성태, 이정민]</span></td></tr>
     </table></div>
   </section>
 
   <section>
-    <h2><span class="no">7</span>일정 및 결정 필요 사항</h2>
+    <h2><span class="no">7</span>일정</h2>
     <div class="tablewrap"><table>
       <tr><th>시기</th><th>내용</th></tr>
       <tr><td><b>완료</b></td><td>클러스터 구축 · 보안(인증·인가) · Schema Registry 이중화 · 사용 가이드</td></tr>
