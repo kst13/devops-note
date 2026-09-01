@@ -18,6 +18,7 @@
 - ✅ 컨슈머는 **수동 커밋**(처리 후 `ack.acknowledge()`) → [04 컨슈머](04-consumer.md)
 - ✅ 컨슈머는 **같은 메시지를 두 번 받아도 안전**하게(멱등) 처리하세요 → [04 컨슈머](04-consumer.md)
 - ✅ **자기 서비스 계정**으로만 접속하고, `bootstrap.servers`에 **브로커 3대를 모두** 적으세요 → [05 접속 설정](05-connection-config.md)
+- ✅ 유실되면 안 되는 이벤트는 **outbox 패턴**으로 클러스터 장애에 대비하세요 → [07 장애 대비](07-failure-resilience.md)
 
 ## 핵심 원칙 (운영 정책)
 
@@ -40,5 +41,6 @@
 | [04 컨슈머](04-consumer.md) | 수동 커밋, 멱등 처리 패턴, 리밸런싱, 병렬 처리 |
 | [05 접속 설정](05-connection-config.md) | `application.yml` 레시피(PLAINTEXT/SASL_SSL), 항목별 설명, 프로파일 분리 |
 | [06 자주 하는 실수](06-common-mistakes.md) | 증상 → 원인 → 확인 → 해결 순으로 정리한 사고 사례 |
+| [07 장애 대비](07-failure-resilience.md) | 클러스터 정지 시 앱에 벌어지는 일, outbox 패턴, 폴백과 저하 모드 |
 
 궁금한 점이나 토픽 요청은 DevOps 담당(플랫폼팀)에게 문의하세요.
