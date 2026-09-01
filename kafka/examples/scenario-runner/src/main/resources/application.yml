@@ -1,0 +1,23 @@
+runner:
+  bootstrap-servers: localhost:9092,localhost:9192,localhost:9292
+  topic: test.scenario.events
+  partitions: 3
+  containers: [kafka1, kafka2, kafka3]
+  report-dir: reports
+
+spring:
+  main:
+    web-application-type: none
+  kafka:
+    bootstrap-servers: ${runner.bootstrap-servers}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+
+logging:
+  level:
+    org.apache.kafka: WARN
