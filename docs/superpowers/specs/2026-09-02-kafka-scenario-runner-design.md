@@ -10,9 +10,9 @@
 
 ## 결정 사항
 
-- 대상 환경: 로컬 `kafka/examples/compose-3node-kraft-plaintext` 클러스터 (bootstrap 서버는 설정으로 변경 가능)
+- 대상 환경: 러너가 **자체 포함하는 로컬 3브로커 compose** (`scenario-runner/docker-compose.yml`, kafka1/2/3 3컨테이너, PLAINTEXT, RF3 + minISR2). 저장소의 기존 plaintext 예제는 "서버 3대에 1브로커씩" 구조라 단일 머신 실행이 불가하므로 로컬 전용 compose를 예제에 동봉한다. bootstrap 서버는 설정으로 변경 가능.
 - 형태: CLI 시나리오 러너 — 시나리오 이름을 인자로 받아 주입→관측→판정→리포트까지 자동 실행
-- 스택: Java 21, Spring Boot 3, Spring Kafka, Gradle (usage-guide 표준 스택과 동일)
+- 스택: Java 21(코드 기준), Spring Boot 3, Spring Kafka, **Maven** (개발 머신에 Gradle이 없고 Maven 3.9가 있어 Maven으로 확정)
 - 1차 시나리오: 핵심 4개 (정상 왕복, 브로커 1대 정지, 2대 정지, 전체 정지→복구)
 - 장애 주입: `docker stop/start`를 ProcessBuilder로 호출 (PLAINTEXT compose의 컨테이너 이름 기준)
 
