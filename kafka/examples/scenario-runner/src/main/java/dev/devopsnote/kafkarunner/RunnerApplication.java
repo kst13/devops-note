@@ -8,6 +8,7 @@ import dev.devopsnote.kafkarunner.scenario.Broker1Down;
 import dev.devopsnote.kafkarunner.scenario.Broker2Down;
 import dev.devopsnote.kafkarunner.scenario.NormalRoundtrip;
 import dev.devopsnote.kafkarunner.scenario.Scenario;
+import dev.devopsnote.kafkarunner.scenario.TotalOutage;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.springframework.boot.ApplicationArguments;
@@ -32,7 +33,8 @@ public class RunnerApplication implements ApplicationRunner, ExitCodeGenerator {
     private static final Map<String, Supplier<Scenario>> SCENARIOS = Map.of(
         "normal-roundtrip", NormalRoundtrip::new,
         "broker-1-down", Broker1Down::new,
-        "broker-2-down", Broker2Down::new);
+        "broker-2-down", Broker2Down::new,
+        "total-outage", TotalOutage::new);
 
     @Override public void run(ApplicationArguments args) throws Exception {
         if (args.getNonOptionArgs().isEmpty()) {
