@@ -11,9 +11,13 @@ public class Ledger {
     private final Set<Long> sentFail = new ConcurrentSkipListSet<>();
     private final Set<Long> received = new ConcurrentSkipListSet<>();
     private final AtomicLong receivedTotal = new AtomicLong();
+    private final AtomicLong failedEver = new AtomicLong(); // 재전송으로 회복돼도 남는 누적 실패 이력
 
     public void recordSentOk(long seq) { sentOk.add(seq); sentFail.remove(seq); } // 재전송 성공 반영
-    public void recordSentFail(long seq) { if (!sentOk.contains(seq)) sentFail.add(seq); }
+    public void recordSentFail(long seq) {
+        failedEver.incrementAndGet();
+        if (!sentOk.contains(seq)) sentFail.add(seq);
+    }
     public void recordReceived(long seq) { received.add(seq); receivedTotal.incrementAndGet(); }
 
     public Set<Long> sentOk() { return new TreeSet<>(sentOk); }
@@ -21,4 +25,5 @@ public class Ledger {
     public Set<Long> received() { return new TreeSet<>(received); }
     public Set<Long> lostSeqs() { var lost = new TreeSet<>(sentOk); lost.removeAll(received); return lost; }
     public long duplicateCount() { return receivedTotal.get() - received.size(); }
+    public long failedEverCount() { return failedEver.get(); }
 }
