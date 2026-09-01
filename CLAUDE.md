@@ -33,7 +33,7 @@ cd web && npm run lint && npm test
 
 ## Content Pipeline (spans multiple files)
 
-`web/scripts/sync-content.mjs` scans the repo root, treats every directory that has a `README.md` as a topic (skipping `.git`, `.github`, `.agents`, `.codex`, `node_modules`, `web`), and writes `web/app/data/content.generated.json`. That JSON is imported directly by `web/app/page.tsx`. The file is generated — never edit it by hand.
+`web/scripts/sync-content.mjs` scans the repo root, treats every directory that has a `README.md` as a topic (skipping `.git`, `.github`, `.agents`, `.codex`, `node_modules`, `web`), and writes `web/app/data/content.generated.json`. Inside topics it also skips build/output subdirectories (`node_modules`, `target`, `reports`, `dist`) so local artifacts never leak into the catalog. That JSON is imported directly by `web/app/page.tsx`. The file is generated — never edit it by hand.
 
 The sync script *derives* per-document metadata from structure, so filenames and folders are load-bearing:
 
