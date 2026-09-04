@@ -10,6 +10,7 @@
 
 ## TL;DR — 이것만 지키면 됩니다
 
+- 🚀 **처음 시작한다면 [08 온보딩 체크리스트](08-onboarding.md)부터** — 신청 → 발급 → 설정 → 연결 확인.
 - ✅ 토픽은 **직접 만들지 말고 요청**하세요 → [02 토픽 요청하기](02-topic-request.md)
 - ✅ 토픽 이름은 **`<도메인>.<엔티티>.<이벤트>` 3단계 고정** → [01 토픽 명명 규칙](01-topic-naming.md)
 - ✅ 프로듀서는 **`acks=all` + `enable.idempotence=true`** → [03 프로듀서](03-producer.md)
@@ -42,5 +43,6 @@
 | [05 접속 설정](05-connection-config.md) | `application.yml` 레시피(PLAINTEXT/SASL_SSL), 항목별 설명, 프로파일 분리 |
 | [06 자주 하는 실수](06-common-mistakes.md) | 증상 → 원인 → 확인 → 해결 순으로 정리한 사고 사례 |
 | [07 장애 대비](07-failure-resilience.md) | 클러스터 정지 시 앱에 벌어지는 일, outbox 패턴, 폴백과 저하 모드 |
+| [08 온보딩 체크리스트](08-onboarding.md) | 처음 시작: 신청 → 발급물 수령 → 설정 → 연결 확인 절차 |
 
 궁금한 점이나 토픽 요청은 DevOps 담당(플랫폼팀)에게 문의하세요.
