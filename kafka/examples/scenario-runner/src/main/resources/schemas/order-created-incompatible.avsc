@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "OrderCreated",
+  "namespace": "dev.devopsnote.kafkarunner.sample.avro",
+  "doc": "고의로 비호환인 스키마 — channel 에 기본값이 없어 v1 데이터를 읽을 수 없다. SR 이 409 로 거부해야 한다",
+  "fields": [
+    {"name": "orderId", "type": "string"},
+    {"name": "customerId", "type": "string"},
+    {"name": "amount", "type": "long"},
+    {"name": "createdAt", "type": "string", "doc": "ISO-8601 문자열"},
+    {"name": "channel", "type": "string"}
+  ]
+}
