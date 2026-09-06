@@ -1,6 +1,5 @@
 package dev.devopsnote.kafkarunner.command;
 
-import dev.devopsnote.kafkarunner.RunnerProperties;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,10 +8,14 @@ import java.util.Optional;
 /** 명령 이름 → Command. 장애 시나리오 4개가 먼저, 그 뒤에 Spring 빈으로 등록된 샘플 명령. */
 public class CommandRegistry {
     private final Map<String, Command> commands = new LinkedHashMap<>();
+    private final List<Command> scenarios;
+    private final List<Command> samples;
 
-    public CommandRegistry(RunnerProperties props, List<Command> sampleCommands) {
-        ScenarioCommand.all(props).forEach(this::add);
-        sampleCommands.forEach(this::add);
+    public CommandRegistry(List<Command> scenarios, List<Command> samples) {
+        this.scenarios = List.copyOf(scenarios);
+        this.samples = List.copyOf(samples);
+        this.scenarios.forEach(this::add);
+        this.samples.forEach(this::add);
     }
 
     private void add(Command command) {
@@ -27,13 +30,15 @@ public class CommandRegistry {
 
     public String usage() {
         var sb = new StringBuilder("사용법: java -jar scenario-runner.jar <명령> [인자]\n\n장애 시나리오:\n");
-        commands.values().stream().filter(c -> c instanceof ScenarioCommand).forEach(c -> appendLine(sb, c));
-        sb.append("\n사용 예시:\n");
-        commands.values().stream().filter(c -> !(c instanceof ScenarioCommand)).forEach(c -> appendLine(sb, c));
+        scenarios.forEach(c -> appendLine(sb, c));
+        if (!samples.isEmpty()) {
+            sb.append("\n사용 예시:\n");
+            samples.forEach(c -> appendLine(sb, c));
+        }
         return sb.toString();
     }
 
     private static void appendLine(StringBuilder sb, Command c) {
-        sb.append(String.format("  %-26s %s%n", c.name(), c.description()));
+        sb.append(String.format("  %-26s %s\n", c.name(), c.description()));
     }
 }

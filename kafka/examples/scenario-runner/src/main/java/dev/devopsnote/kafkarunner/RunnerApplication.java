@@ -2,6 +2,7 @@ package dev.devopsnote.kafkarunner;
 
 import dev.devopsnote.kafkarunner.command.Command;
 import dev.devopsnote.kafkarunner.command.CommandRegistry;
+import dev.devopsnote.kafkarunner.command.UsageException;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -33,14 +34,14 @@ public class RunnerApplication implements ApplicationRunner, ExitCodeGenerator {
         String name = nonOption.get(0);
         Command command = registry.find(name).orElse(null);
         if (command == null) {
-            System.out.println("알 수 없는 명령: " + name + "\n\n" + registry.usage());
+            System.out.print("알 수 없는 명령: " + name + "\n\n" + registry.usage());
             exitCode = 2;
             return;
         }
         try {
             exitCode = command.run(nonOption.subList(1, nonOption.size()));
-        } catch (IllegalArgumentException e) {
-            System.out.println("인자 오류: " + e.getMessage() + "\n\n" + registry.usage());
+        } catch (UsageException e) {
+            System.out.print("인자 오류: " + e.getMessage() + "\n\n" + registry.usage());
             exitCode = 2;
         }
     }

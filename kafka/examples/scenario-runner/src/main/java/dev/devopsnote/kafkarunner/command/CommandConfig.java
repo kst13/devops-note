@@ -11,6 +11,6 @@ public class CommandConfig {
      *  orderedStream() 은 @Order 를 존중한다 — 샘플 명령이 사용법에 나오는 순서. */
     @Bean
     public CommandRegistry commandRegistry(RunnerProperties props, ObjectProvider<Command> commands) {
-        return new CommandRegistry(props, commands.orderedStream().toList());
+        return new CommandRegistry(ScenarioCommand.all(props), commands.orderedStream().toList());
     }
 }
