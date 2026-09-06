@@ -5,4 +5,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "runner")
 public record RunnerProperties(String bootstrapServers, String topic, int partitions,
-                               List<String> containers, String reportDir) {}
+                               List<String> containers, String reportDir,
+                               String sampleTopic, String sampleAvroTopic) {}

@@ -4,6 +4,9 @@ runner:
   partitions: 3
   containers: [kafka1, kafka2, kafka3]
   report-dir: reports
+  # sample-* 명령이 쓰는 토픽 — usage-guide 03·04 의 예시 토픽과 같은 이름
+  sample-topic: commerce.order.created
+  sample-avro-topic: commerce.order.created.avro
 
 spring:
   main:
