@@ -5,6 +5,13 @@
 x-kafka-common: &kafka-common
   image: apache/kafka:4.0.0
   restart: "no"   # 러너가 stop/start 를 통제하므로 자동 재시작 금지
+  healthcheck:
+    # 브로커가 API 요청을 받을 수 있어야 SR 이 _schemas 를 RF3 로 만든다.
+    # 준비 전에 SR 이 붙으면 살아있는 브로커 수만큼 RF 가 깎여 RF1 로 생성된다.
+    test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 >/dev/null 2>&1"]
+    interval: 5s
+    timeout: 5s
+    retries: 20
   environment: &kafka-env
     KAFKA_PROCESS_ROLES: broker,controller
     KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:9093,2@kafka2:9093,3@kafka3:9093
@@ -53,10 +60,13 @@ services:
   # total-outage 로 브로커가 전부 내려가면 SR 은 에러 로그를 내며 대기하다 복구 후 다시 붙는다 —
   # "SR 은 브로커에 의존하지만 브로커는 SR 을 모른다"의 재현.
   schema-registry:
-    image: confluentinc/cp-schema-registry:8.3.1
+    image: confluentinc/cp-schema-registry:7.9.9
     container_name: schema-registry
-    restart: "no"
-    depends_on: [kafka1, kafka2, kafka3]
+    restart: on-failure   # 브로커 준비 지연으로 init 이 타임아웃해도 다시 뜨게 한다 (장애 주입 대상이 아니므로 브로커와 다르다)
+    depends_on:
+      kafka1: {condition: service_healthy}
+      kafka2: {condition: service_healthy}
+      kafka3: {condition: service_healthy}
     ports: ["8081:8081"]
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
@@ -64,4 +74,7 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka1:29092,kafka2:29092,kafka3:29092
       # _schemas 를 RF3 로 만들어 브로커 1대 정지 중에도 SR 이 동작하게 한다
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 3
+      # _schemas 는 min.insync.replicas 를 명시하지 않으면 브로커 기본값 2 를 상속한다.
+      # RF3 와 함께 명시해 "1대 정지는 견디고 2대 정지는 못 견딘다"가 의도대로 재현되게 한다.
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC_CONFIG_MIN_INSYNC_REPLICAS: 2
       SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: backward
