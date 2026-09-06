@@ -8,6 +8,7 @@ final class SampleArgs {
     private SampleArgs() {}
 
     static int count(List<String> args, int defaultValue) {
+        if (args.size() > 1) throw new UsageException("인자는 [count] 하나뿐입니다: " + args);
         if (args.isEmpty()) return defaultValue;
         int count;
         try { count = Integer.parseInt(args.get(0)); }

@@ -16,4 +16,7 @@ class SampleArgsTest {
     @Test void rejectsZeroOrNegative() {
         assertThatThrownBy(() -> SampleArgs.count(List.of("0"), 10)).isInstanceOf(IllegalArgumentException.class);
     }
+    @Test void rejectsExtraArgs() {
+        assertThatThrownBy(() -> SampleArgs.count(List.of("3", "4"), 10)).isInstanceOf(IllegalArgumentException.class);
+    }
 }

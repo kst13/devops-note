@@ -26,13 +26,22 @@ public class SampleKafkaConfig {
 
     public SampleKafkaConfig(KafkaProperties kafka) { this.kafka = kafka; }
 
-    /** usage-guide 05 와 같은 조합: String key + JsonSerializer. */
+    /** 팩토리를 빈으로 두어야 컨텍스트 종료 시 프로듀서가 close 된다 (KafkaTemplate 은 외부에서 받은 팩토리를 닫지 않는다). */
     @Bean
-    public KafkaTemplate<String, OrderCreatedEvent> sampleJsonTemplate() {
+    public DefaultKafkaProducerFactory<String, OrderCreatedEvent> sampleJsonProducerFactory() {
         Map<String, Object> props = kafka.buildProducerProperties();
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(props));
+        return new DefaultKafkaProducerFactory<>(props);
+    }
+
+    /** usage-guide 05 와 같은 조합: String key + JsonSerializer.
+     *  주의: KafkaTemplate 빈을 하나라도 정의하면 Boot 의 기본 kafkaTemplate 은 @ConditionalOnMissingBean 으로 물러난다 —
+     *  그래서 샘플마다 템플릿을 직접 선언한다. */
+    @Bean
+    public KafkaTemplate<String, OrderCreatedEvent> sampleJsonTemplate(
+            DefaultKafkaProducerFactory<String, OrderCreatedEvent> sampleJsonProducerFactory) {
+        return new KafkaTemplate<>(sampleJsonProducerFactory);
     }
 
     /** usage-guide 04·05: JsonDeserializer + trusted packages + 수동 ack. */

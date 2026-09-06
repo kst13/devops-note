@@ -2,6 +2,7 @@ package dev.devopsnote.kafkarunner.sample;
 
 import dev.devopsnote.kafkarunner.command.Command;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.core.annotation.Order;
@@ -16,13 +17,14 @@ import org.springframework.stereotype.Component;
 @Component
 @Order(2)
 public class SampleConsumeCommand implements Command {
-    static final String LISTENER_ID = "sample-json";
-    static final String GROUP_ID = "notification-service";
+    public static final String LISTENER_ID = "sample-json";
+    public static final String GROUP_ID = "notification-service";
     static final long IDLE_TIMEOUT_MS = 30_000;
 
     private final KafkaListenerEndpointRegistry registry;
     private final AtomicInteger received = new AtomicInteger();
     private volatile long lastReceivedAt;
+    private volatile int target = Integer.MAX_VALUE;
 
     public SampleConsumeCommand(KafkaListenerEndpointRegistry registry) { this.registry = registry; }
 
@@ -32,18 +34,24 @@ public class SampleConsumeCommand implements Command {
     @KafkaListener(id = LISTENER_ID, topics = "${runner.sample-topic}", groupId = GROUP_ID,
                    containerFactory = SampleKafkaConfig.JSON_LISTENER_FACTORY, autoStartup = "false")
     public void onOrderCreated(ConsumerRecord<String, OrderCreatedEvent> record, Acknowledgment ack) {
+        // 목표를 넘는 레코드는 ack 하지 않는다 → 커밋되지 않아 다음 실행에서 다시 읽힌다 (수동 커밋의 요점)
+        // (리스너 concurrency 기본값이 1이라 check-then-increment 가 안전하다)
+        if (received.get() >= target) return;
         OrderCreatedEvent event = record.value();
         System.out.printf("수신  partition=%d  offset=%d  key=%s  customer=%s  amount=%d%n",
             record.partition(), record.offset(), record.key(), event.customerId(), event.amount());
         ack.acknowledge(); // 처리 완료 후 커밋 — 처리 전에 커밋하면 장애 시 메시지를 잃는다
+        // 실제 서비스라면 ack 전에 멱등 판정을 둔다 (usage-guide 04 컨슈머 4장) — 재전송으로 인한 중복 수신은 정상 동작이다
         received.incrementAndGet();
         lastReceivedAt = System.currentTimeMillis();
     }
 
     @Override public int run(List<String> args) throws Exception {
         int count = SampleArgs.count(args, 10);
-        MessageListenerContainer container = registry.getListenerContainer(LISTENER_ID);
         received.set(0);
+        target = count;
+        MessageListenerContainer container = Objects.requireNonNull(
+            registry.getListenerContainer(LISTENER_ID), "리스너 " + LISTENER_ID + " 가 등록되지 않았습니다");
         lastReceivedAt = System.currentTimeMillis();
         System.out.printf("group=%s 로 구독 시작 (목표 %d건)%n", GROUP_ID, count);
         container.start();
@@ -60,6 +68,7 @@ public class SampleConsumeCommand implements Command {
             container.stop();
         }
         System.out.printf("완료: %d건 수신  (group=%s)%n", received.get(), GROUP_ID);
+        // 0건 수신도 종료 코드 0 — "커밋된 오프셋 이후에 새 메시지가 없다"는 정상 상태이지 실패가 아니다
         return 0;
     }
 }
