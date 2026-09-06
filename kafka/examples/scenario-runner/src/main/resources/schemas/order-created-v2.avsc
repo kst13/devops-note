@@ -2,7 +2,7 @@
   "type": "record",
   "name": "OrderCreated",
   "namespace": "dev.devopsnote.kafkarunner.sample.avro",
-  "doc": "주문 생성 이벤트 v2 — couponCode 추가 (기본값 null 이라 v1 데이터를 읽을 수 있다 = BACKWARD 호환)",
+  "doc": "주문 생성 이벤트 v2 — couponCode 추가 (기본값 null 이라 v1 데이터를 읽을 수 있다 = BACKWARD 호환). 기존 필드의 원본은 src/main/avro/OrderCreated.avsc",
   "fields": [
     {"name": "orderId", "type": "string"},
     {"name": "customerId", "type": "string"},
