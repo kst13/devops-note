@@ -1,6 +1,7 @@
-# 시나리오 러너 전용 로컬 3브로커 클러스터 (PLAINTEXT, 단일 머신)
-# 실서버 배포용이 아니다 — 장애 시나리오 재현·검증 전용.
+# 시나리오 러너 전용 로컬 3브로커 클러스터 + Schema Registry (PLAINTEXT, 단일 머신)
+# 실서버 배포용이 아니다 — 장애 시나리오 재현·검증과 sample-* 사용 예시 전용.
 # 브로커 간/쿼럼은 컨테이너 DNS(kafka1/2/3), 러너는 localhost:9092/9192/9292 로 접속.
+# Schema Registry 는 브로커의 INTERNAL 리스너(29092)로 붙고 러너는 localhost:8081 로 접속.
 x-kafka-common: &kafka-common
   image: apache/kafka:4.0.0
   restart: "no"   # 러너가 stop/start 를 통제하므로 자동 재시작 금지
@@ -48,3 +49,19 @@ services:
       KAFKA_NODE_ID: 3
       KAFKA_LISTENERS: INTERNAL://:29092,CONTROLLER://:9093,EXTERNAL://:9292
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:29092,EXTERNAL://localhost:9292
+  # 장애 시나리오는 runner.containers(kafka1/2/3)만 stop/start 하므로 이 컨테이너는 시나리오에 영향을 주지 않는다.
+  # total-outage 로 브로커가 전부 내려가면 SR 은 에러 로그를 내며 대기하다 복구 후 다시 붙는다 —
+  # "SR 은 브로커에 의존하지만 브로커는 SR 을 모른다"의 재현.
+  schema-registry:
+    image: confluentinc/cp-schema-registry:8.3.1
+    container_name: schema-registry
+    restart: "no"
+    depends_on: [kafka1, kafka2, kafka3]
+    ports: ["8081:8081"]
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka1:29092,kafka2:29092,kafka3:29092
+      # _schemas 를 RF3 로 만들어 브로커 1대 정지 중에도 SR 이 동작하게 한다
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 3
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: backward

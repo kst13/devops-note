@@ -13,6 +13,9 @@ spring:
     web-application-type: none
   kafka:
     bootstrap-servers: ${runner.bootstrap-servers}
+    properties:
+      # Avro serializer/deserializer 와 SchemaRegistryClient 가 읽는다 (usage-guide 08 과 같은 키)
+      schema.registry.url: http://localhost:8081
     producer:
       acks: all
       properties:
