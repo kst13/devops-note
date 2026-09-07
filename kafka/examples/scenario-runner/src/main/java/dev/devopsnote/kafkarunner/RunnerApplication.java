@@ -3,6 +3,7 @@ package dev.devopsnote.kafkarunner;
 import dev.devopsnote.kafkarunner.command.Command;
 import dev.devopsnote.kafkarunner.command.CommandRegistry;
 import dev.devopsnote.kafkarunner.command.UsageException;
+import dev.devopsnote.kafkarunner.sample.SampleKafkaConfig;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -21,6 +22,7 @@ public class RunnerApplication implements ApplicationRunner, ExitCodeGenerator {
     public RunnerApplication(CommandRegistry registry) { this.registry = registry; }
 
     public static void main(String[] args) {
+        SampleKafkaConfig.trustGeneratedAvroClasses(); // Avro 생성 클래스 신뢰 목록 — Avro 로딩 전에 설정해야 한다
         System.exit(SpringApplication.exit(SpringApplication.run(RunnerApplication.class, args)));
     }
 

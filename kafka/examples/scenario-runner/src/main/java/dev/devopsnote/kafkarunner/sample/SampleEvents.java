@@ -1,5 +1,6 @@
 package dev.devopsnote.kafkarunner.sample;
 
+import dev.devopsnote.kafkarunner.sample.avro.OrderCreated;
 import java.time.Instant;
 
 /** 샘플 이벤트 생성. orderId 를 3개로 돌려 "같은 key → 같은 파티션"이 출력에서 보이게 한다.
@@ -11,5 +12,14 @@ final class SampleEvents {
 
     static OrderCreatedEvent json(int i) {
         return new OrderCreatedEvent(orderId(i), "CUST-" + (i % 5 + 1), 10_000L * i, Instant.now().toString());
+    }
+
+    static OrderCreated avro(int i) {
+        return OrderCreated.newBuilder()
+            .setOrderId(orderId(i))
+            .setCustomerId("CUST-" + (i % 5 + 1))
+            .setAmount(10_000L * i)
+            .setCreatedAt(Instant.now().toString())
+            .build();
     }
 }

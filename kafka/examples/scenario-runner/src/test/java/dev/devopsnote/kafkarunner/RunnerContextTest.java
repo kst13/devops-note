@@ -3,6 +3,7 @@ package dev.devopsnote.kafkarunner;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.devopsnote.kafkarunner.command.CommandRegistry;
+import dev.devopsnote.kafkarunner.sample.SampleAvroConsumeCommand;
 import dev.devopsnote.kafkarunner.sample.SampleConsumeCommand;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +20,7 @@ class RunnerContextTest {
     void registersScenarioAndSampleCommands() {
         assertThat(registry.names()).containsExactly(
             "normal-roundtrip", "broker-1-down", "broker-2-down", "total-outage",
-            "sample-produce", "sample-consume");
+            "sample-produce", "sample-consume", "sample-avro-produce", "sample-avro-consume");
     }
 
     @Test
@@ -28,5 +29,9 @@ class RunnerContextTest {
         var container = kafkaRegistry.getListenerContainer(SampleConsumeCommand.LISTENER_ID);
         assertThat(container).isNotNull();
         assertThat(container.isRunning()).isFalse();
+
+        var avroContainer = kafkaRegistry.getListenerContainer(SampleAvroConsumeCommand.LISTENER_ID);
+        assertThat(avroContainer).isNotNull();
+        assertThat(avroContainer.isRunning()).isFalse();
     }
 }
