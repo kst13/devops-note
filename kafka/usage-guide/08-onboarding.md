@@ -116,7 +116,7 @@ spring:
 ```
 
 - 프로듀서/컨슈머 각 항목이 왜 이 값인지, 로컬(PLAINTEXT)·운영 프로파일 분리는 [05 접속 설정](05-connection-config.md) 참고.
-- Schema Registry를 쓰는 경우 `schema.registry.url`에 **발급받은 두 주소를 모두** 나열합니다(`http://10.0.0.11:8081,http://10.0.0.13:8081`).
+- Schema Registry를 쓰는 경우 `schema.registry.url`에 **발급받은 두 주소를 모두** 나열합니다(`http://10.0.0.11:8081,http://10.0.0.13:8081`). Avro serializer 설정과 스키마 진화 동작은 [scenario-runner 사용 예시](../examples/scenario-runner/README.md#사용-예시)의 `sample-avro-*` 명령으로 로컬에서 확인할 수 있습니다.
 
 ## 4. 연결 확인 — 가장 짧은 방법
 

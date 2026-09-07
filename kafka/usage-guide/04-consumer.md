@@ -76,3 +76,7 @@ public class OrderCreatedListener {
 - 리스너 안에서 멀티스레드로 순서 섞기.
 - 여러 서비스가 같은 `group.id` 공유 — 메시지를 나눠 받아 서로 일부만 처리하게 됩니다.
 - 멱등 처리 생략 — "우리는 중복 안 생기던데요"는 리밸런싱 없는 평시 이야기입니다. 배포·장애 때 반드시 생깁니다.
+
+## 실행해 보기
+
+이 장의 리스너는 [scenario-runner 사용 예시](../examples/scenario-runner/README.md#사용-예시)의 `sample-consume` 명령으로 로컬 클러스터에서 그대로 실행할 수 있습니다.

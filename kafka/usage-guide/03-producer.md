@@ -75,3 +75,7 @@ public class OrderEventProducer {
 - 순서가 필요한 토픽에 key 없이 보내기 — 파티션에 흩어져 순서가 깨집니다.
 - 같은 key의 이벤트를 여러 서비스 인스턴스에서 나눠 보내기 — 도착 순서 보장이 없습니다.
 - 메시지마다 `send().get()` 동기 전송 — 처리량 급락 + 압축 무력화.
+
+## 실행해 보기
+
+이 장의 코드는 [scenario-runner 사용 예시](../examples/scenario-runner/README.md#사용-예시)의 `sample-produce` 명령으로 로컬 클러스터에서 그대로 실행할 수 있습니다.
