@@ -16,7 +16,7 @@
 ## 실행 방법
 
 ```bash
-# 1) 로컬 3브로커 클러스터 + Schema Registry 기동 (최초 30초 정도 대기, curl localhost:8081/subjects 가 [] 를 반환하면 준비 완료)
+# 1) 로컬 3브로커 클러스터 + Schema Registry 기동 (브로커 healthcheck 통과 후 SR 이 뜨므로 최초 30~60초 대기, curl localhost:8081/subjects 가 [] 를 반환하면 준비 완료)
 docker compose up -d
 
 # 2) 빌드
@@ -72,7 +72,7 @@ java -jar target/scenario-runner.jar sample-consume 6     # notification-service
 
 ### 2단계 — Avro + Schema Registry
 
-[Schema Registry 개념](../../concepts/09-concepts-qna.md)에서 설명한 흐름을 실제로 확인합니다. 설정 차이는 serializer 클래스와 `schema.registry.url` 뿐이고, 앱 코드에는 SR 호출이 없습니다. compose 는 Confluent 7.9.9 (`cp-schema-registry`, `kafka-avro-serializer`)를 씁니다 — 8.x 의 serializer 는 kafka-clients 4.1 API 를 요구하는데 Spring Boot 3.5 는 3.9.1 을 고정하기 때문입니다.
+[Schema Registry 개념](../../concepts/09-concepts-qna.md)에서 설명한 흐름을 실제로 확인합니다. 설정 차이는 serializer 클래스와 `schema.registry.url` 뿐이고, 앱 코드에는 SR 호출이 없습니다. Schema Registry 이미지(`cp-schema-registry`)와 serializer 의존성(`kafka-avro-serializer`)은 Confluent 7.9.9 입니다 — 8.x 의 serializer 는 kafka-clients 4.1 API 를 요구하는데 Spring Boot 3.5 는 3.9.1 을 고정하기 때문입니다.
 
 ```bash
 java -jar target/scenario-runner.jar sample-avro-produce 6
@@ -85,12 +85,11 @@ java -jar target/scenario-runner.jar sample-schema-evolution
 
 - `sample-avro-produce` 의 `serializedValueSize` 는 수십 바이트입니다. 스키마 전체가 아니라 `magic 1B + schema id 4B + 페이로드` 만 실리기 때문입니다. 끝에 나오는 `SR 확인: subject=… version=… schemaId=…` 는 이 실행이 실제로 쓴 writer 스키마의 id·버전이지 "최신"이 아닙니다 — 이 등록은 `KafkaAvroSerializer` 가 첫 전송 때 한 것이라 처음 실행하면 `version=1 schemaId=1` 이지만, `sample-schema-evolution` 으로 v2 를 등록해 둔 뒤라면 최신 버전과 달라질 수 있습니다.
 - `sample-avro-consume` 은 메시지 앞의 id 로 SR 에서 스키마를 받아 역직렬화합니다(id 별로 캐시되어 SR 이 잠시 죽어도 이미 본 스키마는 계속 처리됩니다).
-- `sample-schema-evolution` 은 `v1 등록 (이미 있으면 기존 id)` 로 시작해 다음 단계를 순서대로 출력합니다.
-  1. `① v2 등록 성공  schemaId=2` — `couponCode` 를 기본값 `null` 로 추가한 스키마는 BACKWARD 호환이라 등록됩니다.
-  2. `② v2 메시지 전송  key=ORD-2001  couponCode=WELCOME10` — `GenericRecord` 로 새 스키마 메시지를 보냅니다.
-  3. `③ v1 클래스로 수신 OK  key=ORD-2001  …  (writer=v2 schemaId=2, reader=v1 …)` — 옛 생성 클래스로 새 메시지를 읽습니다. Avro 가 writer(v2)/reader(v1) 스키마를 대조해 모르는 필드를 버립니다. 컨슈머 배포 없이 프로듀서만 먼저 바꿔도 되는 이유입니다. 바로 이어지는 `주의: 이 방향(옛 reader × 새 데이터)은 FORWARD 호환이다 … BACKWARD 설정만으로는 보장되지 않는다` 줄이 핵심입니다 — SR 이 등록 시점에 검사한 것은 BACKWARD(새 reader 가 옛 데이터를 읽는지)뿐이고, 지금 확인한 방향(옛 reader 가 새 데이터를 읽는 FORWARD)은 이번 변경이 필드에 기본값을 둬 우연히 FULL 호환이라 되는 것입니다.
-  4. `④ SR 거부  HTTP 409` — 기본값 없는 필드 `channel` 을 추가한 스키마는 옛 데이터를 읽을 수 없으므로 SR 이 거부합니다. 브로커는 이 검사를 하지 않습니다. SR 이 유일한 관문입니다.
-  마지막 줄 `버전 목록: [1, 2]` 로 마칩니다 — 거부된 비호환 스키마는 버전에 남지 않습니다.
+- `sample-schema-evolution` 은 `v1 등록 (이미 있으면 기존 id)` 로 시작해 ①~④ 를 순서대로 출력하고, 마지막 줄 `버전 목록: [1, 2]` 로 마칩니다 — 거부된 비호환 스키마는 버전에 남지 않습니다.
+- `① v2 등록 성공  schemaId=2` — `couponCode` 를 기본값 `null` 로 추가한 스키마는 BACKWARD 호환이라 등록됩니다.
+- `② v2 메시지 전송  key=ORD-2001  couponCode=WELCOME10` — `GenericRecord` 로 새 스키마 메시지를 보냅니다.
+- `③ v1 클래스로 수신 OK  key=ORD-2001  …  (writer=v2 schemaId=2, reader=v1 …)` — 옛 생성 클래스로 새 메시지를 읽습니다. Avro 가 writer(v2)/reader(v1) 스키마를 대조해 모르는 필드를 버립니다. 컨슈머 배포 없이 프로듀서만 먼저 바꿔도 되는 이유입니다. 바로 이어지는 `주의: 이 방향(옛 reader × 새 데이터)은 FORWARD 호환이다 … BACKWARD 설정만으로는 보장되지 않는다` 줄이 핵심입니다 — SR 이 등록 시점에 검사한 것은 BACKWARD(새 reader 가 옛 데이터를 읽는지)뿐이고, 지금 확인한 방향(옛 reader 가 새 데이터를 읽는 FORWARD)은 이번 변경이 필드에 기본값을 둬 우연히 FULL 호환이라 되는 것입니다.
+- `④ SR 거부  HTTP 409` — 기본값 없는 필드 `channel` 을 추가한 스키마는 옛 데이터를 읽을 수 없으므로 SR 이 거부합니다. 브로커는 이 검사를 하지 않습니다. SR 이 유일한 관문입니다.
 - 스키마 파일: `src/main/avro/OrderCreated.avsc`(v1, 코드 생성), `src/main/resources/schemas/order-created-v2.avsc`, `order-created-incompatible.avsc`. 세 파일의 호환 관계는 `SchemaEvolutionTest` 가 SR 없이 검증합니다.
 - Schema Registry 가 응답하지 않으면 `sample-avro-produce`/`sample-schema-evolution` 은 각각 `직렬화 실패 — Schema Registry …`, `SR 호출 실패 — …` 를 출력하고 종료 코드 1로 끝납니다.
 - Avro 1.12 는 생성 클래스 로딩에 신뢰 목록을 요구하는데, `RunnerApplication.main` 이 시작 시 이를 등록해 두어 `java -jar` 로 바로 실행됩니다. 운영 앱이라면 JVM 옵션 `-Dorg.apache.avro.SERIALIZABLE_PACKAGES=...` 로 두는 것이 일반적입니다.

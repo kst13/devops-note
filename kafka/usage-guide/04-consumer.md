@@ -79,4 +79,4 @@ public class OrderCreatedListener {
 
 ## 실행해 보기
 
-이 장의 리스너는 [scenario-runner 사용 예시](../examples/scenario-runner/README.md#사용-예시)의 `sample-consume` 명령으로 로컬 클러스터에서 그대로 실행할 수 있습니다.
+이 장의 리스너는 [scenario-runner 사용 예시](../examples/scenario-runner/README.md)의 `sample-consume` 명령으로 로컬 클러스터에서 그대로 실행할 수 있습니다.
