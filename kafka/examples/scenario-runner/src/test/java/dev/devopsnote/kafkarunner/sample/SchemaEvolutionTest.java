@@ -46,6 +46,14 @@ class SchemaEvolutionTest {
     }
 
     @Test
+    void v1ReaderCanReadV2Writer() throws IOException {
+        // sample-schema-evolution ③ 이 보여주는 방향(옛 reader × 새 데이터 = FORWARD). BACKWARD 설정이 보장하는 방향이 아니므로 따로 고정한다
+        var result = SchemaCompatibility.checkReaderWriterCompatibility(V1, load("order-created-v2.avsc"));
+        assertThat(result.getType()).as("%s", result.getResult().getIncompatibilities())
+            .isEqualTo(SchemaCompatibilityType.COMPATIBLE);
+    }
+
+    @Test
     void evolvedSchemasExtendV1WithoutRenaming() throws IOException {
         // 세 파일이 v1 필드를 각자 복사해 갖고 있어 v1 이 바뀌면 조용히 어긋날 수 있다 — 상위집합 관계를 고정한다.
         // 이름이 바뀌면 NAME_MISMATCH 라는 엉뚱한 이유로 비호환 테스트가 통과할 수 있으므로 이름도 고정한다.
