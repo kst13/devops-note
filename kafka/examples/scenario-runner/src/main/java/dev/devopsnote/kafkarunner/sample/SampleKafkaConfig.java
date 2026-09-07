@@ -8,6 +8,7 @@ import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.avro.util.ClassSecurityValidator;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -35,11 +36,18 @@ public class SampleKafkaConfig {
 
     public SampleKafkaConfig(KafkaProperties kafka) { this.kafka = kafka; }
 
-    /** Avro 1.12 는 스키마 이름으로 생성 클래스를 찾을 때(SpecificData) 신뢰 목록을 요구한다 — 임의 클래스 로딩 취약점 대응.
-     *  Avro 클래스가 로딩되기 전에 설정돼야 하므로 RunnerApplication.main 이 Spring 기동 전에 호출한다.
+    private static boolean avroClassesTrusted = false;
+
+    /** Avro 1.12 는 스키마 이름으로 생성 클래스를 찾을 때(SpecificData.getClass) 신뢰 목록을 요구한다 — 임의 클래스 로딩 취약점 대응.
+     *  프로듀서가 먼저 걸린다(KafkaAvroSerializer → SpecificData.getForSchema). 시스템 프로퍼티 org.apache.avro.SERIALIZABLE_PACKAGES 는
+     *  클래스 초기화 때 한 번만 읽혀 생성 클래스가 먼저 로딩되면 되돌릴 수 없으므로, 언제든 바꿀 수 있는 setGlobal 을 쓴다.
      *  운영 앱이라면 JVM 옵션 -Dorg.apache.avro.SERIALIZABLE_PACKAGES=... 로 두는 것이 일반적이다. */
-    public static void trustGeneratedAvroClasses() {
-        System.setProperty("org.apache.avro.SERIALIZABLE_PACKAGES", OrderCreated.class.getPackageName());
+    public static synchronized void trustGeneratedAvroClasses() {
+        if (avroClassesTrusted) return;
+        ClassSecurityValidator.setGlobal(ClassSecurityValidator.composite(
+            ClassSecurityValidator.getGlobal(),
+            ClassSecurityValidator.builder().add(OrderCreated.class).build()));
+        avroClassesTrusted = true;
     }
 
     /** 팩토리를 빈으로 두어야 컨텍스트 종료 시 프로듀서가 close 된다 (KafkaTemplate 은 외부에서 받은 팩토리를 닫지 않는다). */
@@ -74,7 +82,7 @@ public class SampleKafkaConfig {
         return factory;
     }
 
-    /** 팩토리를 빈으로 두어야 컨텍스트 종료 시 프로듀서가 close 된다 (KafkaTemplate 은 외부에서 받은 팩토리를 닫지 않는다). */
+    /** JSON 쪽(sampleJsonProducerFactory)과 같은 이유로 빈으로 둔다. */
     @Bean
     public DefaultKafkaProducerFactory<String, Object> sampleAvroProducerFactory() {
         Map<String, Object> props = kafka.buildProducerProperties();
@@ -92,7 +100,8 @@ public class SampleKafkaConfig {
         return new KafkaTemplate<>(sampleAvroProducerFactory);
     }
 
-    /** Avro 컨슈머 설정. ConsumerFactory 를 빈으로 노출하면 Boot 기본 팩토리와 제네릭이 충돌하므로 static 으로 공유한다. */
+    /** Avro 컨슈머 설정. ConsumerFactory 를 빈으로 노출하면 Boot 기본 팩토리와 제네릭이 충돌하므로 static 으로 공유한다.
+     *  group.id 는 들어 있지 않다 — 리스너는 @KafkaListener(groupId) 가, 직접 만든 KafkaConsumer 는 호출자가 정한다. */
     static Map<String, Object> avroConsumerProps(KafkaProperties kafka) {
         Map<String, Object> props = kafka.buildConsumerProperties();
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);

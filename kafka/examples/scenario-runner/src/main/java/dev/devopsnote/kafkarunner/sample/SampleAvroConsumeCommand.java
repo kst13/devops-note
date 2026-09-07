@@ -13,7 +13,7 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
-/** Avro 수신. deserializer 가 메시지 앞 5바이트에서 schema id 를 읽어 SR 에서 스키마를 받아온다(캐시됨). */
+/** Avro 수신. deserializer 가 메시지 앞 5바이트(magic 1B + id 4B)에서 schema id 를 읽어 SR 에서 스키마를 받아온다(캐시됨). */
 @Component
 @Order(4)
 public class SampleAvroConsumeCommand implements Command {

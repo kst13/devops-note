@@ -3,6 +3,7 @@ package dev.devopsnote.kafkarunner.sample;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.devopsnote.kafkarunner.sample.avro.OrderCreated;
+import io.confluent.kafka.schemaregistry.avro.AvroSchema;
 import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
@@ -21,7 +22,7 @@ class AvroRoundTripTest {
     static void trustGeneratedClasses() { SampleKafkaConfig.trustGeneratedAvroClasses(); }
 
     @Test
-    void specificRecordSurvivesSerializerRoundTrip() {
+    void specificRecordSurvivesSerializerRoundTrip() throws Exception {
         var registry = new MockSchemaRegistryClient();
         Map<String, Object> config = Map.of(KafkaAvroSerializerConfig.SCHEMA_REGISTRY_URL_CONFIG, "mock://round-trip",
                                             KafkaAvroDeserializerConfig.SPECIFIC_AVRO_READER_CONFIG, true);
@@ -33,6 +34,11 @@ class AvroRoundTripTest {
             // wire format: magic 0x00 + schema id 4B + payload — 스키마 전체가 아니라 id 만 실린다
             assertThat(bytes[0]).isZero();
             assertThat(bytes.length).isLessThan(100);
+            // 앱 코드는 SR 을 호출한 적이 없지만 serializer 가 subject 를 등록해 두었다
+            assertThat(registry.getAllSubjects()).containsExactly(TOPIC + "-value");
+            // wire format: magic 0x00 + schema id 4B(big-endian) + payload
+            int idInMessage = java.nio.ByteBuffer.wrap(bytes, 1, 4).getInt();
+            assertThat(idInMessage).isEqualTo(registry.getId(TOPIC + "-value", new AvroSchema(OrderCreated.getClassSchema())));
             Object back = deserializer.deserialize(TOPIC, bytes);
             assertThat(back).isInstanceOf(OrderCreated.class).isEqualTo(original);
         }
