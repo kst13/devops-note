@@ -6,7 +6,7 @@
 
 **Architecture:** 기존 `RunnerApplication`의 시나리오 맵을 `Command` 인터페이스 + `CommandRegistry`로 일반화하고, 기존 시나리오 흐름은 `ScenarioCommand`가 그대로 감싼다. 샘플 명령은 `sample/` 패키지의 Spring `@Component`로 추가되며 `KafkaTemplate`, `@KafkaListener(autoStartup=false)`, Confluent `KafkaAvroSerializer`를 쓴다. compose에 Schema Registry 컨테이너를 추가하고, Avro 클래스는 `avro-maven-plugin`이 `src/main/avro/*.avsc`에서 생성한다.
 
-**Tech Stack:** Java 21, Spring Boot 3.5.5, Spring Kafka 3.3.9(kafka-clients 3.9.1), Confluent kafka-avro-serializer 8.3.1, Avro 1.12.2, `confluentinc/cp-schema-registry:8.3.1`, Maven 3.9, Docker Compose.
+**Tech Stack:** Java 21, Spring Boot 3.5.5, Spring Kafka 3.3.9(kafka-clients 3.9.1), Confluent kafka-avro-serializer 7.9.9, Avro 1.12.2, `confluentinc/cp-schema-registry:7.9.9`, Maven 3.9, Docker Compose.
 
 **Spec:** `docs/superpowers/specs/2026-09-06-scenario-runner-sample-commands-design.md`
 
@@ -468,7 +468,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 `<properties>` 블록에 두 줄 추가:
 
 ```xml
-    <confluent.version>8.3.1</confluent.version>
+    <confluent.version>7.9.9</confluent.version>
     <avro.version>1.12.2</avro.version>
 ```
 
@@ -527,7 +527,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 Run: `mvn -q compile && ls target/generated-sources/avro/dev/devopsnote/kafkarunner/sample/avro/ && grep -c "public java.lang.String getOrderId" target/generated-sources/avro/dev/devopsnote/kafkarunner/sample/avro/OrderCreated.java`
 Expected: `OrderCreated.java` 출력, grep 결과 `1`. 최초 실행은 Confluent 저장소에서 의존성을 받느라 1~3분 걸릴 수 있다.
 
-만약 `io.confluent:kafka-avro-serializer:8.3.1` 해석에 실패하면 `curl -sI https://packages.confluent.io/maven/io/confluent/kafka-avro-serializer/8.3.1/kafka-avro-serializer-8.3.1.pom | head -1`로 네트워크를 확인한다. 200이 아니면 사내 미러/프록시 문제이므로 사용자에게 보고하고 중단한다.
+만약 `io.confluent:kafka-avro-serializer:7.9.9` 해석에 실패하면 `curl -sI https://packages.confluent.io/maven/io/confluent/kafka-avro-serializer/7.9.9/kafka-avro-serializer-7.9.9.pom | head -1`로 네트워크를 확인한다. 200이 아니면 사내 미러/프록시 문제이므로 사용자에게 보고하고 중단한다.
 
 - [ ] **Step 4: docker-compose.yml에 Schema Registry 추가**
 
@@ -547,7 +547,7 @@ Expected: `OrderCreated.java` 출력, grep 결과 `1`. 최초 실행은 Confluen
   # total-outage 로 브로커가 전부 내려가면 SR 은 에러 로그를 내며 대기하다 복구 후 다시 붙는다 —
   # "SR 은 브로커에 의존하지만 브로커는 SR 을 모른다"의 재현.
   schema-registry:
-    image: confluentinc/cp-schema-registry:8.3.1
+    image: confluentinc/cp-schema-registry:7.9.9
     container_name: schema-registry
     restart: "no"
     depends_on: [kafka1, kafka2, kafka3]
@@ -831,9 +831,10 @@ final class SampleEvents {
 ```java
 package dev.devopsnote.kafkarunner.sample;
 
+import dev.devopsnote.kafkarunner.command.UsageException;
 import java.util.List;
 
-/** sample-* 명령의 선택 인자 [count] 파싱. 잘못된 값은 IllegalArgumentException → 종료 코드 2. */
+/** sample-* 명령의 선택 인자 [count] 파싱. 잘못된 값은 UsageException → 종료 코드 2. */
 final class SampleArgs {
     private SampleArgs() {}
 
@@ -841,8 +842,8 @@ final class SampleArgs {
         if (args.isEmpty()) return defaultValue;
         int count;
         try { count = Integer.parseInt(args.get(0)); }
-        catch (NumberFormatException e) { throw new IllegalArgumentException("count 는 정수여야 합니다: " + args.get(0)); }
-        if (count <= 0) throw new IllegalArgumentException("count 는 1 이상이어야 합니다: " + count);
+        catch (NumberFormatException e) { throw new UsageException("count 는 정수여야 합니다: " + args.get(0)); }
+        if (count <= 0) throw new UsageException("count 는 1 이상이어야 합니다: " + count);
         return count;
     }
 }
@@ -1732,3 +1733,18 @@ The same jar also ships `sample-*` commands (JSON produce/consume, Avro produce/
 - **스펙 커버리지:** 명령 구조(Task 1), 5개 샘플 명령(4·5·6), compose SR·pom·avsc(2), 진화 스키마와 로컬 테스트(3), 문서·링크·회귀·web 테스트(7). `SampleTopics.java` 는 `FaultInjector.ensureTopic` 재사용으로 대체(맨 위 주의 사항에 명시).
 - **타입 일관성:** `RunnerProperties` 7필드 생성자를 Task 1 테스트 두 곳과 Task 4 이후 코드가 같은 순서로 쓴다. `SampleKafkaConfig.JSON_LISTENER_FACTORY` / `AVRO_LISTENER_FACTORY` 상수와 `@Bean` 이름, `@KafkaListener(containerFactory=…)` 가 일치한다. `avroConsumerProps(KafkaProperties)` 는 Task 5 에서 정의, Task 6 에서 사용. `Command.run` 은 모든 구현에서 `int run(List<String>) throws Exception`.
 - **플레이스홀더:** 없음. 모든 코드 단계에 전체 코드, 모든 실행 단계에 명령과 기대 출력이 있다.
+
+---
+
+## 구현 중 변경 사항 (2026-09-06 ~ 09-08 실행 기록)
+
+각 작업의 코드 리뷰에서 나온 수정이며, 위 작업 본문의 코드 블록보다 저장소의 실제 코드가 우선한다.
+
+- **Task 1**: `command/UsageException extends IllegalArgumentException` 추가. `RunnerApplication` 은 이 타입만 종료 코드 2 로 바꾼다(일반 IAE 는 전파). `CommandRegistry(List<Command> scenarios, List<Command> samples)` 로 바꿔 `RunnerProperties` 와 `instanceof ScenarioCommand` 의존을 제거했고, 샘플이 없으면 `사용 예시:` 헤더를 생략한다. `SampleArgs` 는 `UsageException` 을 던지고 인자가 2개 이상이면 거부한다.
+- **Task 2**: Confluent 8.3.1 → **7.9.9**. 8.x serializer 는 kafka-clients 4.1 의 `Monitorable` 을 요구해 Spring Boot 3.5 가 고정한 3.9.1 에서 클래스 로딩이 실패한다(`AvroSerdeClasspathTest` 로 고정). compose: 브로커 healthcheck(`kafka-broker-api-versions.sh`) + SR `depends_on: condition: service_healthy` + `restart: on-failure` + `SCHEMA_REGISTRY_KAFKASTORE_TOPIC_CONFIG_MIN_INSYNC_REPLICAS: 2`. SR 이 브로커 준비 전에 붙으면 `_schemas` 가 RF1 로 만들어져 영구히 쓰기 불가가 되기 때문이다. Confluent 저장소는 snapshots 비활성.
+- **Task 3**: `SchemaEvolutionTest` 는 비호환 원인이 정확히 `READER_FIELD_MISSING_DEFAULT_VALUE`/`channel` 하나임을 단정하고, 진화 스키마가 v1 필드의 상위집합임을 고정한다. ③ 방향(옛 reader × 새 데이터)을 위한 `v1ReaderCanReadV2Writer` 추가.
+- **Task 4**: `sample-consume N` 이 폴 배치 초과분까지 ack 하던 문제 → `volatile int target` 게이트(초과분은 출력·ack 하지 않아 다음 실행에서 다시 읽힘). 프로듀서 팩토리를 별도 `@Bean` 으로 두어 종료 시 close 되게 함. 라운드트립 후 `flush()` 제거. `RunnerContextTest` 가 리스너 컨테이너가 등록되어 있고 `autoStartup=false` 임을 단정.
+- **Task 5**: Avro 1.12 의 생성 클래스 신뢰 목록(`ClassSecurityValidator`) 때문에 `KafkaAvroSerializer` 가 `SecurityException` 으로 막힘. 시스템 프로퍼티는 클래스 초기화 때 한 번만 읽혀 순서 의존적이므로 `SampleKafkaConfig.trustGeneratedAvroClasses()` 가 `ClassSecurityValidator.setGlobal(composite(...))` 로 등록하고 `RunnerApplication.main` 이 Spring 기동 전에 호출한다. `AvroRoundTripTest`(MockSchemaRegistryClient) 로 serializer 경로를 브로커 없이 검증. `SR 확인` 줄은 최신 버전이 아니라 **이번에 쓴 writer 스키마**의 version/id 를 출력. SR 접속 실패는 `SerializationException` 으로 `send()` 안에서 즉시 던져지므로 별도 catch 로 안내 메시지 출력.
+- **Task 6**: ③ 은 이 실행이 보낸 key(`ORD-2001`)의 레코드만 받아들이고 writer schemaId 를 함께 출력한다(동시 실행 중 v1 메시지를 v2 로 오인하던 문제). ③ 방향이 FORWARD 이며 BACKWARD 설정만으로 보장되지 않는다는 주의 문구 추가. SR 실패는 바깥 try 하나로 통합, 전송 `.get()` 은 `TimeoutException` 까지 처리, 컨슈머 setup 실패 시 close, ④ 메시지는 `", details:"` 앞에서 잘라 200자 제한.
+- **검증 환경**: 이 머신의 `sr-home-lab` 이 8081 을 점유해, 검증 시 SR 을 호스트 8082 로 띄우고(`docker compose -p scenario-runner` + 사본 compose) `--spring.kafka.properties.schema.registry.url=http://localhost:8082` 로 실행했다. 커밋된 compose/yml 은 8081 그대로다. Compose v2.19 는 `!override` 를 지원하지 않아 override 파일 대신 사본을 썼다.
+- **Task 7**: usage-guide 08 의 링크는 문서 끝이 아니라 `schema.registry.url` 을 설명하는 항목 안에 문장으로 넣었다(맥락이 맞는 자리). 03·04 는 `## 실행해 보기` 절. 링크에 `#사용-예시` 조각을 붙이면 `normalizeDocumentLink` 가 `.md` 로 끝나지 않는다고 보고 인앱 이동으로 바꾸지 않으므로 조각 없이 둔다. README 의 ①~④ 설명은 렌더러가 중첩 목록을 지원하지 않아 최상위 bullet 로 평탄화했다.

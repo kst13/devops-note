@@ -4,11 +4,10 @@
 
 This repository is a Korean-language DevOps knowledge base. Content is grouped by technology at the repository root:
 
-- `docker/` contains concepts, CLI references, minimal examples, and troubleshooting notes.
-- `redis/` contains operational concepts and configuration guidance.
+- `docker/`, `redis/`, `kafka/`, `aws/`, and `kubernetes/` hold concepts, CLI references, minimal examples, and troubleshooting notes per technology.
 - Each topic begins with a `README.md` that acts as its index and recommended reading order.
 
-Within a topic, place conceptual material in `concepts/`, incident-style guides in `troubleshooting/`, command references in `commands/`, and reproducible demonstrations in `examples/`. Number ordered concept files with two digits, for example `concepts/03-replication.md`. Add new top-level topics only when they represent a distinct DevOps technology or practice.
+Within a topic, place conceptual material in `concepts/`, incident-style guides in `troubleshooting/`, command references in `commands/`, reproducible demonstrations in `examples/`, and consumer-facing how-to series in `usage-guide/`. Number ordered concept files with two digits, for example `concepts/03-replication.md`. Add new top-level topics only when they represent a distinct DevOps technology or practice.
 
 ## Build, Test, and Development Commands
 
@@ -23,6 +22,8 @@ npm test              # build and run rendered HTML tests
 ```
 
 Run every command or configuration example you change when the required tool is available. Keep examples minimal and safe to copy into a local environment.
+
+`kafka/examples/scenario-runner/` is a self-contained Java CLI (JDK 21+, Maven, Docker Compose) that reproduces Kafka failure scenarios and verifies no message loss; the same jar ships `sample-*` commands (JSON produce/consume, Avro produce/consume, schema evolution) that need the `schema-registry` container from its compose file and the Confluent Maven repository declared in its `pom.xml`. Its `target/` and `reports/` outputs are why sync skips those subdirectory names.
 
 ## Coding Style & Naming Conventions
 

@@ -15,7 +15,7 @@ usage-guide 03~05가 보여주는 Spring Kafka 코드(`KafkaTemplate`, `@KafkaLi
 - 단계: 1단계 JSON(String key + `JsonSerializer`), 2단계 Avro + SR. 두 단계 모두 같은 도메인 `OrderCreatedEvent` / `commerce.order.created`를 쓴다.
 - SR 범위: 전송·수신에 더해 스키마 진화까지 한 명령으로 재현한다.
 - 대상 클러스터: 러너에 동봉된 PLAINTEXT 3브로커 compose. SASL_SSL, SR 인증, home-lab 연동은 범위 밖 (보안 설정은 usage-guide 05가 다룬다).
-- 버전(2026-09-06 확인): `confluentinc/cp-schema-registry:8.3.1`, `io.confluent:kafka-avro-serializer:8.3.1`, `avro-maven-plugin:1.12.2`. 모두 Kafka 4.0 기반이라 기존 `apache/kafka:4.0.0`과 맞는다.
+- 버전(2026-09-06 확인): `confluentinc/cp-schema-registry:7.9.9`, `io.confluent:kafka-avro-serializer:7.9.9`, `avro-maven-plugin:1.12.2`. Confluent 는 7.9 라인을 쓴다: 8.x serializer 는 kafka-clients 4.1 API(`Monitorable`)를 요구하는데 Spring Boot 3.5 는 kafka-clients 3.9.1 을 고정해 클래스 로딩이 실패한다(구현 중 발견, `AvroSerdeClasspathTest` 로 고정). 7.9 클라이언트는 `apache/kafka:4.0.0` 브로커와 호환된다.
 
 ## 명령 구조
 
@@ -64,16 +64,20 @@ sample/
 
 ```yaml
 schema-registry:
-  image: confluentinc/cp-schema-registry:8.3.1
+  image: confluentinc/cp-schema-registry:7.9.9
   container_name: schema-registry
-  restart: "no"
-  depends_on: [kafka1, kafka2, kafka3]
+  restart: on-failure            # 브로커 준비 지연으로 init 이 타임아웃해도 다시 뜨게 (장애 주입 대상 아님)
+  depends_on:                    # 브로커 healthcheck(kafka-broker-api-versions.sh) 통과 후 기동 — 준비 전 붙으면 _schemas 가 RF1 로 만들어진다
+    kafka1: {condition: service_healthy}
+    kafka2: {condition: service_healthy}
+    kafka3: {condition: service_healthy}
   ports: ["8081:8081"]
   environment:
     SCHEMA_REGISTRY_HOST_NAME: schema-registry
     SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
     SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka1:29092,kafka2:29092,kafka3:29092
     SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 3
+    SCHEMA_REGISTRY_KAFKASTORE_TOPIC_CONFIG_MIN_INSYNC_REPLICAS: 2   # 명시하지 않으면 브로커 기본값 2 를 상속 — RF3 와 함께 명시
     SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: backward
 ```
 
@@ -83,7 +87,7 @@ schema-registry:
 ### pom.xml
 
 - `<repositories>`에 Confluent 저장소 `https://packages.confluent.io/maven/` 추가. Maven Central에 없다. 사내 미러 환경은 이 주소를 허용해야 한다는 점을 README에 명시한다.
-- 의존성 `io.confluent:kafka-avro-serializer:8.3.1` (schema-registry-client, avro 전이 포함).
+- 의존성 `io.confluent:kafka-avro-serializer:7.9.9` (schema-registry-client, avro 전이 포함).
 - `avro-maven-plugin:1.12.2`를 `generate-sources`에 걸어 `src/main/avro/*.avsc` → `dev.devopsnote.kafkarunner.sample.avro` 패키지로 생성. 출력은 `target/generated-sources/avro`라 sync의 `target` skip 규칙에 걸린다.
 
 ### 스키마 파일
