@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>scenario-runner 제어판</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 780px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 20px; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 16px 0; }
+  select, input, button { font-size: 14px; padding: 6px 10px; }
+  pre { background: #f4f5f7; border: 1px solid #ddd; border-radius: 6px; padding: 14px; white-space: pre-wrap; min-height: 60px; }
+  .badge { font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+  .ok { background: #e3f7ec; color: #1a7f45; }
+  .fail { background: #fdecec; color: #b42318; }
+  .desc { color: #666; font-size: 13px; }
+</style>
+</head>
+<body>
+  <h1>scenario-runner 제어판 <span class="desc">(로컬 · sample 명령 전용)</span></h1>
+  <div class="row">
+    <select id="command"></select>
+    <label>count <input id="count" type="number" value="6" min="1" max="1000" style="width:70px"></label>
+    <button id="run">실행</button>
+    <span id="status"></span>
+  </div>
+  <p class="desc" id="cmdDesc"></p>
+  <pre id="output">명령을 선택하고 실행하세요.</pre>
+<script>
+const $ = (id) => document.getElementById(id);
+async function loadCommands() {
+  const res = await fetch("/api/commands");
+  const list = await res.json();
+  $("command").innerHTML = list.map(c => `<option value="${c.name}">${c.name}</option>`).join("");
+  updateDesc(list);
+  $("command").onchange = () => updateDesc(list);
+}
+function updateDesc(list) {
+  const cur = list.find(c => c.name === $("command").value);
+  $("cmdDesc").textContent = cur ? cur.description : "";
+}
+$("run").onclick = async () => {
+  $("status").innerHTML = "실행 중…";
+  $("output").textContent = "";
+  try {
+    const res = await fetch("/api/run", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ command: $("command").value, count: Number($("count").value) })
+    });
+    if (!res.ok) {
+      $("status").innerHTML = '<span class="badge fail">거부</span>';
+      $("output").textContent = await res.text();
+      return;
+    }
+    const data = await res.json();
+    const ok = data.exitCode === 0;
+    $("status").innerHTML = `<span class="badge ${ok ? "ok" : "fail"}">exit ${data.exitCode}</span>`;
+    $("output").textContent = data.output || "(출력 없음)";
+  } catch (e) {
+    $("status").innerHTML = '<span class="badge fail">오류</span>';
+    $("output").textContent = String(e);
+  }
+};
+loadCommands();
+</script>
+</body>
+</html>
