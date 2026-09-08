@@ -5,8 +5,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.springframework.stereotype.Component;
 
 /** 명령 하나를 실행하며 표준출력을 문자열로 캡처한다. 전역 System.out 을 교체하므로 직렬 실행한다. */
+@Component
 public class CommandInvoker {
 
     public record InvocationResult(String output, int exitCode) {}
