@@ -31,6 +31,14 @@ java -jar build/libs/scenario-runner.jar total-outage
 
 시나리오가 끝나면 러너가 컨테이너를 모두 start 상태로 되돌리므로 연속 실행이 가능합니다. 각 실행은 이전 데이터를 지우기 위해 테스트 토픽(`test.scenario.events`)을 삭제 후 재생성합니다.
 
+### 웹 제어판 (선택)
+
+`sample-*` 명령을 브라우저에서 실행하고 출력을 화면에서 볼 수 있습니다. 장애 시나리오는 웹에서 실행할 수 없습니다(서버가 거부) — 브로커를 stop/start 하는 명령은 CLI 전용입니다.
+
+```bash
+java -jar build/libs/scenario-runner.jar web   # http://127.0.0.1:8088 (로컬 전용)
+```
+
 ## 시나리오
 
 | 시나리오 | 절차 | PASS 기준 |
