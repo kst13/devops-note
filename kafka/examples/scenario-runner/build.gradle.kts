@@ -44,6 +44,7 @@ val avroVersion = "1.12.2"
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.kafka:spring-kafka")
+    implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.apache.avro:avro:$avroVersion")
     // Schema Registry 연동 serializer (kafka-schema-registry-client 포함)
     implementation("io.confluent:kafka-avro-serializer:$confluentVersion")
