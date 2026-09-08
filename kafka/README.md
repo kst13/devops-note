@@ -38,6 +38,9 @@ examples/          직접 실행해볼 수 있는 예제
 11. [브로커·컨트롤러·주키퍼 프로세스 구조와 failover 원리](concepts/11-broker-controller-zookeeper-and-failover.md)
 12. [Kafka 사용 원칙 (개발자용)](concepts/12-usage-principles.md)
 13. [메시지 키와 순서 보장: 파티션, 전역 순서, 선착순 처리](concepts/13-message-key-and-ordering.md)
+14. [Kafka 모니터링 — Prometheus와 Grafana](concepts/14-monitoring-prometheus-grafana.md)
+15. [Kafka 생태계 서버 배치 방안](concepts/15-deployment-layout-options.md)
+16. [프로듀서·토픽·컨슈머 핵심 정리 (면접 대비)](concepts/16-producer-topic-consumer-summary.md)
 
 실행 가능한 예제(둘 다 KRaft, 보안만 다름):
 
