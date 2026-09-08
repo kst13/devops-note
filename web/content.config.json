@@ -43,5 +43,14 @@
     "accentSoft": "#e7eefc",
     "order": 5,
     "tags": ["Orchestration", "k3s", "kubectl"]
+  },
+  "minio": {
+    "title": "MinIO",
+    "kicker": "OBJECT STORAGE",
+    "description": "S3 호환 오브젝트 스토리지의 배포 형태 선택, 구축 구성안, 파일 저장 이전 전략과 레이크하우스 확장을 정리합니다.",
+    "accent": "#c72c48",
+    "accentSoft": "#fdeaee",
+    "order": 6,
+    "tags": ["Storage", "S3", "Lakehouse"]
   }
 }

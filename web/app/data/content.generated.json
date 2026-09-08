@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T16:16:55.451Z",
+  "generatedAt": "2026-09-08T06:26:06.332Z",
   "topics": [
     {
       "id": "docker",
@@ -1414,7 +1414,7 @@
             "정리"
           ],
           "order": 2999,
-          "body": "# Kafka 장애 시나리오 러너\n\n문서로 정리한 Kafka 장애 시나리오를 로컬 3브로커 클러스터에서 실제로 재현하고, 메시지 유실 여부를 기계적으로 판정해 리포트로 남기는 CLI 도구입니다. \"브로커 1대가 죽어도 유실이 없다\", \"2대가 죽으면 쓰기가 실패한다\", \"전체 정지에도 폴백으로 데이터를 지킨다\"를 말이 아니라 실행 결과로 증명합니다.\n\n원리는 단순합니다. 프로듀서가 순번(seq)이 박힌 메시지를 계속 보내고 컨슈머가 수신 순번을 기록하는 동안, 러너가 `docker stop/start`로 장애를 주입합니다. 마지막에 \"성공으로 기록된 순번 집합 ⊆ 수신 순번 집합\"이라는 불변식을 검사해 PASS/FAIL을 판정합니다.\n\n장애 시나리오와 별개로, usage-guide 의 프로듀서/컨슈머 코드와 Schema Registry+Avro 흐름을 실제로 돌려보는 `sample-*` 명령도 같은 jar 에 들어 있습니다(아래 [사용 예시](#사용-예시)).\n\n## 전제 조건\n\n- Docker (Compose v2 포함)\n- JDK 21 이상, Maven 3.9 이상\n- 포트 9092, 9192, 9292(브로커), 8081(Schema Registry) 미사용 상태 — `home-lab` 예제를 띄워 두었다면 먼저 내려야 합니다\n- Maven 이 `https://packages.confluent.io/maven/` 에 접근 가능해야 합니다 (Confluent Avro serializer 는 Maven Central 에 없음). 사내 미러를 쓰면 이 저장소를 허용 목록에 추가하세요\n\n## 실행 방법\n\n```bash\n# 1) 로컬 3브로커 클러스터 + Schema Registry 기동 (브로커 healthcheck 통과 후 SR 이 뜨므로 최초 30~60초 대기, curl localhost:8081/subjects 가 [] 를 반환하면 준비 완료)\ndocker compose up -d\n\n# 2) 빌드\nmvn -q package -DskipTests\n\n# 3) 시나리오 실행 (종료 코드: 0=PASS, 1=FAIL, 2=사용법 오류)\njava -jar target/scenario-runner.jar normal-roundtrip\njava -jar target/scenario-runner.jar broker-1-down\njava -jar target/scenario-runner.jar broker-2-down\njava -jar target/scenario-runner.jar total-outage\n```\n\n시나리오가 끝나면 러너가 컨테이너를 모두 start 상태로 되돌리므로 연속 실행이 가능합니다. 각 실행은 이전 데이터를 지우기 위해 테스트 토픽(`test.scenario.events`)을 삭제 후 재생성합니다.\n\n## 시나리오\n\n| 시나리오 | 절차 | PASS 기준 |\n| --- | --- | --- |\n| normal-roundtrip | 1만 건 전송 → 전량 소비 | 유실 0, 중복 0 |\n| broker-1-down | 부하 중 브로커 1대 정지 60초 → 복구 | 전송 지속(재시도 허용), 유실 0, ISR 완전 회복 |\n| broker-2-down | 부하 중 2대 정지 60초 → 복구 → 실패분 재전송 | 정지 구간 쓰기 실패가 발생하는 것이 정상(min.insync.replicas=2), 최종 유실 0 |\n| total-outage | 부하 중 3대 정지 → 전체 재기동 → 폴백 재전송 | 쿼럼·리더 자력 복구, 재전송 포함 최종 유실 0 |\n\nbroker-2-down과 total-outage는 \"실패가 0건이면 오히려 FAIL\"로 판정합니다 — 실패가 없다는 것은 장애 주입 자체가 동작하지 않았다는 뜻이기 때문입니다.\n\n## 리포트 해석\n\n리포트는 `reports/<시나리오>-<시각>.md`로 저장됩니다.\n\n- **전송 성공** — acks=all 응답을 받아 성공으로 기록된 메시지 수\n- **미전송 잔여** — 재전송 후에도 전달되지 않은 메시지 수 (0이 아니면 항상 FAIL)\n- **유실** — 성공으로 기록됐는데 수신되지 않은 수 (0이 아니면 항상 FAIL — 가장 심각)\n- **중복** — 같은 순번이 두 번 이상 수신된 수. 재시도·재전송이 있는 시나리오에서는 정상이며, 컨슈머 멱등 처리가 필요한 이유를 보여줍니다\n\n## 사용 예시\n\n장애 시나리오와 같은 클러스터에서 usage-guide 의 코드를 실행해 봅니다. 시나리오와 달리 판정·리포트는 없고, 종료 코드는 0 정상 / 1 실패 / 2 인자 오류입니다. 코드는 `src/main/java/dev/devopsnote/kafkarunner/sample/` 에 있습니다. 러너 내부(`load/`)는 부하 제어를 위해 `kafka-clients` 를 직접 쓰지만, 샘플은 문서와 같은 Spring Kafka(`KafkaTemplate`, `@KafkaListener`) 스타일입니다.\n\n### 1단계 — JSON 프로듀서/컨슈머\n\n[03 프로듀서](../../usage-guide/03-producer.md), [04 컨슈머](../../usage-guide/04-consumer.md), [05 접속 설정](../../usage-guide/05-connection-config.md)의 코드 그대로입니다.\n\n```bash\njava -jar target/scenario-runner.jar sample-produce 6     # OrderCreatedEvent 6건 전송 (기본 10건)\njava -jar target/scenario-runner.jar sample-consume 6     # notification-service 그룹으로 6건 수신\n```\n\n출력에서 볼 것:\n\n- `전송 OK key=ORD-1001 partition=2 offset=…` — key 가 orderId 라서 같은 주문은 항상 같은 파티션에 갑니다. `ORD-1000/1001/1002` 각각의 partition 번호가 매번 같은지 확인하세요.\n- `수신 partition=… offset=…` 뒤에 `ack.acknowledge()` 가 호출되어 오프셋이 커밋됩니다. 딱 지정한 건수까지만 커밋되고 그 이후에 도착한 레코드는 커밋되지 않으므로 다음 실행에서 다시 읽힙니다. 새 메시지가 없는 상태에서 바로 다시 `sample-consume` 을 실행하면 30초를 기다린 뒤 `30초 동안 신규 메시지 없음 — 종료` 로 끝나는데, 종료 코드는 0입니다 — 커밋된 오프셋 이후 새 메시지가 없는 것은 정상이지 실패가 아닙니다. 새 메시지를 보려면 `sample-produce` 를 다시 실행하세요.\n- 토픽은 명령이 직접 만듭니다. compose 가 운영처럼 자동 생성을 꺼 두었기 때문입니다.\n\n### 2단계 — Avro + Schema Registry\n\n[Schema Registry 개념](../../concepts/09-concepts-qna.md)에서 설명한 흐름을 실제로 확인합니다. 설정 차이는 serializer 클래스와 `schema.registry.url` 뿐이고, 앱 코드에는 SR 호출이 없습니다. Schema Registry 이미지(`cp-schema-registry`)와 serializer 의존성(`kafka-avro-serializer`)은 Confluent 7.9.9 입니다 — 8.x 의 serializer 는 kafka-clients 4.1 API 를 요구하는데 Spring Boot 3.5 는 3.9.1 을 고정하기 때문입니다.\n\n```bash\njava -jar target/scenario-runner.jar sample-avro-produce 6\ncurl -s localhost:8081/subjects/commerce.order.created.avro-value/versions   # → [1]\njava -jar target/scenario-runner.jar sample-avro-consume 6\njava -jar target/scenario-runner.jar sample-schema-evolution\n```\n\n출력에서 볼 것:\n\n- `sample-avro-produce` 의 `serializedValueSize` 는 수십 바이트입니다. 스키마 전체가 아니라 `magic 1B + schema id 4B + 페이로드` 만 실리기 때문입니다. 끝에 나오는 `SR 확인: subject=… version=… schemaId=…` 는 이 실행이 실제로 쓴 writer 스키마의 id·버전이지 \"최신\"이 아닙니다 — 이 등록은 `KafkaAvroSerializer` 가 첫 전송 때 한 것이라 처음 실행하면 `version=1 schemaId=1` 이지만, `sample-schema-evolution` 으로 v2 를 등록해 둔 뒤라면 최신 버전과 달라질 수 있습니다.\n- `sample-avro-consume` 은 메시지 앞의 id 로 SR 에서 스키마를 받아 역직렬화합니다(id 별로 캐시되어 SR 이 잠시 죽어도 이미 본 스키마는 계속 처리됩니다).\n- `sample-schema-evolution` 은 `v1 등록 (이미 있으면 기존 id)` 로 시작해 ①~④ 를 순서대로 출력하고, 마지막 줄 `버전 목록: [1, 2]` 로 마칩니다 — 거부된 비호환 스키마는 버전에 남지 않습니다.\n- `① v2 등록 성공  schemaId=2` — `couponCode` 를 기본값 `null` 로 추가한 스키마는 BACKWARD 호환이라 등록됩니다.\n- `② v2 메시지 전송  key=ORD-2001  couponCode=WELCOME10` — `GenericRecord` 로 새 스키마 메시지를 보냅니다.\n- `③ v1 클래스로 수신 OK  key=ORD-2001  …  (writer=v2 schemaId=2, reader=v1 …)` — 옛 생성 클래스로 새 메시지를 읽습니다. Avro 가 writer(v2)/reader(v1) 스키마를 대조해 모르는 필드를 버립니다. 컨슈머 배포 없이 프로듀서만 먼저 바꿔도 되는 이유입니다. 바로 이어지는 `주의: 이 방향(옛 reader × 새 데이터)은 FORWARD 호환이다 … BACKWARD 설정만으로는 보장되지 않는다` 줄이 핵심입니다 — SR 이 등록 시점에 검사한 것은 BACKWARD(새 reader 가 옛 데이터를 읽는지)뿐이고, 지금 확인한 방향(옛 reader 가 새 데이터를 읽는 FORWARD)은 이번 변경이 필드에 기본값을 둬 우연히 FULL 호환이라 되는 것입니다.\n- `④ SR 거부  HTTP 409` — 기본값 없는 필드 `channel` 을 추가한 스키마는 옛 데이터를 읽을 수 없으므로 SR 이 거부합니다. 브로커는 이 검사를 하지 않습니다. SR 이 유일한 관문입니다.\n- 스키마 파일: `src/main/avro/OrderCreated.avsc`(v1, 코드 생성), `src/main/resources/schemas/order-created-v2.avsc`, `order-created-incompatible.avsc`. 세 파일의 호환 관계는 `SchemaEvolutionTest` 가 SR 없이 검증합니다.\n- Schema Registry 가 응답하지 않으면 `sample-avro-produce`/`sample-schema-evolution` 은 각각 `직렬화 실패 — Schema Registry …`, `SR 호출 실패 — …` 를 출력하고 종료 코드 1로 끝납니다.\n- Avro 1.12 는 생성 클래스 로딩에 신뢰 목록을 요구하는데, `RunnerApplication.main` 이 시작 시 이를 등록해 두어 `java -jar` 로 바로 실행됩니다. 운영 앱이라면 JVM 옵션 `-Dorg.apache.avro.SERIALIZABLE_PACKAGES=...` 로 두는 것이 일반적입니다.\n\n운영에서는 앱이 스키마를 마음대로 등록하지 못하게 `auto.register.schemas=false` 로 잠그고 CI 에서 미리 등록하는 방식을 권장합니다. 이 예제는 흐름을 보여주기 위해 기본값(자동 등록)을 씁니다.\n\n## 관련 문서\n\n- [클러스터 전체 정지와 복구 절차](../../troubleshooting/cluster-total-outage.md) — 운영자 관점의 복구\n- [장애에 대비하는 애플리케이션 설계](../../usage-guide/07-failure-resilience.md) — 이 러너의 폴백 재전송이 검증하는 패턴\n- [프로듀서 acks와 복제 원리](../../concepts/02-producer-and-replication.md)\n\n## 정리\n\n```bash\ndocker compose down    # 클러스터와 데이터 제거\n```\n\n이 클러스터는 시나리오 검증 전용입니다. 운영 구성은 [SASL_SSL 3노드 예제](../compose-3node-kraft/README.md)를 사용합니다.\n"
+          "body": "# Kafka 장애 시나리오 러너\n\n문서로 정리한 Kafka 장애 시나리오를 로컬 3브로커 클러스터에서 실제로 재현하고, 메시지 유실 여부를 기계적으로 판정해 리포트로 남기는 CLI 도구입니다. \"브로커 1대가 죽어도 유실이 없다\", \"2대가 죽으면 쓰기가 실패한다\", \"전체 정지에도 폴백으로 데이터를 지킨다\"를 말이 아니라 실행 결과로 증명합니다.\n\n원리는 단순합니다. 프로듀서가 순번(seq)이 박힌 메시지를 계속 보내고 컨슈머가 수신 순번을 기록하는 동안, 러너가 `docker stop/start`로 장애를 주입합니다. 마지막에 \"성공으로 기록된 순번 집합 ⊆ 수신 순번 집합\"이라는 불변식을 검사해 PASS/FAIL을 판정합니다.\n\n장애 시나리오와 별개로, usage-guide 의 프로듀서/컨슈머 코드와 Schema Registry+Avro 흐름을 실제로 돌려보는 `sample-*` 명령도 같은 jar 에 들어 있습니다(아래 [사용 예시](#사용-예시)).\n\n## 전제 조건\n\n- Docker (Compose v2 포함)\n- JDK 21 이상, Maven 3.9 이상\n- 포트 9092, 9192, 9292(브로커), 8081(Schema Registry) 미사용 상태 — `home-lab` 예제를 띄워 두었다면 먼저 내려야 합니다\n- Maven 이 `https://packages.confluent.io/maven/` 에 접근 가능해야 합니다 (Confluent Avro serializer 는 Maven Central 에 없음). 사내 미러를 쓰면 이 저장소를 허용 목록에 추가하세요\n\n## 실행 방법\n\n```bash\n# 1) 로컬 3브로커 클러스터 + Schema Registry 기동 (브로커 healthcheck 통과 후 SR 이 뜨므로 최초 30~60초 대기, curl localhost:8081/subjects 가 [] 를 반환하면 준비 완료)\ndocker compose up -d\n\n# 2) 빌드\nmvn -q package -DskipTests\n\n# 3) 시나리오 실행 (종료 코드: 0=PASS, 1=FAIL, 2=사용법 오류)\njava -jar target/scenario-runner.jar normal-roundtrip\njava -jar target/scenario-runner.jar broker-1-down\njava -jar target/scenario-runner.jar broker-2-down\njava -jar target/scenario-runner.jar total-outage\n```\n\n시나리오가 끝나면 러너가 컨테이너를 모두 start 상태로 되돌리므로 연속 실행이 가능합니다. 각 실행은 이전 데이터를 지우기 위해 테스트 토픽(`test.scenario.events`)을 삭제 후 재생성합니다.\n\n## 시나리오\n\n| 시나리오 | 절차 | PASS 기준 |\n| --- | --- | --- |\n| normal-roundtrip | 1만 건 전송 → 전량 소비 | 유실 0, 중복 0 |\n| broker-1-down | 부하 중 브로커 1대 정지 60초 → 복구 | 전송 지속(재시도 허용), 유실 0, ISR 완전 회복 |\n| broker-2-down | 부하 중 2대 정지 60초 → 복구 → 실패분 재전송 | 정지 구간 쓰기 실패가 발생하는 것이 정상(min.insync.replicas=2), 최종 유실 0 |\n| total-outage | 부하 중 3대 정지 → 전체 재기동 → 폴백 재전송 | 쿼럼·리더 자력 복구, 재전송 포함 최종 유실 0 |\n\nbroker-2-down과 total-outage는 \"실패가 0건이면 오히려 FAIL\"로 판정합니다 — 실패가 없다는 것은 장애 주입 자체가 동작하지 않았다는 뜻이기 때문입니다.\n\n## 리포트 해석\n\n리포트는 `reports/<시나리오>-<시각>.md`로 저장됩니다.\n\n- **전송 성공** — acks=all 응답을 받아 성공으로 기록된 메시지 수\n- **미전송 잔여** — 재전송 후에도 전달되지 않은 메시지 수 (0이 아니면 항상 FAIL)\n- **유실** — 성공으로 기록됐는데 수신되지 않은 수 (0이 아니면 항상 FAIL — 가장 심각)\n- **중복** — 같은 순번이 두 번 이상 수신된 수. 재시도·재전송이 있는 시나리오에서는 정상이며, 컨슈머 멱등 처리가 필요한 이유를 보여줍니다\n\n## 사용 예시\n\n장애 시나리오와 같은 클러스터에서 usage-guide 의 코드를 실행해 봅니다. 시나리오와 달리 판정·리포트는 없고, 종료 코드는 0 정상 / 1 실패 / 2 인자 오류입니다. 코드는 `src/main/java/dev/devopsnote/kafkarunner/sample/` 에 있습니다. 러너 내부(`load/`)는 부하 제어를 위해 `kafka-clients` 를 직접 쓰지만, 샘플은 문서와 같은 Spring Kafka(`KafkaTemplate`, `@KafkaListener`) 스타일입니다.\n\n### 1단계 — JSON 프로듀서/컨슈머\n\n[03 프로듀서](../../usage-guide/03-producer.md), [04 컨슈머](../../usage-guide/04-consumer.md), [05 접속 설정](../../usage-guide/05-connection-config.md)의 코드 그대로입니다.\n\n```bash\njava -jar target/scenario-runner.jar sample-produce 6     # OrderCreatedEvent 6건 전송 (기본 10건)\njava -jar target/scenario-runner.jar sample-consume 6     # notification-service 그룹으로 6건 수신\n```\n\n출력에서 볼 것:\n\n- `전송 OK key=ORD-1001 partition=2 offset=…` — key 가 orderId 라서 같은 주문은 항상 같은 파티션에 갑니다. `ORD-1000/1001/1002` 각각의 partition 번호가 매번 같은지 확인하세요.\n- `수신 partition=… offset=…` 뒤에 `ack.acknowledge()` 가 호출되어 오프셋이 커밋됩니다. 딱 지정한 건수까지만 커밋되고 그 이후에 도착한 레코드는 커밋되지 않으므로 다음 실행에서 다시 읽힙니다. 새 메시지가 없는 상태에서 바로 다시 `sample-consume` 을 실행하면 30초를 기다린 뒤 `30초 동안 신규 메시지 없음 — 종료` 로 끝나는데, 종료 코드는 0입니다 — 커밋된 오프셋 이후 새 메시지가 없는 것은 정상이지 실패가 아닙니다. 새 메시지를 보려면 `sample-produce` 를 다시 실행하세요.\n- 토픽은 명령이 직접 만듭니다. compose 가 운영처럼 자동 생성을 꺼 두었기 때문입니다.\n\n### 2단계 — Avro + Schema Registry\n\n[Schema Registry 개념](../../concepts/09-concepts-qna.md)에서 설명한 흐름을 실제로 확인합니다. 설정 차이는 serializer 클래스와 `schema.registry.url` 뿐이고, 앱 코드에는 SR 호출이 없습니다. Schema Registry 이미지(`cp-schema-registry`)와 serializer 의존성(`kafka-avro-serializer`)은 Confluent 7.9.9 입니다 — 8.x 의 serializer 는 kafka-clients 4.1 API 를 요구하는데 Spring Boot 3.5 는 3.9.1 을 고정하기 때문입니다.\n\n```bash\njava -jar target/scenario-runner.jar sample-avro-produce 6\ncurl -s localhost:8081/subjects/commerce.order.created-avro-value/versions   # → [1]\njava -jar target/scenario-runner.jar sample-avro-consume 6\njava -jar target/scenario-runner.jar sample-schema-evolution\n```\n\n출력에서 볼 것:\n\n- `sample-avro-produce` 의 `serializedValueSize` 는 수십 바이트입니다. 스키마 전체가 아니라 `magic 1B + schema id 4B + 페이로드` 만 실리기 때문입니다. 끝에 나오는 `SR 확인: subject=… version=… schemaId=…` 는 이 실행이 실제로 쓴 writer 스키마의 id·버전이지 \"최신\"이 아닙니다 — 이 등록은 `KafkaAvroSerializer` 가 첫 전송 때 한 것이라 처음 실행하면 `version=1 schemaId=1` 이지만, `sample-schema-evolution` 으로 v2 를 등록해 둔 뒤라면 최신 버전과 달라질 수 있습니다.\n- `sample-avro-consume` 은 메시지 앞의 id 로 SR 에서 스키마를 받아 역직렬화합니다(id 별로 캐시되어 SR 이 잠시 죽어도 이미 본 스키마는 계속 처리됩니다).\n- `sample-schema-evolution` 은 `v1 등록 (이미 있으면 기존 id)` 로 시작해 ①~④ 를 순서대로 출력하고, 마지막 줄 `버전 목록: [1, 2]` 로 마칩니다 — 거부된 비호환 스키마는 버전에 남지 않습니다.\n- `① v2 등록 성공  schemaId=2` — `couponCode` 를 기본값 `null` 로 추가한 스키마는 BACKWARD 호환이라 등록됩니다.\n- `② v2 메시지 전송  key=ORD-2001  couponCode=WELCOME10` — `GenericRecord` 로 새 스키마 메시지를 보냅니다.\n- `③ v1 클래스로 수신 OK  key=ORD-2001  …  (writer=v2 schemaId=2, reader=v1 …)` — 옛 생성 클래스로 새 메시지를 읽습니다. Avro 가 writer(v2)/reader(v1) 스키마를 대조해 모르는 필드를 버립니다. 컨슈머 배포 없이 프로듀서만 먼저 바꿔도 되는 이유입니다. 바로 이어지는 `주의: 이 방향(옛 reader × 새 데이터)은 FORWARD 호환이다 … BACKWARD 설정만으로는 보장되지 않는다` 줄이 핵심입니다 — SR 이 등록 시점에 검사한 것은 BACKWARD(새 reader 가 옛 데이터를 읽는지)뿐이고, 지금 확인한 방향(옛 reader 가 새 데이터를 읽는 FORWARD)은 이번 변경이 필드에 기본값을 둬 우연히 FULL 호환이라 되는 것입니다.\n- `④ SR 거부  HTTP 409` — 기본값 없는 필드 `channel` 을 추가한 스키마는 옛 데이터를 읽을 수 없으므로 SR 이 거부합니다. 브로커는 이 검사를 하지 않습니다. SR 이 유일한 관문입니다.\n- 스키마 파일: `src/main/avro/OrderCreated.avsc`(v1, 코드 생성), `src/main/resources/schemas/order-created-v2.avsc`, `order-created-incompatible.avsc`. 세 파일의 호환 관계는 `SchemaEvolutionTest` 가 SR 없이 검증합니다.\n- Schema Registry 가 응답하지 않으면 `sample-avro-produce`/`sample-schema-evolution` 은 각각 `직렬화 실패 — Schema Registry …`, `SR 호출 실패 — …` 를 출력하고 종료 코드 1로 끝납니다.\n- Avro 1.12 는 생성 클래스 로딩에 신뢰 목록을 요구하는데, `RunnerApplication.main` 이 시작 시 이를 등록해 두어 `java -jar` 로 바로 실행됩니다. 운영 앱이라면 JVM 옵션 `-Dorg.apache.avro.SERIALIZABLE_PACKAGES=...` 로 두는 것이 일반적입니다.\n\n운영에서는 앱이 스키마를 마음대로 등록하지 못하게 `auto.register.schemas=false` 로 잠그고 CI 에서 미리 등록하는 방식을 권장합니다. 이 예제는 흐름을 보여주기 위해 기본값(자동 등록)을 씁니다.\n\n## 관련 문서\n\n- [클러스터 전체 정지와 복구 절차](../../troubleshooting/cluster-total-outage.md) — 운영자 관점의 복구\n- [장애에 대비하는 애플리케이션 설계](../../usage-guide/07-failure-resilience.md) — 이 러너의 폴백 재전송이 검증하는 패턴\n- [프로듀서 acks와 복제 원리](../../concepts/02-producer-and-replication.md)\n\n## 정리\n\n```bash\ndocker compose down    # 클러스터와 데이터 제거\n```\n\n이 클러스터는 시나리오 검증 전용입니다. 운영 구성은 [SASL_SSL 3노드 예제](../compose-3node-kraft/README.md)를 사용합니다.\n"
         },
         {
           "id": "kafka/examples/home-lab/README",
@@ -2313,6 +2313,153 @@
           ],
           "order": 2999,
           "body": "# 도메인 기반 Ingress 라우팅 예제\n\n`web-a`, `web-b`를 각각 컨테이너 이미지로 만들고, Traefik Ingress가 도메인에 따라\n서로 다른 Service로 전달하는 예제입니다. 각 web 이미지의 Nginx는 `/api/` prefix를\n제거한 뒤 Kubernetes 내부의 backend Service로 다시 프록시합니다.\n\n```text\na.example.test → web-a Service → web-a Pod\nb.example.test → web-b Service → web-b Pod\nweb-a `/api/<path>` → backend-a Service → backend-a Pod\nweb-b `/api/<path>` → backend-b Service → backend-b Pod\n```\n\n## 이미지 빌드\n\nDocker가 실행 중인 상태에서 예제 디렉터리에서 실행합니다.\n\n```bash\ndocker build -t web-a:1.0 ./web-a\ndocker build -t web-b:1.0 ./web-b\n```\n\n로컬 k3d에서는 호스트 Docker 이미지가 노드의 containerd에 자동으로 보이지 않으므로\n이미지를 클러스터로 가져옵니다.\n\n```bash\nk3d image import web-a:1.0 web-b:1.0 -c lab\n```\n\nRKE2에서는 이미지를 사설 레지스트리에 push한 뒤 `k8s.yaml`의 `image` 값을 레지스트리\n주소로 변경합니다. 운영 노드의 containerd가 레지스트리에서 이미지를 가져와 실행합니다.\n\n## Kubernetes 리소스 배포\n\n```bash\nkubectl apply -f k8s.yaml\nkubectl get pods,svc,ingress -n demo\n```\n\n## 로컬 도메인 설정\n\n`/etc/hosts`에 다음을 추가합니다.\n\n```text\n127.0.0.1 a.example.test\n127.0.0.1 b.example.test\n```\n\n현재 k3d가 호스트의 8080 포트를 loadbalancer의 80번 포트에 매핑했다면 다음처럼\n확인합니다.\n\n```bash\ncurl http://a.example.test:8080/\ncurl http://b.example.test:8080/\n\n# web-a/web-b의 Nginx가 /api/를 제거하고 backend로 전달하는지 확인\ncurl http://a.example.test:8080/api/orders/42\nkubectl logs -n demo deployment/backend-a\n```\n\n각 응답에 `web-a` 또는 `web-b`가 표시되면 도메인 라우팅이 성공한 것입니다. backend-a\n로그에서 `/orders/42`가 보이면 원래 요청의 `/api/`가 제거된 것입니다.\n\n## 정리\n\n```bash\nkubectl delete -f k8s.yaml\n```\n\n이 명령은 `demo` Namespace의 예제 리소스만 삭제합니다. k3d 클러스터 자체와\nlocal-path 저장소는 삭제하지 않습니다.\n"
+        }
+      ]
+    },
+    {
+      "id": "minio",
+      "title": "MinIO",
+      "kicker": "OBJECT STORAGE",
+      "description": "S3 호환 오브젝트 스토리지의 배포 형태 선택, 구축 구성안, 파일 저장 이전 전략과 레이크하우스 확장을 정리합니다.",
+      "accent": "#c72c48",
+      "accentSoft": "#fdeaee",
+      "order": 6,
+      "tags": [
+        "Storage",
+        "S3",
+        "Lakehouse"
+      ],
+      "documents": [
+        {
+          "id": "minio/concepts/01-what-is-minio",
+          "topicId": "minio",
+          "sourcePath": "minio/concepts/01-what-is-minio.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "MinIO란 무엇이고 왜 필요한가",
+          "summary": "MinIO는 S3 호환 API를 제공하는 오브젝트 스토리지입니다. 앱 입장에서는 AWS S3 SDK를 그대로 쓰는 사내 파일 저장소이고, 서버 입장에서는 바이트 덩어리(오브젝트)를 이름 붙여 보관하는 단순한 저장 계층입니다.",
+          "difficulty": "입문",
+          "ckad": false,
+          "readTime": 3,
+          "tags": [
+            "Security",
+            "Operations",
+            "CLI"
+          ],
+          "sections": [
+            "1. 오브젝트 스토리지와 S3 API",
+            "2. 왜 필요한가 — 현재 방식(서버 로컬/마운트 저장)의 문제",
+            "3. 저장은 멍청하게, 의미는 위층에서",
+            "4. 도입 검토 항목"
+          ],
+          "order": 1,
+          "body": "# MinIO란 무엇이고 왜 필요한가\n\n> MinIO는 **S3 호환 API를 제공하는 오브젝트 스토리지**입니다. 앱 입장에서는 AWS S3 SDK를 그대로 쓰는 사내 파일 저장소이고, 서버 입장에서는 바이트 덩어리(오브젝트)를 이름 붙여 보관하는 단순한 저장 계층입니다.\n\n## 1. 오브젝트 스토리지와 S3 API\n\n- **오브젝트 스토리지** = 파일을 디렉터리 트리가 아니라 \"버킷 + 키(이름)\"로 저장하는 방식. 파일시스템의 잠금·부분 수정 같은 복잡함을 버리는 대신, HTTP로 어디서든 넣고 꺼낼 수 있고 수평 확장이 쉽습니다.\n- **S3 API** = AWS S3의 HTTP 통신 규약. 오브젝트 스토리지의 사실상 표준 인터페이스가 되어, MinIO를 포함한 대부분의 구현체가 이 규약을 따릅니다.\n- 그래서 앱은 전용 클라이언트 없이 **AWS SDK를 그대로** 씁니다:\n\n```java\nS3Client s3 = S3Client.builder()\n        .endpointOverride(URI.create(\"https://minio.internal:9000\"))   // 접속처만 사내 MinIO\n        .credentialsProvider(StaticCredentialsProvider.create(\n                AwsBasicCredentials.create(\"notification-service\", secretKey)))\n        .region(Region.US_EAST_1)      // 형식상 필요 — MinIO 는 값 무관\n        .forcePathStyle(true)\n        .build();\n\ns3.putObject(b -> b.bucket(\"notification-attachments\").key(\"2026/09/report.pdf\"),\n        RequestBody.fromFile(path));\n```\n\n- 포트 역할: **9000 = S3 API(앱 코드가 사용)**, 9001 = 웹 콘솔(관리자 화면).\n- S3 표준이라 나중에 실제 AWS S3나 다른 호환 스토리지로 옮겨도 앱 코드는 엔드포인트·키만 바뀝니다.\n\n## 2. 왜 필요한가 — 현재 방식(서버 로컬/마운트 저장)의 문제\n\n파일을 앱 서버에 마운트된 저장소에 직접 쓰는 방식은 인프라 관점에서 관리 사각지대를 만듭니다:\n\n| 문제 | 결과 |\n| --- | --- |\n| 서버와 파일이 묶임 | 서버 교체·이전에 파일 이사가 따라붙고, 앱을 2대로 늘리면 파일 동기화 문제 발생. 인프라 작업의 발목을 잡음 |\n| 백업이 서버별 제각각 | 어떤 파일이 어디 있고 무엇이 백업되는지 전체 그림 없음 |\n| 접근 통제 없음 | 서버에 들어가면 다 보이는 구조. 삭제 추적 불가 |\n| 용량 관리 분산 | 서버마다 여유 공간을 각자 확보 → 전사적으로 빈 공간이 흩어져 낭비 |\n\nMinIO 도입으로 얻는 것:\n\n- **중앙화 + 표준 API** — 앱 서버가 파일 없는(stateless) 서버가 되어 자유롭게 교체·증설 가능\n- **거버넌스** — 서비스별 access key + 버킷 정책으로 자기 버킷만 접근(Kafka의 계정·ACL 모델과 동일), 버저닝으로 삭제 실수 복구, 수명주기 규칙으로 자동 정리\n- **운영 통합** — Prometheus 메트릭 내장으로 기존 모니터링 스택에 그대로 편입\n\n## 3. 저장은 멍청하게, 의미는 위층에서\n\nMinIO는 내용물이 뭔지 모릅니다 — PDF든, DB에서 내린 Parquet 데이터 파일이든 똑같은 오브젝트입니다. 의미는 위층이 부여합니다:\n\n| 용도 | MinIO에 저장되는 것 | 의미를 부여하는 층 |\n| --- | --- | --- |\n| 파일 저장소 | PDF·이미지 그 자체 | 앱이 키(경로)로 직접 넣고 꺼냄 |\n| DB 콜드 데이터 | Parquet 파일 + Iceberg 메타 파일 | Iceberg가 \"테이블\"로 해석, Trino가 SQL로 조회 |\n\nKafka 브로커가 메시지를 바이트로만 나르고 의미는 스키마가 부여하는 것과 같은 구도입니다. 이 성질 덕분에 **파일 저장소로 도입한 인스턴스가 나중에 데이터 분석 기반(레이크하우스)의 저장층을 겸할 수 있습니다** — [05 레이크하우스와 DB 콜드 데이터](05-lakehouse-and-cold-data.md) 참고.\n\n## 4. 도입 검토 항목\n\n- **라이선스** — MinIO 커뮤니티판은 AGPLv3이며, 최근 신기능이 상용판(AIStor) 중심으로 재편되어 커뮤니티판은 보안 패치 위주로 유지되는 흐름입니다. MinIO를 수정·재배포하지 않고 API로만 쓰는 일반적 사내 사용에선 보통 문제가 없지만, 법무 정책 확인과 장기 유지보수 리스크(대안: Ceph RGW, SeaweedFS, Garage 등) 검토 항목을 도입 문서에 남겨둡니다.\n- **파일 저장소 특성** — 잠깐 못 읽어도 서비스 전체가 죽지 않는 데이터(첨부·문서·리포트)에 적합. 모든 요청이 파일을 거치는 실시간 경로라면 처음부터 분산 구성(HA)을 검토해야 합니다 — [02 배포 형태](02-deployment-topology.md).\n"
+        },
+        {
+          "id": "minio/concepts/02-deployment-topology",
+          "topicId": "minio",
+          "sourcePath": "minio/concepts/02-deployment-topology.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "배포 형태와 서버 스펙",
+          "summary": "배포 형태가 서버·디스크 요구를 결정하는 첫 갈림길입니다. 핵심 질문은 두 가지 — \"서버 장애 시 무중단이 필요한가\", 그리고 \"물리 서버인가 VM인가\".",
+          "difficulty": "입문",
+          "ckad": false,
+          "readTime": 3,
+          "tags": [
+            "Network",
+            "Security",
+            "Operations"
+          ],
+          "sections": [
+            "1. 배포 형태 3종",
+            "2. 물리 서버 vs VM — 디스크 독립성이 판단 기준",
+            "3. \"1대 + 백업\" 구조의 의미",
+            "4. 서버 스펙 — 공식 기준과 소규모 현실",
+            "5. 용량 산정"
+          ],
+          "order": 2,
+          "body": "# 배포 형태와 서버 스펙\n\n> 배포 형태가 서버·디스크 요구를 결정하는 첫 갈림길입니다. 핵심 질문은 두 가지 — \"서버 장애 시 무중단이 필요한가\", 그리고 \"물리 서버인가 VM인가\".\n\n## 1. 배포 형태 3종\n\n| 형태 | 구성 | 장애 내성 | 어울리는 용도 |\n| --- | --- | --- | --- |\n| SNSD (단일 노드 단일 드라이브) | 서버 1대, 디스크 1개 | 자체 보호 없음 | 개발·검증, 또는 하부 스토리지가 이중화된 VM |\n| SNMD (단일 노드 다중 드라이브) | 서버 1대, 디스크 4개+ | **디스크** 장애만 견딤 (이레이저 코딩) | 물리 서버 1대의 소규모 운영 |\n| MNMD (다중 노드 분산) | **서버 4대+**, 각 디스크 여러 개 | 서버 장애도 견딤 | 운영 HA |\n\n- Kafka는 3대로 HA가 되지만 **MinIO의 운영급 HA는 4노드 이상**이 권장선입니다(이레이저 코딩 패리티 구조).\n- 이레이저 코딩: 오브젝트를 조각+패리티로 나눠 디스크들에 분산. 디스크 4개(기본 EC:2)면 2개까지 고장을 견디는 대신 **사용 가능 용량 = 원시 용량의 절반**.\n\n## 2. 물리 서버 vs VM — 디스크 독립성이 판단 기준\n\nSNMD의 \"디스크 4개\"는 **물리적으로 독립된 드라이브 4개**를 전제로 합니다. 보호의 근거가 \"디스크들이 서로 독립적으로 고장 난다\"이기 때문입니다.\n\n| 상황 | 판단 |\n| --- | --- |\n| 물리 서버 + 물리 SSD 4장 | SNMD 의도대로 동작 |\n| 큰 SSD 1장을 파티션 4개로 분할 | **의미 없음** — 그 SSD가 죽으면 4개가 동시에 죽음. 용량만 절반 손해 |\n| VM + 가상디스크 4개가 같은 물리 디스크 위 | 위와 동일 — 보호 없음 |\n| VM + 하부 데이터스토어가 RAID/SAN/vSAN으로 이중화 | 디스크 보호는 하부가 담당 → **SNSD(가상디스크 1개) + 백업**이 실용적. 이레이저 코딩 이중 적용은 용량만 낭비 |\n\n**VM으로 갈 때 인프라팀에 확인할 질문 한 가지**: \"이 VM의 데이터스토어가 물리 디스크 장애에 대해 이중화되어 있나요?\" — 사내 가상화 환경은 거의 예외 없이 \"네\"이며, 그 경우 SNSD로 구성합니다. \"이중화 없음\"이라면 백업 주기를 짧게 잡고 이중화된 데이터스토어로의 이전을 우선 요청합니다.\n\n## 3. \"1대 + 백업\" 구조의 의미\n\n단일 노드 구성은 두 겹의 보호를 서로 다른 장애에 대응시킵니다:\n\n| 장애 | 결과 |\n| --- | --- |\n| 디스크 고장 | SNMD면 무중단(이레이저 코딩), VM-SNSD면 하부 스토리지가 흡수 |\n| 서버/VM 전체 장애 | **중단** — 백업에서 복구. 마지막 백업 이후분은 유실(백업 주기 = 허용 유실 시간) |\n| 삭제 실수·랜섬웨어 | 버저닝(1차) + 백업(2차)으로 복구 |\n\nMNMD(4노드)와의 차이는 \"서버 장애 시 무중단이냐, 복구 시간이 걸리냐\"입니다. 첨부파일·문서·리포트처럼 잠시 못 읽어도 되는 데이터라면 1대 + 백업으로 시작하는 것이 현실적입니다.\n\n## 4. 서버 스펙 — 공식 기준과 소규모 현실\n\nMinIO 공식 하드웨어 체크리스트의 핵심은 **메모리를 저장 용량에 비례**해 잡는 것입니다:\n\n| 호스트 총 스토리지 | 권장 메모리 |\n| --- | --- |\n| 1TB 이하 | 8GB |\n| 10TB 이하 | 16GB |\n| 100TB 이하 | 32GB |\n| 1PB 이하 | 64GB |\n\n그 외 공식 권장(베어메탈 8~16코어+, 25GbE~, NVMe)은 대규모·AI 클러스터 기준이라 사내 파일 저장소 규모에는 과합니다. MinIO는 CPU·RAM보다 **네트워크·디스크 I/O가 병목**입니다.\n\n**사내 파일 저장소(수 TB 이하) 기준 권장:**\n\n| 항목 | 권장 | 근거 |\n| --- | --- | --- |\n| CPU | 4~8코어 | I/O 중심. TLS·이레이저 코딩 해시 연산 몫이면 충분 |\n| 메모리 | 16GB (여유 시 32GB) | 공식 용량표 ≤10TB 구간 |\n| 디스크 | XFS 필수, SSD 권장 | HDD는 동시 사용자 적고 순차 위주일 때만 타협 |\n| OS 디스크 | 데이터와 분리 | 공식 권장 |\n| 네트워크 | 1GbE 시작 가능, 10GbE 여유 | 1GbE = 초당 약 125MB 상한 |\n\n## 5. 용량 산정\n\n- **SNMD(디스크 4, EC:2)**: 사용 가능 = 원시 × 1/2. 예: 1TB×4 → 사용 가능 약 2TB.\n- **SNSD**: 사용 가능 = 원시 그대로.\n- 산정 시 반영할 것: 현재 사용량 → **버저닝 오버헤드 +20~50%**(수명주기 규칙으로 통제) → 성장 여유 → **사용률 70%를 증설 준비선**으로.\n- 예: 현재 400GB 사용이면 — SNMD는 1TB×4(시작 사용률 20%), VM-SNSD는 가상디스크 1TB(시작 40%, 가상디스크는 온라인 확장 가능하므로 과하게 잡지 않아도 됨).\n- SNMD 디스크는 **반드시 같은 용량으로** — 풀 안에서 가장 작은 디스크 기준으로 전체가 취급됩니다.\n"
+        },
+        {
+          "id": "minio/concepts/03-setup-plan",
+          "topicId": "minio",
+          "sourcePath": "minio/concepts/03-setup-plan.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "구축 구성안 (검토 중)",
+          "summary": "VM + SNSD(하부 스토리지 이중화 전제) 기준의 구성안입니다. 물리 서버 SNMD로 갈 경우의 차이는 각 절에 표시했습니다. 주소·용량은 예시이며 인프라 확정 시 실제 값으로 채웁니다.",
+          "difficulty": "입문",
+          "ckad": false,
+          "readTime": 3,
+          "tags": [
+            "Network",
+            "Storage",
+            "Security"
+          ],
+          "sections": [
+            "1. 서버·디스크",
+            "2. Compose",
+            "3. TLS",
+            "4. 계정·버킷 체계 (Kafka와 같은 거버넌스 모델)",
+            "5. 백업",
+            "6. 모니터링·방화벽",
+            "7. 지금 해두면 확장이 쉬워지는 것",
+            "8. 확장 경로"
+          ],
+          "order": 3,
+          "body": "# 구축 구성안 (검토 중)\n\n> VM + SNSD(하부 스토리지 이중화 전제) 기준의 구성안입니다. 물리 서버 SNMD로 갈 경우의 차이는 각 절에 표시했습니다. 주소·용량은 예시이며 인프라 확정 시 실제 값으로 채웁니다.\n\n## 1. 서버·디스크\n\n- **전용 VM 1대** — Kafka 브로커 서버에 얹지 않습니다(디스크 I/O·페이지 캐시 경쟁). 파일 저장소는 데이터 경로이므로 \"죽어도 무영향\"이어야 하는 관제 서버 원칙과도 충돌합니다.\n- 스펙: 4~8vCPU / 16GB / 데이터 가상디스크 1TB(XFS, `/mnt/minio/data`) — 산정 근거는 [02 배포 형태](02-deployment-topology.md) 4·5장.\n- SNMD(물리)라면: 동일 용량 SSD 4장을 각각 XFS로 `/mnt/minio/data1~4`에 마운트, RAID 미사용.\n\n## 2. Compose\n\n```yaml\nservices:\n  minio:\n    image: minio/minio:RELEASE.XXXX   # 설치 시점 최신 안정 태그로 고정 (latest 금지)\n    container_name: minio\n    restart: unless-stopped\n    command: server /data --console-address \":9001\"        # SNMD 는 /data{1...4}\n    ports:\n      - \"9000:9000\"   # S3 API (앱)\n      - \"9001:9001\"   # 웹 콘솔 (관리자)\n    environment:\n      MINIO_ROOT_USER: ${MINIO_ROOT_USER}           # 관리 전용 — 앱 배포 금지\n      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}   # .env, 커밋 금지\n    volumes:\n      - /mnt/minio/data:/data\n    healthcheck:\n      test: [\"CMD\", \"curl\", \"-f\", \"http://localhost:9000/minio/health/live\"]\n      interval: 30s\n```\n\n## 3. TLS\n\n- Kafka 구축 때 만든 **사설 CA를 재사용**해 이 서버용 인증서를 발급합니다(SAN에 DNS 이름·IP 포함). Java 앱들이 이미 그 CA를 신뢰하고 있어 truststore 추가 배포가 없습니다.\n- 인증서를 MinIO의 `certs/` 경로에 두면 자동으로 HTTPS가 켜집니다. 대안: 앞단 nginx에서 TLS 종단.\n\n## 4. 계정·버킷 체계 (Kafka와 같은 거버넌스 모델)\n\n- 루트 계정은 관리용으로만 — 앱에는 **서비스별 access key/secret key** + **버킷 단위 정책**으로 자기 버킷만 접근.\n- 버킷 명명: `<서비스>-<용도>` (예: `notification-attachments`). 용도별 분리 — 파일 버킷과 레이크하우스 버킷은 접근 주체가 다릅니다([05](05-lakehouse-and-cold-data.md) 3장).\n\n```bash\nmc alias set our-minio https://minio.internal:9000 \"$MINIO_ROOT_USER\" \"$MINIO_ROOT_PASSWORD\"\n\nmc mb our-minio/notification-attachments\nmc version enable our-minio/notification-attachments      # 버저닝 — 삭제 실수 1차 방어\n\nmc admin user add our-minio notification-service '발급한시크릿키'\nmc admin policy create our-minio notification-rw policy-notification.json   # 해당 버킷 한정 정책\nmc admin policy attach our-minio notification-rw --user notification-service\n```\n\n- 발급물(엔드포인트·키·버킷명)과 신청 절차는 Kafka 온보딩·발급 런북의 틀을 재사용합니다.\n- 버저닝과 함께 **수명주기 규칙**(예: 옛 버전 30일 후 삭제)을 걸어 버저닝 오버헤드를 통제합니다.\n\n## 5. 백업\n\n- 다른 장비(**다른 스토리지 위**의 서버·NAS — 같은 데이터스토어의 다른 VM은 무의미)로 크론 미러링:\n\n```bash\n# --remove 는 쓰지 않는다 — 원본의 삭제가 백업까지 전파되면 백업의 의미가 없다\n0 * * * * mc mirror --overwrite our-minio/ backup-target/minio-backup/\n```\n\n- 백업 주기 = 허용 유실 시간(RPO). 분기 1회 **복구 리허설**(백업에서 실제로 읽어보기)을 포함합니다 — 검증 안 된 백업은 없는 백업과 같습니다.\n\n## 6. 모니터링·방화벽\n\n- MinIO는 Prometheus 메트릭 내장 — 기존 Prometheus에 스크레이프 잡 추가 + 공식 Grafana 대시보드 임포트.\n- 방화벽: 앱 서버 대역 → 9000, 관리자 → 9001, Prometheus 서버 → 9000.\n\n## 7. 지금 해두면 확장이 쉬워지는 것\n\n1. 앱에는 IP가 아니라 **DNS 이름**(`minio.내부도메인`)으로 엔드포인트 배포.\n2. 버킷 **버저닝을 처음부터** 활성화.\n\n## 8. 확장 경로\n\n- **용량 부족 (같은 서버)** — VM-SNSD는 가상디스크 확장 + `xfs_growfs`(온라인). SNMD는 디스크 4개 한 세트(풀)를 추가하고 기동 인자에 풀을 덧붙여 재기동(`server /data{1...4} /data{5...8}`). **기존 풀 표기는 절대 변경 금지.**\n- **HA 필요 (분산 전환)** — 단일 노드 → MNMD \"전환\"은 지원되지 않습니다. 정석: 서버 4대로 새 분산 클러스터 구축 → `mc mirror`(버저닝 시 사이트 복제)로 이관 → **DNS 전환**(7장 1번이 이때를 위한 포석 — 앱 설정 무변경) → 구 서버는 백업 대상으로 전환.\n"
+        },
+        {
+          "id": "minio/concepts/04-file-app-migration",
+          "topicId": "minio",
+          "sourcePath": "minio/concepts/04-file-app-migration.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "기존 파일 애플리케이션 이전",
+          "summary": "현재 파일은 별도의 파일 저장 애플리케이션이 같은 서버에 마운트된 저장소에 직접 쓰는 구조입니다. 이 앱의 저장 백엔드를 MinIO(S3)로 교체하는 것이 이전의 본체이며, 완료 시 기존 저장소를 회수합니다.",
+          "difficulty": "입문",
+          "ckad": false,
+          "readTime": 3,
+          "tags": [
+            "Operations",
+            "Storage",
+            "S3"
+          ],
+          "sections": [
+            "1. 유리한 조건",
+            "2. 선택지",
+            "3. 무중단 병행 전환 절차 (① 기준)",
+            "4. 확인해야 할 것",
+            "5. 인프라 협의 관점"
+          ],
+          "order": 4,
+          "body": "# 기존 파일 애플리케이션 이전\n\n> 현재 파일은 별도의 파일 저장 애플리케이션이 같은 서버에 마운트된 저장소에 직접 쓰는 구조입니다. 이 앱의 저장 백엔드를 MinIO(S3)로 교체하는 것이 이전의 본체이며, 완료 시 기존 저장소를 회수합니다.\n\n## 1. 유리한 조건\n\n파일 I/O가 여러 서비스에 흩어져 있지 않고 **이 앱 한 곳에 모여 있습니다.** 이 앱이 다른 서비스들에게 업로드/다운로드 API를 제공하는 구조라면, 다른 서비스들은 아무 변경 없이 이 앱의 저장 계층만 `java.io.File` → S3 SDK로 바꾸면 됩니다.\n\n## 2. 선택지\n\n| 방안 | 방법 | 판단 |\n| --- | --- | --- |\n| **① 앱을 S3로 전환** | 파일 읽기/쓰기 코드를 S3 SDK로 교체 | **권장** — 서버-파일 결합이 진짜로 풀림 |\n| ② 파일시스템처럼 마운트 | s3fs·rclone mount로 버킷을 디렉터리로 위장, 앱 무수정 | 코드를 못 고치는 레거시용 임시방편 — 성능 저하, 파일 잠금·부분쓰기 동작 차이 주의 |\n| ③ 현상 유지 | 신규 서비스만 MinIO 사용 | 이전 효과(디스크 회수·표준화)가 없음 |\n\n## 3. 무중단 병행 전환 절차 (① 기준)\n\n```text\n1단계  MinIO 구축 + 버킷 생성, 앱에 키 발급\n2단계  앱 수정: 쓰기는 MinIO 로, 읽기는 \"MinIO 먼저 → 없으면 기존 경로\" (이중 조회)\n3단계  기존 파일 백필: mc mirror /mnt/기존저장소 our-minio/버킷   (운영 중 백그라운드)\n4단계  검증: 파일 수·용량 대조, 샘플 무결성 확인\n5단계  이중 조회 제거(읽기도 MinIO 만) → 관찰 기간\n6단계  기존 마운트 저장소 회수 → 인프라팀에 반납 보고\n```\n\n- **2단계의 이중 조회**가 핵심입니다 — 백필이 끝나기 전에도 서비스가 정상 동작하므로 빅뱅 전환(장시간 중단 + 일괄 복사)을 피할 수 있습니다.\n- `mc mirror`는 로컬 디렉터리 → 버킷 복사를 지원하고 변경분만 다시 돌릴 수 있습니다. 1차 복사 후 전환 직전에 한 번 더 돌려 따라잡는 식으로 진행합니다.\n- **오브젝트 키 설계**: 기존 디렉터리 구조를 그대로 키로 가져가면(`2026/09/uuid.pdf`) 백필과 이중 조회 구현이 단순해집니다.\n\n## 4. 확인해야 할 것\n\n- 앱 수정 가능 여부(사내 개발/소스 보유 여부) — 불가하면 ②로 우회하거나 신규분만 먼저(③) 점진 전환.\n- **파일을 읽는 경로 전수 조사** — 다른 서비스가 이 앱의 API를 거치는지, 웹서버(nginx 등)가 마운트 경로를 직접 서빙하는 곳은 없는지. 직접 서빙이 있다면 그 경로도 전환 대상입니다(MinIO presigned URL 또는 프록시 경유로 대체).\n\n## 5. 인프라 협의 관점\n\n이 이전은 \"신규 저장 공간 요청\"이 아니라 **기존 사용분(예: 2TB 중 400GB)의 표준 저장소 이관 + 완료 시 기존 저장소 반납**입니다. 요청 리소스는 VM 1대뿐이고, 회수 계획을 명시하면 전체 스토리지 관점에서는 정리 사업이 됩니다. 흩어진 서버별 파일 디스크 여유 공간이 중앙으로 통합되는 효과도 있습니다.\n"
+        },
+        {
+          "id": "minio/concepts/05-lakehouse-and-cold-data",
+          "topicId": "minio",
+          "sourcePath": "minio/concepts/05-lakehouse-and-cold-data.md",
+          "category": "concepts",
+          "categoryLabel": "개념",
+          "title": "레이크하우스와 DB 콜드 데이터",
+          "summary": "파일 저장소로 도입한 MinIO는 나중에 데이터 분석 기반(레이크하우스)의 저장층을 겸할 수 있습니다. MinIO(저장) + Iceberg(테이블 구조) + Trino(SQL 계산)의 3층 구조이며, 지금의 도입 결정에서 버려지는 투자가 없습니다.",
+          "difficulty": "중급",
+          "ckad": false,
+          "readTime": 3,
+          "tags": [
+            "Storage",
+            "Operations",
+            "S3"
+          ],
+          "sections": [
+            "1. 세 층이 맞물리는 구조",
+            "2. RDB 콜드 데이터 아카이빙",
+            "3. 버킷 분리",
+            "4. 도입 순서와 현실 체크"
+          ],
+          "order": 5,
+          "body": "# 레이크하우스와 DB 콜드 데이터\n\n> 파일 저장소로 도입한 MinIO는 나중에 **데이터 분석 기반(레이크하우스)의 저장층**을 겸할 수 있습니다. MinIO(저장) + Iceberg(테이블 구조) + Trino(SQL 계산)의 3층 구조이며, 지금의 도입 결정에서 버려지는 투자가 없습니다.\n\n## 1. 세 층이 맞물리는 구조\n\n```text\n                          ┌── 카탈로그 (숨은 4번째 조각) ───┐\n                          │ \"어떤 테이블이 어디 있나\"의 장부   │\n                          └──────────△────────────────────┘\n                                     │ 테이블 메타 조회\n┌─ Trino ────────────┐               │\n│ SQL 쿼리 엔진        │──────────────┘\n│ (계산만, 저장 안 함)  │──── S3 API 로 파일 읽기 ────┐\n└────────────────────┘                            ▽\n┌─ Iceberg — 테이블 포맷 (규약, 설치할 프로세스 없음) ────────┐\n│ 스키마·파티션·스냅샷 메타데이터로 \"파일 무더기 = 테이블\"     │\n└────────────────────────────────────────────────────────┘\n┌─ MinIO — Parquet 데이터 파일 + 메타 파일 보관 (S3 API) ──┐\n└────────────────────────────────────────────────────────┘\n```\n\n- 역할 분리: **MinIO는 저장, Iceberg는 구조, Trino는 계산.**\n- 실제로 띄우는 프로세스는 MinIO + Trino + **카탈로그**(Iceberg REST 카탈로그 또는 PostgreSQL 기반 JDBC 카탈로그 — 컨테이너 1개면 충분, Hive Metastore 불필요).\n- Kafka와의 연결: `서비스 → Kafka → (Kafka Connect Iceberg Sink) → Iceberg 테이블 → Trino`. Kafka는 보존 기간이 지나면 지우므로, 이벤트의 영구 보관·분석처가 이 층입니다.\n\n## 2. RDB 콜드 데이터 아카이빙\n\n운영 DB의 오래된 행을 Iceberg 테이블로 내리고 DB에서 지워서, **DB는 가볍게 유지하면서 옛 데이터는 SQL로 계속 조회**하는 패턴입니다.\n\n**방법 ① 배치 아카이빙 (권장 시작점)** — Trino가 JDBC 커넥터로 RDB도 읽을 수 있어, 이전이 SQL 한 문장입니다:\n\n```sql\n-- 2년 지난 주문을 Iceberg 로 복사\nINSERT INTO iceberg.archive.orders\nSELECT * FROM mysql.commerce.orders WHERE created_at < date '2024-09-01';\n-- 검증 후 RDB 에서 삭제 (파티션 테이블이면 DROP PARTITION 이 깔끔)\n```\n\n**방법 ② CDC 경유** — Debezium → Kafka → Iceberg Sink로 전체 변경 이력을 상시 복제. 구성 요소가 많으므로 ①로 시작해 발전시킵니다.\n\n얻는 것: RDB 다이어트(쿼리·백업 부담 감소), 저렴한 보관, 옛 데이터도 표준 SQL 유지(Trino 연합 쿼리로 핫 RDB + 콜드 Iceberg를 UNION한 전 기간 조회 가능), 법정 보관 의무 충족.\n\n**제약 — 콜드로 내린 데이터는 분석·조회용이지 운영 트랜잭션용이 아닙니다:**\n\n- 단건 조회도 수백 ms~초 단위 — 화면 실시간 응답 부적합. \"고객이 5년 전 주문을 화면에서 봐야 한다\"면 그 경로는 별도 설계 필요\n- 행 수정·삭제는 가끔(개인정보 파기 수준)만 — OLTP처럼 쓰지 않음\n- 아카이빙 배치는 **\"복사 검증 후 삭제\"** 순서 강제\n\n## 3. 버킷 분리\n\n한 MinIO 안에서 용도를 버킷으로 나누고 접근 주체를 분리합니다:\n\n```text\nMinIO\n├─ notification-attachments/   ← 파일 저장소 (해당 서비스 키만)\n├─ report-files/               ← 파일 저장소\n└─ lakehouse/                  ← Iceberg 전용 (Trino·적재 파이프라인 키만)\n    └─ archive/orders/…parquet\n```\n\n## 4. 도입 순서와 현실 체크\n\n권장 순서: **① MinIO 파일 저장소 구축 → ② Kafka Connect 안정화 → ③ 분석 수요가 확인되면 카탈로그 + Trino (+ Iceberg Sink) 추가.**\n\n- **Trino가 이 스택의 대식가** — 최소 구성도 힙 8~16GB, 데이터가 커지면 워커 증설 필요. MinIO·카탈로그는 가볍습니다.\n- 스트리밍 적재 시 작은 파일이 쌓여 **주기적 컴팩션** 관리가 따라옵니다.\n- 분석 용도가 붙으면 용량 성장 속도가 파일 저장소와 차원이 다르므로(수백 GB~TB) 그 시점에 디스크 증설 계획을 다시 잡습니다.\n\n관련: 온도별 데이터 배치 — 핫(운영 RDB) / 웜(Kafka, 보존 기간 내 이벤트) / 콜드(MinIO+Iceberg, 영구 보관·분석). \"오래된 콜드 데이터 관리\"의 담당은 이 조합이며, ScyllaDB 같은 고성능 NoSQL은 반대편(핫·실시간)의 도구입니다.\n"
         }
       ]
     }
