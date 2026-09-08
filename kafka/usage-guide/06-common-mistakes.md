@@ -45,13 +45,41 @@ kafka-consumer-groups.sh --bootstrap-server kafka1:9094 \
 - **확인**: 예외에 `The class ... is not in the trusted packages` 문구가 있는지 확인.
 - **해결**: `spring.json.trusted.packages: "com.osstem.*"` 지정([05 접속 설정](05-connection-config.md) 4장).
 
-## 7. 네트워크·디스크 사용량이 크다
+## 7. 역직렬화가 안 되는 메시지에서 컨슈머가 멈춘다 (poison pill)
+
+- **원인**: 토픽에 형식이 깨진 메시지가 들어옴(예: Avro 컨슈머가 Avro 가 아닌 바이트를 만남, 또는 스키마가 안 맞는 메시지). 역직렬화는 **처리 코드가 실행되기도 전에** 실패하므로 컨슈머의 멱등·재시도 로직이 손댈 수 없습니다.
+- **확인**: 로그에 `RecordDeserializationException`/`SerializationException`(예: `Unknown magic byte!`)이 반복되고, **컨슈머가 같은 오프셋에서 계속 실패하며 앞으로 못 나감**(lag 증가). 기본 컨슈머는 이 메시지를 건너뛸 수 없어 무한 재시도에 빠집니다 — 이것이 "poison pill"입니다.
+- **해결**: 역직렬화 실패를 잡아 **격리**합니다. Spring Kafka 에서는 `ErrorHandlingDeserializer` 로 실제 역직렬화기를 감싸 실패를 예외가 아닌 표시로 바꾸고, `DefaultErrorHandler` + `DeadLetterPublishingRecoverer` 로 깨진 메시지를 **DLQ**(`<토픽>.dlq`, [01 명명 규칙](01-topic-naming.md) 4장)로 보낸 뒤 다음 메시지로 넘어갑니다.
+
+```yaml
+spring:
+  kafka:
+    consumer:
+      # 실제 역직렬화기를 ErrorHandlingDeserializer 로 감싼다 — 실패해도 컨슈머가 멈추지 않는다
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: io.confluent.kafka.serializers.KafkaAvroDeserializer
+```
+
+```java
+// 역직렬화 실패 등 복구 불가한 레코드를 <토픽>.dlq 로 보내고 넘어간다 (기본 재시도 후)
+@Bean
+DefaultErrorHandler errorHandler(KafkaTemplate<Object, Object> template) {
+    return new DefaultErrorHandler(new DeadLetterPublishingRecoverer(template));
+}
+```
+
+- **근본 예방은 쓰기 쪽에** 있습니다 — 프로듀서가 스키마를 지키게 하고(Avro + Schema Registry 호환성 검사), 그러면 애초에 깨진 메시지가 토픽에 들어가지 않습니다. 이 시나리오는 `scenario-runner` 의 `sample-consume-poison` 으로 재현해 볼 수 있습니다([examples/scenario-runner](../examples/scenario-runner/README.md)).
+
+## 8. 네트워크·디스크 사용량이 크다
 
 - **원인**: 압축 없이 전송, 또는 압축을 켰지만 배치가 작아 효과가 없음(건별 동기 전송 등).
 - **확인**: 프로듀서 설정에서 `compression-type` 유무, `batch-size`/`linger.ms` 값, 코드에서 `send().get()` 동기 호출 여부.
 - **해결**: `compression-type: lz4` + `batch-size: 65536` + `linger.ms: 20`, 비동기 전송([03 프로듀서](03-producer.md) 4장).
 
-## 8. 압축을 켰는데 브로커 CPU가 올라간다
+## 9. 압축을 켰는데 브로커 CPU가 올라간다
 
 - **원인**: 토픽/브로커의 `compression.type`이 프로듀서 코덱과 달라, 브로커가 **풀었다가 다시 압축**함.
 - **확인**: 토픽 설정 조회로 `compression.type`이 `producer`(기본)인지 확인.
@@ -64,7 +92,7 @@ kafka-configs.sh --bootstrap-server kafka1:9094 \
 
 - **해결**: 토픽 `compression.type`을 기본값 `producer`로 되돌립니다. 프로듀서가 정한 코덱 그대로 저장하는 것이 가장 쌉니다.
 
-## 9. 컨슈머 lag이 계속 늘어난다
+## 10. 컨슈머 lag이 계속 늘어난다
 
 - **원인**: 처리 속도 < 유입 속도. 또는 특정 파티션만 몰리는 핫 파티션(한 key에 트래픽 집중), 5분 이상 걸리는 처리로 인한 리밸런싱 루프.
 - **확인**: 위 5번의 `--describe` 출력에서 파티션별 LAG 열을 봅니다 — 전체가 고르게 늘면 처리량 부족, 한 파티션만 늘면 핫 파티션입니다. 로그에 리밸런싱이 반복되면 `max.poll.interval.ms` 초과를 의심하세요.

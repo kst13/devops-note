@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
 /** 오류 시나리오 ②: 토픽에 Avro 가 아닌 메시지(poison pill)가 있을 때 Avro 컨슈머가 어떻게 되는가.
  *  일부러 깨진 바이트를 전용 토픽에 넣고 Avro 컨슈머로 읽으면 역직렬화가 실패한다. 실제 @KafkaListener 라면
  *  같은 메시지에서 무한 재시도(poison pill)에 빠지므로, 여기서는 수동 컨슈머로 1회만 안전하게 재현한다.
- *  실무 해결책은 ErrorHandlingDeserializer + DLQ 다 (usage-guide 06 자주 하는 실수). */
+ *  실무 해결책은 ErrorHandlingDeserializer + DLQ 다 (usage-guide 06 자주 하는 실수 7장). */
 @Component
 @Order(7)
 public class SampleConsumePoisonCommand implements Command {
@@ -41,7 +41,7 @@ public class SampleConsumePoisonCommand implements Command {
     @Override public String description() { return "깨진 메시지(poison pill)를 Avro 컨슈머로 읽어 역직렬화 실패 재현"; }
 
     @Override public int run(List<String> args) throws Exception {
-        SampleArgs.count(args, 1);
+        SampleArgs.count(args, 1);   // 인자 검증만 (이 명령은 poison 1건만 재현)
         // 실제 avro 토픽을 오염시키지 않도록 전용 토픽을 쓴다
         String topic = props.sampleAvroTopic() + "-poison";
         new FaultInjector(props.bootstrapServers(), props.containers()).ensureTopic(topic, props.partitions());
@@ -58,7 +58,11 @@ public class SampleConsumePoisonCommand implements Command {
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, POISON_GROUP);
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         try (Consumer<String, Object> consumer = new KafkaConsumer<>(consumerProps)) {
-            var partitions = consumer.partitionsFor(topic).stream()
+            var partitionInfos = consumer.partitionsFor(topic);
+            if (partitionInfos == null || partitionInfos.isEmpty()) {
+                throw new IllegalStateException("토픽 " + topic + " 의 파티션 정보를 얻지 못했습니다");
+            }
+            var partitions = partitionInfos.stream()
                 .map(p -> new TopicPartition(topic, p.partition())).toList();
             consumer.assign(partitions);
             consumer.seekToBeginning(partitions);

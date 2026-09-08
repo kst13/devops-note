@@ -116,7 +116,7 @@ java -jar build/libs/scenario-runner.jar sample-consume-poison    # 컨슈머 �
 출력에서 볼 것:
 
 - `sample-produce-invalid` 는 `amount`(스키마상 long) 자리에 문자열을 넣은 레코드를 전송하려다 `직렬화 거부됨 — 잘못된 데이터는 토픽에 들어가지 못한다` 로 끝납니다. Avro 는 스키마에 맞지 않는 데이터를 **프로듀서 쪽에서** 막습니다 — JSON 이었다면 그대로 토픽에 실려 컨슈머가 나중에 터졌을 것입니다. 잘못된 데이터는 브로커에 도달하지 못합니다.
-- `sample-consume-poison` 은 전용 토픽(`<avro토픽>-poison`)에 Avro 가 아닌 일반 문자열(poison pill)을 넣은 뒤 Avro 컨슈머로 읽어 `역직렬화 실패 — 컨슈머가 이 메시지에서 막힌다` 를 출력합니다. 실제 `@KafkaListener` 라면 같은 메시지에서 무한 재시도(poison pill)에 빠지므로, 이 예제는 수동 컨슈머로 1회만 안전하게 재현합니다. 실무 해결책은 `ErrorHandlingDeserializer` + DLQ 로 깨진 메시지를 격리하는 것입니다([자주 하는 실수](../../usage-guide/06-common-mistakes.md)).
+- `sample-consume-poison` 은 전용 토픽(`<avro토픽>-poison`)에 Avro 가 아닌 일반 문자열(poison pill)을 넣은 뒤 Avro 컨슈머로 읽어 `역직렬화 실패 — 컨슈머가 이 메시지에서 막힌다` 를 출력합니다. 실제 `@KafkaListener` 라면 같은 메시지에서 무한 재시도(poison pill)에 빠지므로, 이 예제는 수동 컨슈머로 1회만 안전하게 재현합니다. 실무 해결책은 `ErrorHandlingDeserializer` + DLQ 로 깨진 메시지를 격리하는 것입니다([자주 하는 실수 7장](../../usage-guide/06-common-mistakes.md)).
 - 두 시나리오의 핵심 대비: 잘못된 데이터가 **프로듀서에서 막히면**(Avro 직렬화) 토픽이 깨끗하게 유지되지만, **컨슈머에서 막히면**(역직렬화) 이미 토픽에 들어간 메시지가 컨슈머를 멈춰 세웁니다. 그래서 스키마 검증은 쓰기 쪽(프로듀서·SR 호환성)에 두는 것이 낫습니다.
 - 스키마 위반 판정과 poison 역직렬화 실패는 `InvalidRecordSerializationTest`·`PoisonDeserializationTest` 가 브로커 없이(MockSchemaRegistryClient) 검증합니다.
 
