@@ -9,9 +9,9 @@
 ## 전제 조건
 
 - Docker (Compose v2 포함)
-- JDK 21 이상, Maven 3.9 이상
+- JDK 21 이상 (Gradle 은 wrapper 가 포함되어 별도 설치 불필요)
 - 포트 9092, 9192, 9292(브로커), 8081(Schema Registry) 미사용 상태 — `home-lab` 예제를 띄워 두었다면 먼저 내려야 합니다
-- Maven 이 `https://packages.confluent.io/maven/` 에 접근 가능해야 합니다 (Confluent Avro serializer 는 Maven Central 에 없음). 사내 미러를 쓰면 이 저장소를 허용 목록에 추가하세요
+- 빌드가 `https://packages.confluent.io/maven/` 에 접근 가능해야 합니다 (Confluent Avro serializer 는 Maven Central 에 없음). 사내 미러를 쓰면 이 저장소를 허용 목록에 추가하세요
 
 ## 실행 방법
 
@@ -20,13 +20,13 @@
 docker compose up -d
 
 # 2) 빌드
-mvn -q package -DskipTests
+./gradlew bootJar
 
 # 3) 시나리오 실행 (종료 코드: 0=PASS, 1=FAIL, 2=사용법 오류)
-java -jar target/scenario-runner.jar normal-roundtrip
-java -jar target/scenario-runner.jar broker-1-down
-java -jar target/scenario-runner.jar broker-2-down
-java -jar target/scenario-runner.jar total-outage
+java -jar build/libs/scenario-runner.jar normal-roundtrip
+java -jar build/libs/scenario-runner.jar broker-1-down
+java -jar build/libs/scenario-runner.jar broker-2-down
+java -jar build/libs/scenario-runner.jar total-outage
 ```
 
 시나리오가 끝나면 러너가 컨테이너를 모두 start 상태로 되돌리므로 연속 실행이 가능합니다. 각 실행은 이전 데이터를 지우기 위해 테스트 토픽(`test.scenario.events`)을 삭제 후 재생성합니다.
@@ -60,8 +60,8 @@ broker-2-down과 total-outage는 "실패가 0건이면 오히려 FAIL"로 판정
 [03 프로듀서](../../usage-guide/03-producer.md), [04 컨슈머](../../usage-guide/04-consumer.md), [05 접속 설정](../../usage-guide/05-connection-config.md)의 코드 그대로입니다.
 
 ```bash
-java -jar target/scenario-runner.jar sample-produce 6     # OrderCreatedEvent 6건 전송 (기본 10건)
-java -jar target/scenario-runner.jar sample-consume 6     # notification-service 그룹으로 6건 수신
+java -jar build/libs/scenario-runner.jar sample-produce 6     # OrderCreatedEvent 6건 전송 (기본 10건)
+java -jar build/libs/scenario-runner.jar sample-consume 6     # notification-service 그룹으로 6건 수신
 ```
 
 출력에서 볼 것:
@@ -75,10 +75,10 @@ java -jar target/scenario-runner.jar sample-consume 6     # notification-service
 [Schema Registry 개념](../../concepts/09-concepts-qna.md)에서 설명한 흐름을 실제로 확인합니다. 설정 차이는 serializer 클래스와 `schema.registry.url` 뿐이고, 앱 코드에는 SR 호출이 없습니다. Schema Registry 이미지(`cp-schema-registry`)와 serializer 의존성(`kafka-avro-serializer`)은 Confluent 7.9.9 입니다 — 8.x 의 serializer 는 kafka-clients 4.1 API 를 요구하는데 Spring Boot 3.5 는 3.9.1 을 고정하기 때문입니다.
 
 ```bash
-java -jar target/scenario-runner.jar sample-avro-produce 6
-curl -s localhost:8081/subjects/commerce.order.created.avro-value/versions   # → [1]
-java -jar target/scenario-runner.jar sample-avro-consume 6
-java -jar target/scenario-runner.jar sample-schema-evolution
+java -jar build/libs/scenario-runner.jar sample-avro-produce 6
+curl -s localhost:8081/subjects/commerce.order.created-avro-value/versions   # → [1]
+java -jar build/libs/scenario-runner.jar sample-avro-consume 6
+java -jar build/libs/scenario-runner.jar sample-schema-evolution
 ```
 
 출력에서 볼 것:

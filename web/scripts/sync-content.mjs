@@ -95,7 +95,7 @@ function getDifficulty(category, filename) {
 }
 
 // 토픽 안의 빌드·실행 산출물 디렉터리 — 콘텐츠가 아니므로 걷지 않는다.
-const skippedSubdirectories = new Set(["node_modules", "target", "reports", "dist"]);
+const skippedSubdirectories = new Set(["node_modules", "target", "build", "reports", "dist"]);
 
 async function collectMarkdownFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
