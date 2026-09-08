@@ -21,7 +21,7 @@ class RunnerContextTest {
         assertThat(registry.names()).containsExactly(
             "normal-roundtrip", "broker-1-down", "broker-2-down", "total-outage",
             "sample-produce", "sample-consume", "sample-avro-produce", "sample-avro-consume",
-            "sample-schema-evolution");
+            "sample-schema-evolution", "sample-produce-invalid", "sample-consume-poison");
     }
 
     @Test

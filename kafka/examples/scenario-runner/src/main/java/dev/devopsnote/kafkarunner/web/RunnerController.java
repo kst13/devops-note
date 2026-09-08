@@ -19,7 +19,8 @@ public class RunnerController {
     /** 웹에서 실행 허용하는 명령 — 브로커를 죽이지 않는 것만. 순서 고정. */
     public static final Set<String> SAMPLE_COMMANDS = new LinkedHashSet<>(List.of(
         "sample-produce", "sample-consume",
-        "sample-avro-produce", "sample-avro-consume", "sample-schema-evolution"));
+        "sample-avro-produce", "sample-avro-consume", "sample-schema-evolution",
+        "sample-produce-invalid", "sample-consume-poison"));
 
     private final CommandRegistry registry;
     private final CommandInvoker invoker;

@@ -1,5 +1,6 @@
 package dev.devopsnote.kafkarunner.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -30,6 +31,14 @@ class RunnerControllerTest {
             List.of(named("broker-1-down")),
             List.of(named("sample-produce")));
         mvc = MockMvcBuilders.standaloneSetup(new RunnerController(registry, new CommandInvoker())).build();
+    }
+
+    @Test
+    void whitelistIncludesErrorScenariosButNoScenarioCommands() {
+        // 오류 시나리오 두 명령은 브로커를 죽이지 않으므로 웹 실행 허용 목록에 포함된다
+        assertThat(RunnerController.SAMPLE_COMMANDS)
+            .contains("sample-produce-invalid", "sample-consume-poison")
+            .doesNotContain("broker-1-down", "broker-2-down", "total-outage", "normal-roundtrip");
     }
 
     @Test

@@ -104,6 +104,22 @@ java -jar build/libs/scenario-runner.jar sample-schema-evolution
 
 운영에서는 앱이 스키마를 마음대로 등록하지 못하게 `auto.register.schemas=false` 로 잠그고 CI 에서 미리 등록하는 방식을 권장합니다. 이 예제는 흐름을 보여주기 위해 기본값(자동 등록)을 씁니다.
 
+### 3단계 — 오류 시나리오 (스키마 불일치)
+
+스키마가 맞지 않을 때 오류가 프로듀서 쪽에서 나는지, 컨슈머 쪽에서 나는지를 재현합니다. 두 명령 모두 **오류가 나는 것이 정상(종료 코드 0)** 입니다 — 실패 재현이 목적입니다.
+
+```bash
+java -jar build/libs/scenario-runner.jar sample-produce-invalid   # 프로듀서 직렬화 실패
+java -jar build/libs/scenario-runner.jar sample-consume-poison    # 컨슈머 역직렬화 실패
+```
+
+출력에서 볼 것:
+
+- `sample-produce-invalid` 는 `amount`(스키마상 long) 자리에 문자열을 넣은 레코드를 전송하려다 `직렬화 거부됨 — 잘못된 데이터는 토픽에 들어가지 못한다` 로 끝납니다. Avro 는 스키마에 맞지 않는 데이터를 **프로듀서 쪽에서** 막습니다 — JSON 이었다면 그대로 토픽에 실려 컨슈머가 나중에 터졌을 것입니다. 잘못된 데이터는 브로커에 도달하지 못합니다.
+- `sample-consume-poison` 은 전용 토픽(`<avro토픽>-poison`)에 Avro 가 아닌 일반 문자열(poison pill)을 넣은 뒤 Avro 컨슈머로 읽어 `역직렬화 실패 — 컨슈머가 이 메시지에서 막힌다` 를 출력합니다. 실제 `@KafkaListener` 라면 같은 메시지에서 무한 재시도(poison pill)에 빠지므로, 이 예제는 수동 컨슈머로 1회만 안전하게 재현합니다. 실무 해결책은 `ErrorHandlingDeserializer` + DLQ 로 깨진 메시지를 격리하는 것입니다([자주 하는 실수](../../usage-guide/06-common-mistakes.md)).
+- 두 시나리오의 핵심 대비: 잘못된 데이터가 **프로듀서에서 막히면**(Avro 직렬화) 토픽이 깨끗하게 유지되지만, **컨슈머에서 막히면**(역직렬화) 이미 토픽에 들어간 메시지가 컨슈머를 멈춰 세웁니다. 그래서 스키마 검증은 쓰기 쪽(프로듀서·SR 호환성)에 두는 것이 낫습니다.
+- 스키마 위반 판정과 poison 역직렬화 실패는 `InvalidRecordSerializationTest`·`PoisonDeserializationTest` 가 브로커 없이(MockSchemaRegistryClient) 검증합니다.
+
 ## 관련 문서
 
 - [클러스터 전체 정지와 복구 절차](../../troubleshooting/cluster-total-outage.md) — 운영자 관점의 복구
