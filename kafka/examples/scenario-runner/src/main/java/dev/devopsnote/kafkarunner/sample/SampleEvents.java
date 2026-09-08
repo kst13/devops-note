@@ -11,13 +11,13 @@ final class SampleEvents {
     static String orderId(int i) { return "ORD-" + (1000 + i % 3); }
 
     static OrderCreatedEvent json(int i) {
-        return new OrderCreatedEvent(orderId(i), "CUST-" + (i % 5 + 1), 10_000L * i, Instant.now().toString());
+        return new OrderCreatedEvent(orderId(i), 10_000L + (i % 5 + 1), 10_000L * i, Instant.now().toString());
     }
 
     static OrderCreated avro(int i) {
         return OrderCreated.newBuilder()
             .setOrderId(orderId(i))
-            .setCustomerId("CUST-" + (i % 5 + 1))
+            .setCustomerId(10_000L + (i % 5 + 1))
             .setAmount(10_000L * i)
             .setCreatedAt(Instant.now().toString())
             .build();

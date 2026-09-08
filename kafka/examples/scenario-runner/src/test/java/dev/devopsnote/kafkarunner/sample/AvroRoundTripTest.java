@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 /** 브로커·SR 없이 Confluent serializer → 바이트 → deserializer 왕복을 검증한다.
  *  Avro 1.12 의 생성 클래스 신뢰 목록(trustGeneratedAvroClasses)이 없으면 이 경로가 SecurityException 으로 막힌다. */
 class AvroRoundTripTest {
-    private static final String TOPIC = "commerce.order.created.avro";
+    private static final String TOPIC = "commerce.order.created-avro";
 
     @BeforeAll
     static void trustGeneratedClasses() { SampleKafkaConfig.trustGeneratedAvroClasses(); }

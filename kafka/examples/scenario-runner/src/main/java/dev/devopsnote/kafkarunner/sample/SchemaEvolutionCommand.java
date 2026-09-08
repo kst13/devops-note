@@ -70,7 +70,7 @@ public class SchemaEvolutionCommand implements Command {
                 // ② v2 로 한 건 전송 — GenericRecord 라 생성 클래스 없이도 새 스키마로 보낼 수 있다
                 GenericRecord record = new GenericData.Record(v2.rawSchema());
                 record.put("orderId", EVOLUTION_KEY);
-                record.put("customerId", "CUST-9");
+                record.put("customerId", 10_009L);
                 record.put("amount", 55_000L);
                 record.put("createdAt", Instant.now().toString());
                 record.put("couponCode", "WELCOME10");

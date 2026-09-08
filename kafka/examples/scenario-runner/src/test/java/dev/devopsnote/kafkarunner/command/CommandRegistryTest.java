@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class CommandRegistryTest {
     private static final RunnerProperties PROPS = new RunnerProperties(
         "localhost:9092", "test.scenario.events", 3, List.of("kafka1", "kafka2", "kafka3"), "reports",
-        "commerce.order.created", "commerce.order.created.avro");
+        "commerce.order.created", "commerce.order.created-avro");
 
     record FakeCommand(String name) implements Command {
         @Override public String description() { return "fake"; }

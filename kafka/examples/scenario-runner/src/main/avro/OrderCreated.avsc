@@ -2,10 +2,10 @@
   "type": "record",
   "name": "OrderCreated",
   "namespace": "dev.devopsnote.kafkarunner.sample.avro",
-  "doc": "주문 생성 이벤트 v1 — usage-guide 의 OrderCreatedEvent 와 같은 필드",
+  "doc": "주문 생성 이벤트 v1 — usage-guide 01 의 이벤트 예시를 단순화한 필드 구성",
   "fields": [
     {"name": "orderId", "type": "string"},
-    {"name": "customerId", "type": "string"},
+    {"name": "customerId", "type": "long"},
     {"name": "amount", "type": "long"},
     {"name": "createdAt", "type": "string", "doc": "ISO-8601 문자열"}
   ]
