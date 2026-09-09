@@ -29,6 +29,8 @@ Run every command or configuration example you change when the required tool is 
 
 Write concise Korean prose consistent with the existing notes. Use ATX headings (`#`, `##`), fenced code blocks with language tags such as `bash` or `yaml`, and relative links between repository documents. Prefer lowercase kebab-case filenames (`container-exits-immediately.md`) and two-space YAML indentation. Explain why a setting matters, not only how to type it. Troubleshooting documents should follow: symptom, cause, verification, and resolution.
 
+For readability, keep one idea per sentence: split long sentences instead of chaining causes, move parenthetical/dash asides into their own sentence (or cut them), prefer active voice, define jargon on first use ("X는 Y다"), and structure lists as bullets/tables with one point each. Shorten sentences without dropping technical terms or accuracy.
+
 ## Testing Guidelines
 
 Documentation has no coverage threshold; preview headings and lists, follow changed links, and confirm commands against the documented tool version. For `web/` changes, run `npm test` and verify search, topic navigation, code-copy controls, and responsive layouts. Examples should be reproducible from their own directory and include cleanup steps where resources persist.

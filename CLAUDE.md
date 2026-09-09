@@ -70,6 +70,17 @@ Next.js 16 + React 19 + Vite + Tailwind CSS 4, served on Cloudflare Workers via 
 - YAML indentation: two spaces. Explain *why* a setting matters, not just how to set it.
 - Placeholders for secrets/hosts (e.g. `${REDIS_PASSWORD}`); never commit real credentials or production hostnames.
 
+### Readability (한 문장 한 요점)
+
+Prose must stay easy to read on first pass. The most common failure is one sentence carrying too much, so:
+
+- **One idea per sentence.** Split long sentences; don't chain two or three causes with `~인데`/`~므로`/`~하지만`.
+- **Move parenthetical/dash asides into their own sentence or cut them.** Don't stack an aside in parentheses *and* another after a dash in the same sentence.
+- **Active voice by default;** use passive only when the actor is unknown or irrelevant.
+- **Define jargon on first use** with a short "X는 Y다" right next to the term.
+- **Structure lists as bullets/tables,** one point per bullet (aim for ≤2 sentences each).
+- Keep technical terms and accuracy intact — shorten the sentences, never drop the information.
+
 ## Commit Style
 
 Short, imperative, capitalized subject (e.g. `Add Kafka configuration reference note`). One commit per topic.
