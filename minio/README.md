@@ -9,6 +9,7 @@ S3 호환 오브젝트 스토리지 MinIO를 사내 파일 저장소로 도입�
 - [03 구축 구성안](concepts/03-setup-plan.md) — Compose 구성, TLS, 계정·버킷 체계, 백업, 모니터링, 확장 경로
 - [04 기존 파일 애플리케이션 이전](concepts/04-file-app-migration.md) — 무중단 병행 전환 절차
 - [05 레이크하우스와 DB 콜드 데이터](concepts/05-lakehouse-and-cold-data.md) — Iceberg·Trino 연계, RDB 아카이빙 패턴
+- [06 레이크하우스 서버 배치](concepts/06-lakehouse-deployment-layout.md) — MinIO+Iceberg+Trino 단계별 배치, 노드 스펙, Trino 공식 요구사항
 
 ## 상태
 
