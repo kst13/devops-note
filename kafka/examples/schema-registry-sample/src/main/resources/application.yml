@@ -1,0 +1,74 @@
+# usage-guide/09-schema-registry.md 5장의 설정. 프로파일별 차이는 아래 --- 블록에 있다.
+#   (기본)  local  : PLAINTEXT, auto.register.schemas=true  — 개발 PC
+#           strict : local + auto.register.schemas=false    — "운영처럼 자동 등록 금지" 를 로컬에서 재현
+#           prod   : SASL_SSL, auto.register.schemas=false  — 가이드 5장 그대로 (실서버 값은 환경변수)
+server:
+  port: 8088   # 8080 은 다른 로컬 앱과 겹치기 쉬워 비워 둔다
+
+app:
+  topic: kst.order.created
+
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    properties:
+      schema.registry.url: http://localhost:8081
+      auto.register.schemas: true
+      use.latest.version: false
+      # 생성 클래스의 스키마에 붙는 avro.java.string 속성을 떼고 SR 과 대조한다.
+      # 없으면 .avsc 원문을 REST 로 등록한 뒤에도 40403 Schema Not Found 가 난다 (ManualRegistrationTest).
+      avro.remove.java.properties: true
+    producer:
+      acks: all
+      compression-type: lz4
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: kst-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: io.confluent.kafka.serializers.KafkaAvroDeserializer
+        specific.avro.reader: true
+        isolation.level: read_committed
+    listener:
+      ack-mode: manual
+
+logging:
+  level:
+    org.apache.kafka: WARN
+    io.confluent: WARN
+
+---
+spring:
+  config:
+    activate:
+      on-profile: strict
+  kafka:
+    properties:
+      auto.register.schemas: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}          # kafka1:9094,kafka2:9094,kafka3:9094
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-512
+      sasl.jaas.config: >
+        org.apache.kafka.common.security.scram.ScramLoginModule required
+        username="${KAFKA_USER}" password="${KAFKA_PASSWORD}";
+      ssl.truststore.location: ${KAFKA_TRUSTSTORE_LOCATION}
+      ssl.truststore.password: ${KAFKA_TRUSTSTORE_PASSWORD}
+      ssl.endpoint.identification.algorithm: https
+      schema.registry.url: ${SCHEMA_REGISTRY_URL}          # http://sr1:8081,http://sr2:8081  (2대 모두)
+      auto.register.schemas: false
+    consumer:
+      group-id: kst-service

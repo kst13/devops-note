@@ -1,0 +1,4 @@
+build/
+.gradle/
+.idea/
+http-client.private.env.json

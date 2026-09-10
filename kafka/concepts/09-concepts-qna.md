@@ -241,7 +241,7 @@ kafka-topics.sh --bootstrap-server <host>:9092 --describe --topic <토픽>
 | | Schema Registry | Debezium |
 | --- | --- | --- |
 | 역할 | 메시지 **형식**의 중앙 저장 + 호환성 검사 | DB **변경**(INSERT/UPDATE/DELETE)을 Kafka 이벤트로 캡처(CDC) |
-| 위치 | 프로듀서/컨슈머 옆의 별도 REST 서버 | Kafka Connect 위에서 도는 소스 커넥터 |
+| 위치 | 프로듀서/컨슈머 옆의 별도 REST 서버 | [Kafka Connect](17-kafka-connect.md) 위에서 도는 소스 커넥터 |
 | 푸는 문제 | 형식 변경으로 컨슈머가 깨짐, "이 토픽 형식이 뭐지" | 이중 쓰기(DB와 Kafka 둘 중 하나만 성공), 레거시 DB 연동, 아웃박스 |
 | 없어도 되나 | 소규모 JSON + "호환 유지" 규율이면 가능 | DB 변경 캡처가 필요 없으면 불필요 |
 | 구현체 | Confluent Schema Registry, Apicurio, AWS Glue SR, Karapace | Debezium (MySQL·PostgreSQL·Oracle·SQL Server·MongoDB 등) |

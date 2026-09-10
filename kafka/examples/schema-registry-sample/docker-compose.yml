@@ -1,0 +1,42 @@
+# Schema Registry 가이드 검증용 로컬 환경: 브로커 1대(KRaft, PLAINTEXT) + Schema Registry 1대.
+# 실서버 구성이 아니다. 앱은 localhost:9092 / localhost:8081 로 접속한다.
+services:
+  kafka:
+    image: apache/kafka:4.0.0
+    container_name: sr-sample-kafka
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: INTERNAL://:29092,CONTROLLER://:9093,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # 운영처럼 자동 생성은 끈다. 토픽은 앱의 NewTopic 빈(로컬 전용)이 만든다.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.9.9
+    container_name: sr-sample-schema-registry
+    restart: on-failure
+    depends_on:
+      kafka: {condition: service_healthy}
+    ports: ["8081:8081"]
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 1
+      # 가이드 7장의 "클러스터 기본은 BACKWARD" 와 같게
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: backward

@@ -41,6 +41,8 @@ examples/          직접 실행해볼 수 있는 예제
 14. [Kafka 모니터링 — Prometheus와 Grafana](concepts/14-monitoring-prometheus-grafana.md)
 15. [Kafka 생태계 서버 배치 방안](concepts/15-deployment-layout-options.md)
 16. [프로듀서·토픽·컨슈머 핵심 정리 (면접 대비)](concepts/16-producer-topic-consumer-summary.md)
+17. [Kafka Connect: 워커·커넥터·태스크, 분산 모드와 장애 복구](concepts/17-kafka-connect.md)
+18. [배포 아키텍처: 브로커 사이징, 랙 인식, 멀티 데이터센터](concepts/18-deployment-architecture.md)
 
 실행 가능한 예제(둘 다 KRaft, 보안만 다름):
 

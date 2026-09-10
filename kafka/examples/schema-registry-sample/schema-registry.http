@@ -1,0 +1,68 @@
+# IntelliJ HTTP Client — README 의 curl 을 순서대로 옮긴 것.
+# 우측 상단 환경 선택: local (docker compose) / prod (http-client.private.env.json 에 직접 기재)
+# 스키마 본문은 .avsc 를 JSON 문자열로 감싼 것이라 .avsc 를 바꾸면 이 파일도 다시 만들어야 한다
+# (python3 -c 'import json;print(json.dumps({"schema":open("src/main/avro/OrderCreated.avsc").read()}))').
+
+### 0. Schema Registry 살아 있나 + 전역 호환성 모드
+GET {{sr}}/config
+
+### 1. subject 가 아직 없는지 확인 → 40401 이 정상
+GET {{sr}}/subjects/{{subject}}/versions
+
+### 2. 스키마 없이 주문 발행 → prod/strict 는 40401 SerializationException, local 은 성공(자동 등록)
+POST {{app}}/orders
+Content-Type: application/json
+
+{
+  "orderId": "ORD-20260910-0001",
+  "customerId": 10234,
+  "items": [{"sku": "A-100", "qty": 2}, {"sku": "B-250", "qty": 1}],
+  "totalAmount": 51000
+}
+
+### 3. v1 스키마 등록 (배포 파이프라인 역할) → {"id": N}
+POST {{sr}}/subjects/{{subject}}/versions
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{"schema": "{\n  \"type\": \"record\",\n  \"name\": \"OrderCreated\",\n  \"namespace\": \"com.osstem.commerce.order.event\",\n  \"doc\": \"주문 생성 이벤트. 토픽 kst.order.created 의 값.\",\n  \"fields\": [\n    { \"name\": \"orderId\",     \"type\": \"string\", \"doc\": \"주문 ID. 메시지 key 와 동일\" },\n    { \"name\": \"customerId\",  \"type\": \"long\" },\n    { \"name\": \"items\", \"type\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"record\", \"name\": \"OrderItem\",\n          \"fields\": [\n            { \"name\": \"sku\", \"type\": \"string\" },\n            { \"name\": \"qty\", \"type\": \"int\" }\n          ]\n        }\n      }\n    },\n    { \"name\": \"totalAmount\", \"type\": \"long\", \"doc\": \"원 단위 정수\" },\n    { \"name\": \"createdAt\",   \"type\": { \"type\": \"long\", \"logicalType\": \"timestamp-millis\" } }\n  ]\n}\n"}
+
+### 4. 다시 발행 → 성공. 앱 재시작 불필요
+POST {{app}}/orders
+Content-Type: application/json
+
+{
+  "orderId": "ORD-20260910-0002",
+  "customerId": 10234,
+  "items": [{"sku": "A-100", "qty": 1}],
+  "totalAmount": 25000
+}
+
+### 5. 등록된 버전 목록 → [1]
+GET {{sr}}/subjects/{{subject}}/versions
+
+### 6. 최신 스키마 보기
+GET {{sr}}/subjects/{{subject}}/versions/latest
+
+### 7. 호환 검사 — v2 (couponCode 기본값 null 추가) → is_compatible: true. 등록하지 않음
+POST {{sr}}/compatibility/subjects/{{subject}}/versions/latest
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{"schema": "{\n  \"type\": \"record\",\n  \"name\": \"OrderCreated\",\n  \"namespace\": \"com.osstem.commerce.order.event\",\n  \"doc\": \"주문 생성 이벤트. 토픽 commerce.order.created 의 값.\",\n  \"fields\": [\n    {\n      \"name\": \"orderId\",\n      \"type\": \"string\",\n      \"doc\": \"주문 ID. 메시지 key 와 동일\"\n    },\n    {\n      \"name\": \"customerId\",\n      \"type\": \"long\"\n    },\n    {\n      \"name\": \"items\",\n      \"type\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"record\",\n          \"name\": \"OrderItem\",\n          \"fields\": [\n            {\n              \"name\": \"sku\",\n              \"type\": \"string\"\n            },\n            {\n              \"name\": \"qty\",\n              \"type\": \"int\"\n            }\n          ]\n        }\n      }\n    },\n    {\n      \"name\": \"totalAmount\",\n      \"type\": \"long\",\n      \"doc\": \"원 단위 정수\"\n    },\n    {\n      \"name\": \"createdAt\",\n      \"type\": {\n        \"type\": \"long\",\n        \"logicalType\": \"timestamp-millis\"\n      }\n    },\n    {\n      \"name\": \"couponCode\",\n      \"type\": [\n        \"null\",\n        \"string\"\n      ],\n      \"default\": null,\n      \"doc\": \"v2 에서 추가. 기본값 null 이라 호환\"\n    }\n  ]\n}\n"}
+
+### 8. 호환 검사 — 기본값 없는 channel 추가 → is_compatible: false
+POST {{sr}}/compatibility/subjects/{{subject}}/versions/latest
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{"schema": "{\n  \"type\": \"record\",\n  \"name\": \"OrderCreated\",\n  \"namespace\": \"com.osstem.commerce.order.event\",\n  \"doc\": \"주문 생성 이벤트. 토픽 commerce.order.created 의 값.\",\n  \"fields\": [\n    {\n      \"name\": \"orderId\",\n      \"type\": \"string\",\n      \"doc\": \"주문 ID. 메시지 key 와 동일\"\n    },\n    {\n      \"name\": \"customerId\",\n      \"type\": \"long\"\n    },\n    {\n      \"name\": \"items\",\n      \"type\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"record\",\n          \"name\": \"OrderItem\",\n          \"fields\": [\n            {\n              \"name\": \"sku\",\n              \"type\": \"string\"\n            },\n            {\n              \"name\": \"qty\",\n              \"type\": \"int\"\n            }\n          ]\n        }\n      }\n    },\n    {\n      \"name\": \"totalAmount\",\n      \"type\": \"long\",\n      \"doc\": \"원 단위 정수\"\n    },\n    {\n      \"name\": \"createdAt\",\n      \"type\": {\n        \"type\": \"long\",\n        \"logicalType\": \"timestamp-millis\"\n      }\n    },\n    {\n      \"name\": \"channel\",\n      \"type\": \"string\",\n      \"doc\": \"기본값 없는 필드 추가 → BACKWARD 위반\"\n    }\n  ]\n}\n"}
+
+### 9. (선택) v2 실제 등록 → {"id": M}, 이후 5번이 [1,2]
+POST {{sr}}/subjects/{{subject}}/versions
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{"schema": "{\n  \"type\": \"record\",\n  \"name\": \"OrderCreated\",\n  \"namespace\": \"com.osstem.commerce.order.event\",\n  \"doc\": \"주문 생성 이벤트. 토픽 commerce.order.created 의 값.\",\n  \"fields\": [\n    {\n      \"name\": \"orderId\",\n      \"type\": \"string\",\n      \"doc\": \"주문 ID. 메시지 key 와 동일\"\n    },\n    {\n      \"name\": \"customerId\",\n      \"type\": \"long\"\n    },\n    {\n      \"name\": \"items\",\n      \"type\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"record\",\n          \"name\": \"OrderItem\",\n          \"fields\": [\n            {\n              \"name\": \"sku\",\n              \"type\": \"string\"\n            },\n            {\n              \"name\": \"qty\",\n              \"type\": \"int\"\n            }\n          ]\n        }\n      }\n    },\n    {\n      \"name\": \"totalAmount\",\n      \"type\": \"long\",\n      \"doc\": \"원 단위 정수\"\n    },\n    {\n      \"name\": \"createdAt\",\n      \"type\": {\n        \"type\": \"long\",\n        \"logicalType\": \"timestamp-millis\"\n      }\n    },\n    {\n      \"name\": \"couponCode\",\n      \"type\": [\n        \"null\",\n        \"string\"\n      ],\n      \"default\": null,\n      \"doc\": \"v2 에서 추가. 기본값 null 이라 호환\"\n    }\n  ]\n}\n"}
+
+### 10. (선택) 비호환 스키마 등록 시도 → 409
+POST {{sr}}/subjects/{{subject}}/versions
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{"schema": "{\n  \"type\": \"record\",\n  \"name\": \"OrderCreated\",\n  \"namespace\": \"com.osstem.commerce.order.event\",\n  \"doc\": \"주문 생성 이벤트. 토픽 commerce.order.created 의 값.\",\n  \"fields\": [\n    {\n      \"name\": \"orderId\",\n      \"type\": \"string\",\n      \"doc\": \"주문 ID. 메시지 key 와 동일\"\n    },\n    {\n      \"name\": \"customerId\",\n      \"type\": \"long\"\n    },\n    {\n      \"name\": \"items\",\n      \"type\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"record\",\n          \"name\": \"OrderItem\",\n          \"fields\": [\n            {\n              \"name\": \"sku\",\n              \"type\": \"string\"\n            },\n            {\n              \"name\": \"qty\",\n              \"type\": \"int\"\n            }\n          ]\n        }\n      }\n    },\n    {\n      \"name\": \"totalAmount\",\n      \"type\": \"long\",\n      \"doc\": \"원 단위 정수\"\n    },\n    {\n      \"name\": \"createdAt\",\n      \"type\": {\n        \"type\": \"long\",\n        \"logicalType\": \"timestamp-millis\"\n      }\n    },\n    {\n      \"name\": \"channel\",\n      \"type\": \"string\",\n      \"doc\": \"기본값 없는 필드 추가 → BACKWARD 위반\"\n    }\n  ]\n}\n"}

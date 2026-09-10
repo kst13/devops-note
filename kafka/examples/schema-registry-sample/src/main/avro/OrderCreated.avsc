@@ -1,0 +1,23 @@
+{
+  "type": "record",
+  "name": "OrderCreated",
+  "namespace": "com.osstem.commerce.order.event",
+  "doc": "주문 생성 이벤트. 토픽 kst.order.created 의 값.",
+  "fields": [
+    { "name": "orderId",     "type": "string", "doc": "주문 ID. 메시지 key 와 동일" },
+    { "name": "customerId",  "type": "long" },
+    { "name": "items", "type": {
+        "type": "array",
+        "items": {
+          "type": "record", "name": "OrderItem",
+          "fields": [
+            { "name": "sku", "type": "string" },
+            { "name": "qty", "type": "int" }
+          ]
+        }
+      }
+    },
+    { "name": "totalAmount", "type": "long", "doc": "원 단위 정수" },
+    { "name": "createdAt",   "type": { "type": "long", "logicalType": "timestamp-millis" } }
+  ]
+}
