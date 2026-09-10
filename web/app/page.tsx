@@ -155,9 +155,25 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
         <span>{language || "text"}</span>
         <button onClick={copyCode}>{copied ? "복사됨" : "복사"}</button>
       </div>
-      <pre><code>{code}</code></pre>
+      <pre><code>{renderCodeLines(code)}</code></pre>
     </div>
   );
+}
+
+// 코드 블록에서 ★ 표시가 있는 줄을 강조한다. "★ 삭제"는 제거 대상이라 다른 색으로 구분한다.
+function renderCodeLines(code: string) {
+  const lines = code.split("\n");
+  if (!lines.some((line) => line.includes("★"))) {
+    return code;
+  }
+  return lines.map((line, index) => {
+    const suffix = index < lines.length - 1 ? "\n" : "";
+    if (!line.includes("★")) {
+      return <span key={index}>{line}{suffix}</span>;
+    }
+    const kind = line.includes("★ 삭제") ? "code-line-remove" : "code-line-mark";
+    return <span key={index} className={kind}>{line}{suffix}</span>;
+  });
 }
 
 function slugify(value: string) {
