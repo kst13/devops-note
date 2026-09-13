@@ -1,0 +1,1734 @@
+<title>Lakehouse Layer 구축 제안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F4F6F9;
+    --surface: #FFFFFF;
+    --surface-2: #EBEFF4;
+    --ink: #172033;
+    --muted: #5B6B7F;
+    --line: #D3DAE3;
+    --accent: #1D6E8C;
+    --accent-ink: #145268;
+    --accent-soft: #E1EFF4;
+    --warm: #B8741F;
+    --warm-soft: #FBF0DF;
+    --good: #2E7D4F;
+    --shadow: 0 10px 30px rgba(23, 32, 51, 0.08);
+    --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F161E;
+      --surface: #17212C;
+      --surface-2: #1F2B38;
+      --ink: #E6ECF2;
+      --muted: #9AABBD;
+      --line: #2C3B4A;
+      --accent: #5FB3D1;
+      --accent-ink: #8CCBE0;
+      --accent-soft: #16303C;
+      --warm: #E0A050;
+      --warm-soft: #3A2B14;
+      --good: #6CC493;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F161E;
+    --surface: #17212C;
+    --surface-2: #1F2B38;
+    --ink: #E6ECF2;
+    --muted: #9AABBD;
+    --line: #2C3B4A;
+    --accent: #5FB3D1;
+    --accent-ink: #8CCBE0;
+    --accent-soft: #16303C;
+    --warm: #E0A050;
+    --warm-soft: #3A2B14;
+    --good: #6CC493;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.55;
+    overflow: hidden;
+  }
+
+  .deck {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 24px 24px 0;
+  }
+  .slide {
+    display: none;
+    width: 100%;
+    max-width: 1280px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 40px 56px 44px;
+    overflow: auto;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .slide.active { display: flex; }
+
+  .sh {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    color: var(--muted);
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .sh .num { font-family: var(--mono); letter-spacing: 0; }
+  .slide h2 {
+    margin: 0;
+    font-size: clamp(24px, 2.6vw, 34px);
+    font-weight: 600;
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+  .lead {
+    margin: 0;
+    max-width: 68ch;
+    color: var(--muted);
+    font-size: 16px;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 36px;
+    align-items: start;
+    flex: 1;
+  }
+  .cols.even { grid-template-columns: 1fr 1fr; }
+  .cols.wide { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+  .cols.single { grid-template-columns: 1fr; }
+  @media (max-width: 900px) {
+    .cols, .cols.even, .cols.wide { grid-template-columns: 1fr; }
+    .slide { padding: 28px 24px; }
+  }
+
+  .slide h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent-ink);
+    letter-spacing: 0.02em;
+  }
+  .slide p { margin: 0 0 10px; }
+  .slide ul, .slide ol { margin: 0; padding-left: 20px; }
+  .slide li { margin: 0 0 7px; }
+  .slide li strong { font-weight: 600; }
+  .slide li::marker { color: var(--muted); }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 14.5px;
+    margin-top: 6px;
+  }
+  .note.warm { border-left-color: var(--warm); background: var(--warm-soft); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 12.5px;
+    letter-spacing: 0.04em;
+    background: var(--surface-2);
+  }
+  td.k { font-weight: 600; white-space: nowrap; }
+  .tablewrap { overflow-x: auto; }
+
+  pre {
+    margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    overflow-x: auto;
+  }
+  code { font-family: var(--mono); font-size: 0.92em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+
+  figure { margin: 0; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+
+  /* diagram vocabulary */
+  .d { color: var(--ink); font-family: var(--font); }
+  .d .node { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+  .d .node.hi { fill: var(--accent-soft); stroke: var(--accent); }
+  .d .node.warm { fill: var(--warm-soft); stroke: var(--warm); }
+  .d .node.dim { fill: var(--surface-2); stroke: var(--line); }
+  .d .zone { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  .d .zone.plain { stroke: var(--line); }
+  .d text { fill: currentColor; font-size: 12px; }
+  .d text.s { font-size: 10.5px; fill: var(--muted); }
+  .d text.b { font-weight: 600; }
+  .d text.z { font-size: 11px; fill: var(--accent); font-weight: 600; letter-spacing: 0.04em; }
+  .d text.m { font-family: var(--mono); font-size: 10.5px; }
+  .d .ln { stroke: currentColor; stroke-width: 1.3; fill: none; }
+  .d .ln.hi { stroke: var(--accent); }
+  .d .ln.warm { stroke: var(--warm); }
+  .d .ln.dash { stroke-dasharray: 4 4; }
+  .d .bar { fill: var(--accent); }
+  .d .bar.warm { fill: var(--warm); }
+  .d .bar.dim { fill: var(--line); }
+
+  /* title slide */
+  .slide.title { justify-content: center; gap: 22px; padding: 64px 72px; }
+  .slide.title .kicker { color: var(--accent); font-weight: 600; letter-spacing: 0.12em; font-size: 13px; text-transform: uppercase; }
+  .slide.title h1 { margin: 0; font-size: clamp(30px, 4vw, 52px); line-height: 1.15; font-weight: 700; text-wrap: balance; max-width: 22ch; }
+  .slide.title .sub { font-size: 20px; color: var(--muted); max-width: 40ch; }
+  .slide.title .meta { display: flex; gap: 28px; color: var(--muted); font-size: 14px; margin-top: 12px; font-family: var(--mono); }
+
+  /* toc */
+  .toc { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 36px; list-style: none; padding: 0; margin: 0; }
+  .toc li { margin: 0; }
+  .toc button {
+    all: unset;
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14.5px;
+  }
+  .toc button:hover, .toc button:focus-visible { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
+  .toc .n { font-family: var(--mono); color: var(--muted); font-size: 12.5px; padding-top: 2px; }
+  .toc .appx { grid-column: 1 / -1; margin-top: 10px; color: var(--muted); font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  /* nav */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1280px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 12px 24px 18px;
+    gap: 16px;
+  }
+  .nav .left { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+  .nav .left .deckname { font-weight: 600; color: var(--ink); }
+  .nav .right { display: flex; align-items: center; gap: 10px; }
+  .nav .counter { font-family: var(--mono); font-size: 13px; color: var(--muted); min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+  .btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px; height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    user-select: none;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn[disabled] { opacity: 0.35; cursor: default; }
+  .btn.text { width: auto; padding: 0 12px; font-size: 13px; border-radius: 8px; }
+  .progress { height: 3px; background: var(--line); }
+  .progress > div { height: 100%; background: var(--accent); width: 0; transition: width 0.25s ease; }
+  @media (prefers-reduced-motion: reduce) { .progress > div { transition: none; } }
+  .kbd { font-family: var(--mono); font-size: 11.5px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--muted); }
+
+  /* small components */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; margin: 0; }
+  .steps .i { width: 26px; height: 26px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono); }
+  .pill { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); margin-left: 6px; vertical-align: middle; }
+  .pill.hi { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+  .pill.warm { background: var(--warm-soft); color: var(--warm); border-color: var(--warm); }
+  a { color: var(--accent-ink); }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+    <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" style="color: var(--accent)">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+    <marker id="arrW" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" style="color: var(--warm)">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+  </defs>
+</svg>
+
+<div class="deck">
+  <div class="progress"><div id="bar"></div></div>
+  <div class="stage">
+
+<!-- 0. 표지 -->
+<section class="slide title active">
+  <div class="kicker">Enterprise Data Platform</div>
+  <h1>Lakehouse Layer 구축 제안</h1>
+  <div class="sub">회원·주문·채팅·결제 데이터의 장기 보관과 통합 분석</div>
+  <div class="meta"><span>Kafka · Iceberg · MinIO · Trino</span><span>2026-09</span></div>
+  <p class="lead" style="margin-top: 18px">화살표 버튼 또는 키보드 <span class="kbd">←</span> <span class="kbd">→</span> 로 넘깁니다. 목차에서 원하는 장으로 바로 이동할 수 있습니다.</p>
+</section>
+
+<!-- 1. 목차 -->
+<section class="slide">
+  <header class="sh"><span>목차</span><span class="num"></span></header>
+  <h2>이 제안의 흐름</h2>
+  <p class="lead">왜 필요한가(1~2장) → 무엇인가(3~7장) → 무엇에 쓰는가(8~11장) → 어떻게 운영하고 시작하는가(12~15장) 순서입니다.</p>
+  <ol class="toc" id="toc"></ol>
+</section>
+
+<!-- 2. ch1 -->
+<section class="slide" data-ch="1">
+  <header class="sh"><span>01 · 배경</span><span class="num"></span></header>
+  <h2>우리가 Lakehouse를 검토하는 이유</h2>
+  <p class="lead">데이터가 서비스별 DB에 흩어져 있고, 통합해서 봐야 할 때마다 연결 코드를 새로 만듭니다. 그 사이 과거 데이터는 계속 쌓입니다.</p>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><strong>서비스별 데이터 분산.</strong> 회원·주문·채팅·결제가 각자의 DB를 가집니다. 한 고객의 전체 모습은 어느 DB에도 없습니다.</li>
+        <li><strong>반복되는 통합 조회 개발.</strong> 마이페이지, 고객센터, 경영 지표가 요구될 때마다 여러 DB를 잇는 API나 배치를 새로 만듭니다. 같은 조인을 팀마다 다시 구현합니다.</li>
+        <li><strong>과거 데이터 증가.</strong> 수년치 이력이 운영 DB에 남아 용량과 조회 성능을 압박합니다. 지우자니 감사·분석에 필요하고, 두자니 서비스가 느려집니다.</li>
+      </ul>
+      <div class="note">통합 조회는 매번 새 프로젝트가 아니라, 한 곳에 모인 데이터를 SQL로 조회하는 일이어야 합니다.</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="네 개의 서비스가 각자의 DB를 갖고, 통합 조회 요구마다 여러 DB를 잇는 API가 따로 만들어지는 현재 구성">
+        <g>
+          <rect class="node" x="16" y="20" width="110" height="40" rx="6"></rect><text x="71" y="44" text-anchor="middle" class="b">회원 서비스</text>
+          <rect class="node" x="152" y="20" width="110" height="40" rx="6"></rect><text x="207" y="44" text-anchor="middle" class="b">주문 서비스</text>
+          <rect class="node" x="288" y="20" width="110" height="40" rx="6"></rect><text x="343" y="44" text-anchor="middle" class="b">채팅 서비스</text>
+          <rect class="node" x="424" y="20" width="110" height="40" rx="6"></rect><text x="479" y="44" text-anchor="middle" class="b">결제 서비스</text>
+          <line class="ln" x1="71" y1="60" x2="71" y2="92" marker-end="url(#arr)"></line>
+          <line class="ln" x1="207" y1="60" x2="207" y2="92" marker-end="url(#arr)"></line>
+          <line class="ln" x1="343" y1="60" x2="343" y2="92" marker-end="url(#arr)"></line>
+          <line class="ln" x1="479" y1="60" x2="479" y2="92" marker-end="url(#arr)"></line>
+          <rect class="node dim" x="16" y="94" width="110" height="44" rx="6"></rect><text x="71" y="112" text-anchor="middle">회원 DB</text><text x="71" y="128" text-anchor="middle" class="s">3년치 누적</text>
+          <rect class="node dim" x="152" y="94" width="110" height="44" rx="6"></rect><text x="207" y="112" text-anchor="middle">주문 DB</text><text x="207" y="128" text-anchor="middle" class="s">5년치 누적</text>
+          <rect class="node dim" x="288" y="94" width="110" height="44" rx="6"></rect><text x="343" y="112" text-anchor="middle">채팅 DB</text><text x="343" y="128" text-anchor="middle" class="s">매일 증가</text>
+          <rect class="node dim" x="424" y="94" width="110" height="44" rx="6"></rect><text x="479" y="112" text-anchor="middle">결제 DB</text><text x="479" y="128" text-anchor="middle" class="s">PG별 상이</text>
+        </g>
+        <g>
+          <rect class="node warm" x="60" y="200" width="130" height="44" rx="6"></rect><text x="125" y="218" text-anchor="middle" class="b">마이페이지 API</text><text x="125" y="234" text-anchor="middle" class="s">회원+주문+결제 조인</text>
+          <rect class="node warm" x="215" y="200" width="130" height="44" rx="6"></rect><text x="280" y="218" text-anchor="middle" class="b">고객센터 조회</text><text x="280" y="234" text-anchor="middle" class="s">주문+결제+채팅 조인</text>
+          <rect class="node warm" x="370" y="200" width="130" height="44" rx="6"></rect><text x="435" y="218" text-anchor="middle" class="b">경영 지표 배치</text><text x="435" y="234" text-anchor="middle" class="s">전 DB 추출 후 수작업</text>
+          <path class="ln warm dash" d="M100,200 L71,138"></path><path class="ln warm dash" d="M125,200 L207,138"></path><path class="ln warm dash" d="M150,200 L479,138"></path>
+          <path class="ln warm dash" d="M260,200 L207,138"></path><path class="ln warm dash" d="M280,200 L343,138"></path><path class="ln warm dash" d="M300,200 L479,138"></path>
+          <path class="ln warm dash" d="M400,200 L71,138"></path><path class="ln warm dash" d="M420,200 L207,138"></path><path class="ln warm dash" d="M450,200 L343,138"></path><path class="ln warm dash" d="M470,200 L479,138"></path>
+          <text x="280" y="278" text-anchor="middle" class="s">점선 하나하나가 팀마다 따로 개발·유지하는 연결 코드</text>
+        </g>
+      </svg>
+      <figcaption>현재 구성. 통합 조회 요구가 생길 때마다 운영 DB 4개를 직접 잇는 코드가 늘어납니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 3. ch2 -->
+<section class="slide" data-ch="2">
+  <header class="sh"><span>02 · 목표</span><span class="num"></span></header>
+  <h2>이번 구축으로 해결할 문제</h2>
+  <p class="lead">세 가지를 목표로 잡습니다. 장기 이력 보관, 운영 DB 부담 완화, 서비스 간 분석입니다.</p>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:18%">과제</th><th style="width:41%">현재 문제</th><th>목표</th></tr></thead>
+        <tbody>
+          <tr><td class="k">장기 이력 보관</td><td>수년치 거래·메시지가 운영 DB에 남아 있습니다. 삭제하면 감사·분석이 막히고, 두면 용량과 백업 시간이 늘어납니다.</td><td>전체 이력을 Lakehouse에 저장합니다. 운영 DB는 서비스에 필요한 최근 범위만 유지합니다.</td></tr>
+          <tr><td class="k">운영 DB 부담 완화</td><td>통계·추출·감사 쿼리가 서비스 DB에서 실행돼 실서비스 응답에 영향을 줍니다. 대량 조회는 야간 배치로 미룹니다.</td><td>분석·추출 쿼리는 Trino에서 실행합니다. 운영 DB는 업무 처리와 빠른 조회에 집중합니다.</td></tr>
+          <tr><td class="k">서비스 간 분석</td><td>DB마다 따로 뽑아 스프레드시트에서 결합합니다. 기준이 팀마다 달라 숫자가 맞지 않습니다.</td><td>회원·주문·채팅·결제를 한 SQL에서 조인합니다. 지표 정의를 테이블 하나로 통일합니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="note">범위에 넣지 않는 것: 실서비스 화면의 실시간 조회 대체, 업무 트랜잭션 처리. 이 둘은 운영 DB의 역할로 남깁니다(4장).</div>
+</section>
+
+<!-- 4. ch3 -->
+<section class="slide" data-ch="3">
+  <header class="sh"><span>03 · 개념</span><span class="num"></span></header>
+  <h2>Lakehouse란 무엇인가</h2>
+  <p class="lead">파일 저장소 위에 테이블 관리 기능을 얹고, SQL 엔진으로 조회하는 구조입니다. 세 층이 각각 다른 제품입니다.</p>
+  <div class="cols">
+    <div>
+      <p>Data Lake는 다양한 데이터를 <strong>파일로</strong> 쌓는 구조입니다. 파일만 쌓으면 다음 질문에 답하기 어렵습니다.</p>
+      <ul>
+        <li>어떤 파일들이 지금의 거래 테이블에 속하는가?</li>
+        <li>기록하는 중에 조회해도 되는가?</li>
+        <li>컬럼이 추가되면 기존 파일은 어떻게 읽는가?</li>
+        <li>수정 전 데이터를 다시 볼 수 있는가?</li>
+      </ul>
+      <p>Lakehouse는 이 질문에 답하는 <strong>테이블 포맷(Iceberg)</strong>을 파일 저장소 위에 두고, SQL 엔진(Trino)이 그 테이블을 읽게 한 구조입니다.</p>
+      <div class="note">이번 구축의 목적: Kafka로 수집한 업무 데이터를 MinIO에 지속적으로 보관하고, Iceberg 테이블로 관리하여 Trino에서 통합 조회한다.</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="SQL 엔진, 테이블 관리, 객체 저장소 세 층이 쌓인 Lakehouse 개념도">
+        <rect class="node hi" x="40" y="20" width="480" height="66" rx="8"></rect>
+        <text x="60" y="46" class="b">SQL 엔진 · Trino</text>
+        <text x="60" y="66" class="s">SQL을 받아 테이블을 찾고, 파일을 읽어 조인·집계</text>
+        <text x="500" y="56" text-anchor="end" class="z">조회</text>
+        <line class="ln" x1="280" y1="86" x2="280" y2="112" marker-end="url(#arr)"></line>
+        <text x="292" y="103" class="s">어떤 파일을 읽어야 하나?</text>
+        <rect class="node hi" x="40" y="114" width="480" height="66" rx="8"></rect>
+        <text x="60" y="140" class="b">테이블 관리 · Iceberg + Catalog</text>
+        <text x="60" y="160" class="s">스키마, 스냅샷, 파일 목록을 관리. 어떤 파일이 테이블인지 결정</text>
+        <text x="500" y="150" text-anchor="end" class="z">관리</text>
+        <line class="ln" x1="280" y1="180" x2="280" y2="206" marker-end="url(#arr)"></line>
+        <text x="292" y="197" class="s">파일은 어디에 있나?</text>
+        <rect class="node" x="40" y="208" width="480" height="66" rx="8"></rect>
+        <text x="60" y="234" class="b">객체 저장소 · MinIO</text>
+        <text x="60" y="254" class="s">Parquet 데이터 파일과 Iceberg 메타데이터 파일을 그대로 보관</text>
+        <text x="500" y="244" text-anchor="end" class="z" style="fill: var(--muted)">저장</text>
+      </svg>
+      <figcaption>세 층은 각각 교체할 수 있습니다. 저장소를 S3로 바꾸거나 엔진을 Spark로 바꿔도 테이블은 그대로입니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 5. ch4 -->
+<section class="slide" data-ch="4">
+  <header class="sh"><span>04 · 역할 분담</span><span class="num"></span></header>
+  <h2>기존 DB와 어떻게 역할을 나누는가</h2>
+  <p class="lead">업무 처리와 빠른 조회는 DB가, 장기 이력과 분석은 Lakehouse가 맡습니다. 나누는 기준은 데이터의 나이가 아니라 조회 요구사항입니다.</p>
+  <div class="cols">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>항목</th><th>운영 DB</th><th>Lakehouse</th></tr></thead>
+        <tbody>
+          <tr><td class="k">담당</td><td>업무 처리(트랜잭션), 화면 조회</td><td>장기 이력, 분석·집계·추출</td></tr>
+          <tr><td class="k">데이터 범위</td><td>서비스에 필요한 최근 범위</td><td>전체 이력</td></tr>
+          <tr><td class="k">응답 시간</td><td>수 ms, 예측 가능</td><td>수 초 ~ 수 분</td></tr>
+          <tr><td class="k">반영 시점</td><td>즉시</td><td>분 단위 지연</td></tr>
+          <tr><td class="k">데이터 지위</td><td><strong>거래 상태의 기준(원본)</strong></td><td>이벤트로 갱신되는 <strong>조회용 복제본</strong></td></tr>
+          <tr><td class="k">동시 사용자</td><td>전체 사용자</td><td>분석가·배치·내부 도구</td></tr>
+        </tbody>
+      </table>
+      <div class="note warm">결제 성공 여부나 취소 가능 여부 같은 <strong>업무 판단은 운영 DB를 기준</strong>으로 합니다. 복제본은 반영 지연이 있어 판단 근거로 쓰면 틀릴 수 있습니다.</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="운영 DB는 최근 데이터와 업무 처리를, Lakehouse는 전체 이력과 분석을 맡으며 이벤트로 연결되는 그림">
+        <text x="20" y="28" class="z">업무 처리 · 화면 조회</text>
+        <rect class="node" x="20" y="38" width="240" height="96" rx="8"></rect>
+        <text x="40" y="62" class="b">운영 DB (회원·주문·채팅·결제)</text>
+        <text x="40" y="82" class="s">거래 상태의 기준. 최근 범위만 유지</text>
+        <rect class="bar dim" x="40" y="96" width="140" height="10"></rect>
+        <rect class="bar" x="180" y="96" width="60" height="10"></rect>
+        <text x="40" y="124" class="s">← 과거 (정리)                     최근 →</text>
+
+        <text x="300" y="28" class="z">장기 이력 · 분석</text>
+        <rect class="node hi" x="300" y="38" width="240" height="96" rx="8"></rect>
+        <text x="320" y="62" class="b">Lakehouse (Iceberg 테이블)</text>
+        <text x="320" y="82" class="s">전체 이력. 조회용 복제본</text>
+        <rect class="bar" x="320" y="96" width="200" height="10"></rect>
+        <text x="320" y="124" class="s">← 전체 기간 보관 →</text>
+
+        <path class="ln hi" d="M140,134 L140,190 L300,190" marker-end="url(#arrA)"></path>
+        <text x="150" y="182" class="s">변경 이벤트 (Outbox·CDC → Kafka)</text>
+        <rect class="node hi" x="300" y="172" width="240" height="36" rx="6"></rect>
+        <text x="420" y="194" text-anchor="middle">모든 변경이 이력으로 누적</text>
+
+        <rect class="node warm" x="20" y="236" width="240" height="44" rx="6"></rect>
+        <text x="140" y="254" text-anchor="middle" class="b">사용자 화면 · 업무 판단</text>
+        <text x="140" y="270" text-anchor="middle" class="s">즉시 반영, ms 응답</text>
+        <rect class="node warm" x="300" y="236" width="240" height="44" rx="6"></rect>
+        <text x="420" y="254" text-anchor="middle" class="b">분석가 · 감사 · 데이터 추출</text>
+        <text x="420" y="270" text-anchor="middle" class="s">분 단위 지연 허용, 초~분 응답</text>
+        <line class="ln" x1="140" y1="236" x2="140" y2="212" marker-end="url(#arr)" transform="translate(0,0)"></line>
+        <line class="ln" x1="420" y1="236" x2="420" y2="212" marker-end="url(#arr)"></line>
+      </svg>
+      <figcaption>같은 데이터가 두 곳에 있어도 됩니다. 어느 쪽을 보느냐는 조회 요구사항이 정합니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 5b. ch4 (2/2) -->
+<section class="slide" data-ch="4b">
+  <header class="sh"><span>04 · 역할 분담 (서비스별)</span><span class="num"></span></header>
+  <h2>우리 서비스에서는 각각 무엇을 맡는가</h2>
+  <p class="lead">로그인·주문 확정·결제 승인처럼 즉시 정확해야 하는 판단은 기존 시스템이 계속 맡습니다. Lakehouse의 반영 지연이 서비스 처리에 닿지 않게 하는 구조입니다.</p>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:10%">서비스</th><th style="width:42%">기존 DB · 서비스 저장소가 담당</th><th>Lakehouse에서 활용</th></tr></thead>
+        <tbody>
+          <tr><td class="k">회원</td><td>로그인, 현재 회원 정보, 권한, 동의 상태</td><td>가입·탈퇴 추이, 고객군별 구매 분석</td></tr>
+          <tr><td class="k">주문</td><td>주문 생성, 현재 상태, 취소 가능 여부 판단</td><td>장기 주문 이력, 상품별 판매·취소 분석</td></tr>
+          <tr><td class="k">결제</td><td>승인·취소·환불 처리, 중복 결제 방지</td><td>결제 성공률, 주문과 결제의 불일치 점검</td></tr>
+          <tr><td class="k">채팅</td><td>메시지 전송·조회, 읽음 처리, 대화방 권한</td><td>이용량, 응답 시간, 정책에 따른 장기 이력</td></tr>
+          <tr><td class="k">파일</td><td>업로드·다운로드·미리보기·삭제 (저장소만 MinIO로)</td><td>파일 사용량과 접근 이력 분석 (필요 시)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="note">왼쪽 열의 기능은 이번 구축으로 <strong>바뀌지 않습니다.</strong> 오른쪽 열은 지금은 여러 DB를 따로 뒤져야 답할 수 있는 질문들입니다.</div>
+    <div class="note warm">시간이 지나며 바뀌는 값(회원 등급 등)은 해석을 정해야 합니다. "현재 VIP인 회원의 과거 구매"와 "구매 당시 VIP였던 회원의 구매"는 다른 분석입니다.</div>
+  </div>
+</section>
+
+<!-- 6. ch5 -->
+<section class="slide" data-ch="5">
+  <header class="sh"><span>05 · 전체 그림</span><span class="num"></span></header>
+  <h2>전사 데이터 플랫폼에서의 위치</h2>
+  <p class="lead">플랫폼은 Serving·Lakehouse·Search 세 계층으로 나뉩니다. 이번 구축 범위는 Lakehouse 계층과 그 수집 경로입니다.</p>
+  <div class="cols wide">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>계층</th><th>배치 기준</th><th>대표 용도</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Serving</td><td>짧고 예측 가능한 응답이 필요한 조회</td><td>대화방 메시지, 마이페이지 거래 목록</td></tr>
+          <tr><td class="k">Lakehouse <span class="pill hi">이번 범위</span></td><td>대규모 이력 보관과 SQL 처리</td><td>전체 거래 분석, 감사 조회, 데이터 추출</td></tr>
+          <tr><td class="k">Search</td><td>검색 조건과 관련도 기반 조회</td><td>메시지 본문, 상품명 검색</td></tr>
+        </tbody>
+      </table>
+      <ul style="margin-top: 12px">
+        <li>세 계층은 <strong>같은 Kafka 이벤트</strong>를 각자의 Consumer Group으로 읽습니다. 서로의 진행 상태에 영향을 주지 않습니다.</li>
+        <li>Lakehouse에는 처음부터 전체 이력을 쌓습니다. Serving·Search는 각자 필요한 범위만 유지합니다.</li>
+        <li>Serving(ScyllaDB)과 Search(OpenSearch)는 데이터량과 조회 패턴을 확인한 뒤 채택 여부를 정합니다.</li>
+      </ul>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 640 330" role="img" aria-label="업무 서비스에서 Kafka로 이벤트가 흘러 Serving, Lakehouse, Search 세 계층으로 나뉘어 저장되고 Query API가 각 계층을 조회하는 전체 플랫폼 구성도">
+        <rect class="node" x="20" y="20" width="150" height="46" rx="6"></rect>
+        <text x="95" y="39" text-anchor="middle" class="b">업무 서비스 · 업무 DB</text>
+        <text x="95" y="56" text-anchor="middle" class="s">회원·주문·채팅·결제</text>
+        <line class="ln" x1="170" y1="43" x2="212" y2="43" marker-end="url(#arr)"></line>
+        <text x="191" y="34" text-anchor="middle" class="s">Outbox / CDC</text>
+        <rect class="node warm" x="214" y="20" width="96" height="46" rx="6"></rect>
+        <text x="262" y="48" text-anchor="middle" class="b">Kafka</text>
+
+        <path class="ln" d="M310,43 L360,43 L360,100 L400,100" marker-end="url(#arr)"></path>
+        <path class="ln hi" d="M360,100 L360,190 L400,190" marker-end="url(#arrA)"></path>
+        <path class="ln" d="M360,190 L360,280 L400,280" marker-end="url(#arr)"></path>
+
+        <rect class="node" x="402" y="80" width="118" height="40" rx="6"></rect>
+        <text x="461" y="97" text-anchor="middle">Serving Consumer</text><text x="461" y="112" text-anchor="middle" class="s">최근 범위만 반영</text>
+        <line class="ln" x1="520" y1="100" x2="548" y2="100" marker-end="url(#arr)"></line>
+        <rect class="node dim" x="550" y="80" width="80" height="40" rx="6"></rect><text x="590" y="104" text-anchor="middle">ScyllaDB</text>
+
+        <rect class="zone" x="392" y="140" width="246" height="102" rx="8"></rect>
+        <text x="404" y="156" class="z">이번 구축 범위 · Lakehouse</text>
+        <rect class="node hi" x="402" y="170" width="118" height="40" rx="6"></rect>
+        <text x="461" y="187" text-anchor="middle">Iceberg Writer</text><text x="461" y="202" text-anchor="middle" class="s">전체 이력 적재</text>
+        <line class="ln hi" x1="520" y1="190" x2="548" y2="190" marker-end="url(#arrA)"></line>
+        <rect class="node hi" x="550" y="164" width="80" height="52" rx="6"></rect>
+        <text x="590" y="182" text-anchor="middle">Iceberg 테이블</text><text x="590" y="197" text-anchor="middle" class="s">MinIO + Catalog</text>
+        <text x="590" y="232" text-anchor="middle" class="s">Trino가 조회</text>
+
+        <rect class="node" x="402" y="260" width="118" height="40" rx="6"></rect>
+        <text x="461" y="277" text-anchor="middle">Search Consumer</text><text x="461" y="292" text-anchor="middle" class="s">본문 색인</text>
+        <line class="ln" x1="520" y1="280" x2="548" y2="280" marker-end="url(#arr)"></line>
+        <rect class="node dim" x="550" y="260" width="80" height="40" rx="6"></rect><text x="590" y="284" text-anchor="middle">OpenSearch</text>
+
+        <rect class="node" x="20" y="150" width="150" height="120" rx="6"></rect>
+        <text x="95" y="172" text-anchor="middle" class="b">Query API</text>
+        <text x="40" y="196">→ ScyllaDB</text><text x="40" y="216" style="fill: var(--accent)">→ Trino</text><text x="40" y="236">→ OpenSearch</text>
+        <text x="95" y="258" text-anchor="middle" class="s">조회 유형별로 계층 선택</text>
+        <path class="ln dash" d="M170,196 L300,196 L300,100 L400,100"></path>
+        <path class="ln hi dash" d="M170,216 L320,216 L320,232 L560,232"></path>
+        <path class="ln dash" d="M170,236 L300,236 L300,300 L402,300"></path>
+      </svg>
+      <figcaption>Trino는 MinIO 뒤에 직렬로 붙는 것이 아니라, Catalog에서 테이블을 찾고 저장소의 파일을 읽는 구조입니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 7. ch6 -->
+<section class="slide" data-ch="6">
+  <header class="sh"><span>06 · 구성 기술</span><span class="num"></span></header>
+  <h2>Lakehouse를 구성하는 기술</h2>
+  <p class="lead">일곱 가지 구성요소가 각각 하나의 질문에 답합니다. Kafka·MinIO·Iceberg·Trino만으로는 완성되지 않고, Writer와 Catalog가 더 필요합니다.</p>
+  <div class="cols wide">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>구성요소</th><th>정의</th><th>이번 플랫폼에서의 역할</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Kafka</td><td>이벤트를 저장하고 전달하는 플랫폼</td><td>업무 시스템의 변경을 수집 경로로 전달</td></tr>
+          <tr><td class="k">Writer <span class="pill">Kafka Connect / Flink</span></td><td>데이터를 옮기거나 처리하는 실행 도구</td><td>Kafka 이벤트를 Iceberg 테이블에 기록</td></tr>
+          <tr><td class="k">MinIO</td><td>S3 호환 객체 저장소</td><td>데이터 파일과 Iceberg 메타데이터 파일 보관</td></tr>
+          <tr><td class="k">Parquet</td><td>컬럼형 데이터 파일 포맷</td><td>실제 거래·메시지 데이터를 효율적으로 저장</td></tr>
+          <tr><td class="k">Iceberg</td><td>대규모 분석용 테이블 포맷</td><td>여러 파일을 하나의 일관된 테이블로 관리</td></tr>
+          <tr><td class="k">Iceberg Catalog</td><td>테이블 등록·위치 관리 기능</td><td>테이블 이름으로 현재 메타데이터를 찾게 함</td></tr>
+          <tr><td class="k">Trino</td><td>분산 SQL 쿼리 엔진</td><td>Iceberg 테이블 조회·조인·집계</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 330" role="img" aria-label="일곱 구성요소를 질문과 담당으로 배치한 역할 지도">
+        <text x="20" y="24" class="z">질문 → 담당</text>
+        <g>
+          <text x="20" y="58" class="s">데이터가 어디에서 들어오나?</text><rect class="node warm" x="230" y="40" width="90" height="28" rx="6"></rect><text x="275" y="59" text-anchor="middle" class="b">Kafka</text>
+          <text x="20" y="98" class="s">누가 테이블에 기록하나?</text><rect class="node hi" x="230" y="80" width="90" height="28" rx="6"></rect><text x="275" y="99" text-anchor="middle" class="b">Writer</text>
+          <text x="20" y="138" class="s">실제 파일은 어디에 있나?</text><rect class="node" x="230" y="120" width="90" height="28" rx="6"></rect><text x="275" y="139" text-anchor="middle" class="b">MinIO</text>
+          <text x="20" y="178" class="s">파일 내부는 어떤 형식인가?</text><rect class="node" x="230" y="160" width="90" height="28" rx="6"></rect><text x="275" y="179" text-anchor="middle" class="b">Parquet</text>
+          <text x="20" y="218" class="s">어떤 파일들이 한 테이블인가?</text><rect class="node hi" x="230" y="200" width="90" height="28" rx="6"></rect><text x="275" y="219" text-anchor="middle" class="b">Iceberg</text>
+          <text x="20" y="258" class="s">테이블의 현재 메타데이터는 어디?</text><rect class="node hi" x="230" y="240" width="90" height="28" rx="6"></rect><text x="275" y="259" text-anchor="middle" class="b">Catalog</text>
+          <text x="20" y="298" class="s">누가 SQL을 실행하나?</text><rect class="node hi" x="230" y="280" width="90" height="28" rx="6"></rect><text x="275" y="299" text-anchor="middle" class="b">Trino</text>
+        </g>
+        <g>
+          <path class="ln" d="M320,54 L360,54 L360,94 L320,94" marker-end="url(#arr)"></path>
+          <text x="366" y="78" class="s">읽는다</text>
+          <path class="ln" d="M320,134 L400,134 L400,174 L320,174" marker-end="url(#arr)"></path>
+          <text x="406" y="158" class="s">담는다</text>
+          <path class="ln hi" d="M320,214 L440,214 L440,134 L320,134" marker-end="url(#arrA)"></path>
+          <text x="446" y="178" class="s">파일 목록 관리</text>
+          <path class="ln hi" d="M320,254 L480,254 L480,214 L320,214" marker-end="url(#arrA)"></path>
+          <text x="486" y="238" class="s">위치 등록</text>
+          <path class="ln hi" d="M320,294 L520,294 L520,254 L320,254" marker-end="url(#arrA)"></path>
+          <text x="470" y="316" class="s">이름으로 찾는다</text>
+        </g>
+      </svg>
+      <figcaption>Iceberg는 별도 서버가 아닙니다. Writer와 Trino가 같은 포맷 규칙과 같은 Catalog를 쓰는 방식입니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 8. ch7 -->
+<section class="slide" data-ch="7">
+  <header class="sh"><span>07 · 처리 흐름</span><span class="num"></span></header>
+  <h2>데이터는 어떻게 저장되고 조회되는가</h2>
+  <p class="lead">주문 이벤트 하나가 Kafka에 들어와 Trino에서 조회되기까지의 경로입니다. 파일 저장과 테이블 커밋은 다른 단계입니다.</p>
+  <div class="cols">
+    <div>
+      <pre>{
+  "eventId": "evt-1001",
+  "eventType": "ORDER_CREATED",
+  "transactionId": "order-2001",
+  "customerId": "customer-3001",
+  "amount": 35000,
+  "occurredAt": "2026-09-13T10:00:00+09:00"
+}</pre>
+      <ol class="steps" style="margin-top: 12px">
+        <li><span class="i">1</span><span><strong>수집.</strong> Writer가 Kafka에서 이벤트를 읽습니다. 읽은 위치(오프셋)를 추적합니다.</span></li>
+        <li><span class="i">2</span><span><strong>변환.</strong> 필드와 타입을 테이블 컬럼에 맞춥니다.</span></li>
+        <li><span class="i">3</span><span><strong>파일 생성.</strong> 일정량을 모아 Parquet 파일을 만듭니다.</span></li>
+        <li><span class="i">4</span><span><strong>저장.</strong> MinIO에 파일을 올립니다. 아직 테이블에는 보이지 않습니다.</span></li>
+        <li><span class="i">5</span><span><strong>커밋.</strong> Iceberg 테이블에 새 스냅샷을 확정합니다. 이 순간부터 Trino에서 보입니다.</span></li>
+      </ol>
+      <pre style="margin-top: 12px">SELECT customer_id, SUM(amount) AS total_amount
+FROM lakehouse.commerce.order_events
+WHERE event_type = 'ORDER_CREATED'
+GROUP BY customer_id;</pre>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 360" role="img" aria-label="주문 이벤트가 Kafka, Writer, MinIO와 Catalog를 거쳐 Trino에서 조회되는 처리 흐름">
+        <rect class="node" x="20" y="20" width="120" height="40" rx="6"></rect><text x="80" y="44" text-anchor="middle" class="b">주문 서비스</text>
+        <line class="ln" x1="140" y1="40" x2="178" y2="40" marker-end="url(#arr)"></line>
+        <rect class="node warm" x="180" y="14" width="160" height="52" rx="6"></rect>
+        <text x="260" y="34" text-anchor="middle" class="b">Kafka · order.events</text>
+        <text x="260" y="52" text-anchor="middle" class="m">P0  40:생성 41:결제 42:취소</text>
+        <line class="ln" x1="260" y1="66" x2="260" y2="94" marker-end="url(#arr)"></line>
+        <text x="272" y="85" class="s">① 읽기 (오프셋 추적)</text>
+        <rect class="node hi" x="160" y="96" width="200" height="86" rx="6"></rect>
+        <text x="260" y="116" text-anchor="middle" class="b">Writer (Kafka Connect Iceberg Sink)</text>
+        <text x="260" y="136" text-anchor="middle" class="s">② 변환  ③ 배치로 묶어 Parquet 생성</text>
+        <text x="260" y="156" text-anchor="middle" class="s">④ 파일 업로드   ⑤ 테이블 커밋</text>
+        <text x="260" y="174" text-anchor="middle" class="s">적재 주기 = 반영 지연 (예: 1~5분)</text>
+        <path class="ln" d="M200,182 L200,220 L118,220" marker-end="url(#arr)"></path>
+        <text x="130" y="212" class="s">④ 파일</text>
+        <path class="ln hi" d="M320,182 L320,220 L402,220" marker-end="url(#arrA)"></path>
+        <text x="330" y="212" class="s">⑤ 커밋</text>
+        <rect class="node" x="20" y="200" width="98" height="98" rx="6"></rect>
+        <text x="69" y="222" text-anchor="middle" class="b">MinIO</text>
+        <text x="69" y="242" text-anchor="middle" class="s">bucket: lakehouse</text>
+        <text x="69" y="260" text-anchor="middle" class="m">data/*.parquet</text>
+        <text x="69" y="276" text-anchor="middle" class="m">metadata/*.json</text>
+        <rect class="node hi" x="404" y="200" width="136" height="56" rx="6"></rect>
+        <text x="472" y="222" text-anchor="middle" class="b">Iceberg Catalog</text>
+        <text x="472" y="242" text-anchor="middle" class="s">order_events → 현재 metadata 위치</text>
+        <rect class="node hi" x="180" y="300" width="200" height="44" rx="6"></rect>
+        <text x="280" y="318" text-anchor="middle" class="b">Trino</text>
+        <text x="280" y="336" text-anchor="middle" class="s">테이블 찾기 → 파일 결정 → 읽기·집계</text>
+        <path class="ln hi" d="M380,322 L472,322 L472,256" marker-end="url(#arrA)"></path>
+        <text x="392" y="314" class="s">테이블 위치 확인</text>
+        <path class="ln" d="M180,322 L69,322 L69,298" marker-end="url(#arr)"></path>
+        <text x="80" y="314" class="s">파일 읽기</text>
+      </svg>
+      <figcaption>MinIO에 파일이 올라간 것과 테이블에 반영된 것은 다릅니다. ⑤ 커밋이 끝나야 조회됩니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 9. ch8 -->
+<section class="slide" data-ch="8">
+  <header class="sh"><span>08 · 활용 사례 ①</span><span class="num"></span></header>
+  <h2>주문·결제 통합 분석</h2>
+  <p class="lead">첫 번째 활용 사례이자 PoC 대상입니다. 주문·결제·환불을 원본 의미대로 쌓고, 화면용 통합 모델은 그 위에서 가공합니다.</p>
+  <div class="cols">
+    <div>
+      <h3>답하려는 질문</h3>
+      <ul>
+        <li><strong>결제 성공률.</strong> 결제 시도 대비 성공 비율을 PG·결제수단·시간대별로 봅니다.</li>
+        <li><strong>취소·환불 현황.</strong> 주문 취소, 부분 환불, 여러 차례 환불을 건수와 금액으로 집계합니다.</li>
+        <li><strong>주문·결제 불일치 후보.</strong> 주문은 결제 완료인데 결제 성공 이벤트가 없는 건, 환불 합계가 결제액을 넘는 건을 찾습니다.</li>
+      </ul>
+      <h3>테이블 3단계 (Iceberg 안의 논리 구분)</h3>
+      <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">① 수집 이력</td><td><code>order_events</code> <code>payment_events</code> <code>refund_events</code></td><td>문제 추적과 재처리. 각 의미대로 보존</td></tr>
+          <tr><td class="k">② 정제 데이터</td><td><code>orders</code> <code>payment_attempts</code> <code>refunds</code></td><td>중복·타입·상태·식별자 정리. 일관된 업무 단위</td></tr>
+          <tr><td class="k">③ 분석 테이블</td><td><code>daily_payment_summary</code> <code>order_payment_mismatch</code></td><td>반복 조회를 쉽게. 마이페이지용 <code>unified_transaction</code>도 여기</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note warm" style="margin-top: 8px">한 주문에 결제 시도와 환불이 여러 건 붙습니다. 단순 조인 후 합산하면 중복 집계됩니다. 주문·결제 시도·환불을 각각의 단위로 두고 집계 규칙을 정합니다.</div>
+      <div class="note">불일치 후보는 반영 지연 때문에 일시적으로 생길 수 있습니다. 유예 시간을 두고 원본 시스템에서 재확인한 뒤 운영 조치로 연결합니다.</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 320" role="img" aria-label="주문 하나에 여러 결제와 여러 환불이 연결되고, 원본 테이블에서 통합 조회 모델과 분석 지표가 가공되는 연결도">
+        <text x="20" y="24" class="z">① 수집 이력 (이벤트)</text>
+        <rect class="node" x="20" y="36" width="140" height="64" rx="6"></rect>
+        <text x="90" y="56" text-anchor="middle" class="b">order_events</text>
+        <text x="90" y="74" text-anchor="middle" class="m">order_id · status</text>
+        <text x="90" y="90" text-anchor="middle" class="s">생성 → 결제완료 → 취소</text>
+        <line class="ln" x1="160" y1="68" x2="208" y2="68" marker-end="url(#arr)"></line>
+        <text x="184" y="60" text-anchor="middle" class="s">1 : n</text>
+        <rect class="node" x="210" y="36" width="140" height="64" rx="6"></rect>
+        <text x="280" y="56" text-anchor="middle" class="b">payment_events</text>
+        <text x="280" y="74" text-anchor="middle" class="m">payment_id · order_id</text>
+        <text x="280" y="90" text-anchor="middle" class="s">시도 → 성공 / 실패</text>
+        <line class="ln" x1="350" y1="68" x2="398" y2="68" marker-end="url(#arr)"></line>
+        <text x="374" y="60" text-anchor="middle" class="s">1 : n</text>
+        <rect class="node" x="400" y="36" width="140" height="64" rx="6"></rect>
+        <text x="470" y="56" text-anchor="middle" class="b">refund_events</text>
+        <text x="470" y="74" text-anchor="middle" class="m">refund_id · payment_id</text>
+        <text x="470" y="90" text-anchor="middle" class="s">부분 환불 반복 가능</text>
+
+        <path class="ln hi" d="M90,100 L90,150 L150,150" marker-end="url(#arrA)"></path>
+        <path class="ln hi" d="M280,100 L280,150 L150,150"></path>
+        <path class="ln hi" d="M470,100 L470,150 L280,150"></path>
+        <text x="300" y="142" class="s">Trino SQL로 조인·가공</text>
+
+        <text x="20" y="200" class="z">② 정제 → 통합 조회 모델</text>
+        <rect class="node hi" x="20" y="210" width="230" height="64" rx="6"></rect>
+        <text x="135" y="232" text-anchor="middle" class="b">unified_transaction</text>
+        <text x="135" y="250" text-anchor="middle" class="s">마이페이지 거래 목록용 조회 모델</text>
+        <text x="135" y="266" text-anchor="middle" class="s">통화·정밀도·고객 ID 매핑 포함</text>
+        <path class="ln hi" d="M150,150 L150,208" marker-end="url(#arrA)"></path>
+
+        <text x="290" y="200" class="z">③ 분석 테이블</text>
+        <rect class="node hi" x="290" y="210" width="250" height="64" rx="6"></rect>
+        <text x="415" y="232" text-anchor="middle" class="b">결제 성공률 · 취소/환불 · 불일치 후보</text>
+        <text x="415" y="250" text-anchor="middle" class="s">성공률 = 성공 / 시도 (PG·수단·시간대별)</text>
+        <text x="415" y="266" text-anchor="middle" class="s">불일치 = 주문 PAID ∧ 결제 성공 없음</text>
+        <path class="ln hi" d="M280,150 L415,150 L415,208" marker-end="url(#arrA)"></path>
+        <text x="280" y="304" text-anchor="middle" class="s">같은 고객·같은 거래를 어떻게 식별하는가가 공통 필드 이름보다 중요합니다</text>
+      </svg>
+      <figcaption>주문·결제·환불은 1:n:n 관계입니다. 원본을 보존해야 부분 환불과 재결제를 정확히 셀 수 있습니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 10. ch9 -->
+<section class="slide" data-ch="9">
+  <header class="sh"><span>09 · 활용 사례 ②</span><span class="num"></span></header>
+  <h2>회원·채팅 데이터 분석</h2>
+  <p class="lead">고객 한 명의 이용 흐름을 시간순으로 이어 봅니다. 회원 DB와 채팅 DB에 나뉘어 있던 사건들이 Lakehouse에서는 한 타임라인이 됩니다.</p>
+  <div class="cols">
+    <div>
+      <h3>답하려는 질문</h3>
+      <ul>
+        <li><strong>가입 후 구매.</strong> 가입 후 N일 안에 첫 구매에 이르는 비율과 소요 시간.</li>
+        <li><strong>재구매.</strong> 첫 구매 후 재구매율, 재구매까지의 간격, 채팅 문의가 재구매에 미치는 영향.</li>
+        <li><strong>채팅 이용량.</strong> 대화방·메시지 수, 시간대별 분포, 담당자별 처리량.</li>
+        <li><strong>응답 시간.</strong> 고객 문의 시각부터 첫 응답까지의 시간 분포.</li>
+      </ul>
+      <h3>채팅은 메타데이터부터</h3>
+      <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">대화방 ID · 메시지 ID · 발송 시각</td><td>이용량과 활동 시간대</td></tr>
+          <tr><td class="k">발송 · 수신 · 실패 이벤트</td><td>전달 품질 분석</td></tr>
+          <tr><td class="k">상담 시작 · 첫 응답 시각</td><td>상담 채팅의 응답 시간</td></tr>
+          <tr><td class="k">첨부파일 ID · 크기 · 종류</td><td>파일 사용량 분석</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <ul style="margin-top: 8px">
+        <li>본문의 장기 보관·검색·요약은 접근 권한과 삭제 정책을 정한 뒤 확장합니다. 본문 검색은 Search 계층 몫입니다.</li>
+        <li>회원 식별자는 시스템마다 다를 수 있습니다. <code>customer_id</code> 매핑 테이블을 먼저 만듭니다.</li>
+      </ul>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="가입, 첫 구매, 채팅 문의, 재구매로 이어지는 고객 이용 흐름과 각 단계에서 측정하는 지표">
+        <line class="ln" x1="30" y1="120" x2="540" y2="120" marker-end="url(#arr)"></line>
+        <text x="540" y="106" text-anchor="end" class="s">시간 →</text>
+        <g>
+          <circle cx="70" cy="120" r="7" class="bar"></circle>
+          <rect class="node" x="20" y="36" width="100" height="56" rx="6"></rect>
+          <text x="70" y="56" text-anchor="middle" class="b">가입</text><text x="70" y="74" text-anchor="middle" class="s">회원 DB 이벤트</text>
+          <line class="ln" x1="70" y1="92" x2="70" y2="110"></line>
+        </g>
+        <g>
+          <circle cx="200" cy="120" r="7" class="bar"></circle>
+          <rect class="node" x="150" y="36" width="100" height="56" rx="6"></rect>
+          <text x="200" y="56" text-anchor="middle" class="b">첫 구매</text><text x="200" y="74" text-anchor="middle" class="s">주문·결제 이벤트</text>
+          <line class="ln" x1="200" y1="92" x2="200" y2="110"></line>
+        </g>
+        <g>
+          <circle cx="330" cy="120" r="7" class="bar warm"></circle>
+          <rect class="node warm" x="280" y="36" width="100" height="56" rx="6"></rect>
+          <text x="330" y="56" text-anchor="middle" class="b">채팅 문의</text><text x="330" y="74" text-anchor="middle" class="s">채팅 메타 이벤트</text>
+          <line class="ln" x1="330" y1="92" x2="330" y2="110"></line>
+        </g>
+        <g>
+          <circle cx="460" cy="120" r="7" class="bar"></circle>
+          <rect class="node" x="410" y="36" width="100" height="56" rx="6"></rect>
+          <text x="460" y="56" text-anchor="middle" class="b">재구매</text><text x="460" y="74" text-anchor="middle" class="s">주문·결제 이벤트</text>
+          <line class="ln" x1="460" y1="92" x2="460" y2="110"></line>
+        </g>
+        <g>
+          <path class="ln hi" d="M70,140 L70,160 L200,160 L200,140" marker-end="url(#arrA)" marker-start="url(#arrA)"></path>
+          <text x="135" y="178" text-anchor="middle" class="s">가입 → 첫 구매 소요 시간 · 전환율</text>
+          <path class="ln hi" d="M200,196 L200,216 L460,216 L460,196" marker-end="url(#arrA)" marker-start="url(#arrA)"></path>
+          <text x="330" y="234" text-anchor="middle" class="s">재구매율 · 재구매 간격 · 문의 여부별 비교</text>
+          <path class="ln warm" d="M318,140 L318,254 L342,254 L342,140" marker-end="url(#arrW)" marker-start="url(#arrW)"></path>
+          <text x="330" y="276" text-anchor="middle" class="s">문의 → 첫 응답 시간</text>
+        </g>
+      </svg>
+      <figcaption>한 고객의 사건들이 시간순으로 이어져야 "문의한 고객이 재구매하는가" 같은 질문에 답할 수 있습니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 11. ch10 -->
+<section class="slide" data-ch="10">
+  <header class="sh"><span>10 · 활용 사례 ③</span><span class="num"></span></header>
+  <h2>콜드 데이터 이관</h2>
+  <p class="lead">운영 DB의 오래된 데이터를 Lakehouse로 옮기고 DB에서 정리합니다. 삭제보다 검증이 먼저입니다.</p>
+  <div class="cols">
+    <div>
+      <ol class="steps">
+        <li><span class="i">1</span><span><strong>대상 선정.</strong> 기준을 명시합니다. 예: 마지막 변경 후 24개월 경과, 업무 종료 상태(배송 완료·환불 완료). 법정 보관 의무가 있는 항목은 제외합니다.</span></li>
+        <li><span class="i">2</span><span><strong>복사.</strong> 초기 적재로 이미 Lakehouse에 있으면 건너뜁니다. 없으면 배치로 복사합니다.</span></li>
+        <li><span class="i">3</span><span><strong>검증.</strong> 건수·금액 합계·샘플 레코드를 DB와 대조합니다. 불일치가 하나라도 있으면 4단계로 가지 않습니다.</span></li>
+        <li><span class="i">4</span><span><strong>DB 정리.</strong> 아카이브 플래그 → 유예 기간 → 삭제 순서로 진행합니다. 되돌릴 수 있는 단계를 둡니다.</span></li>
+        <li><span class="i">5</span><span><strong>과거 조회 경로.</strong> Query API가 조회 기간에 따라 DB 또는 Trino로 보냅니다. 응답 시간 차이를 화면에 반영합니다.</span></li>
+      </ol>
+      <div class="note warm">Serving 저장소(ScyllaDB 등)에서 TTL로 만료시키기 전에 Lakehouse 적재 완료를 확인하는 기준이 필요합니다. 만료가 적재보다 빠르면 데이터가 사라집니다.</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 320" role="img" aria-label="대상 선정, 복사, 검증, DB 정리, 과거 조회 경로 다섯 단계의 콜드 데이터 이관 절차">
+        <rect class="node" x="20" y="20" width="240" height="70" rx="6"></rect>
+        <text x="40" y="44" class="b">운영 DB (주문)</text>
+        <rect class="bar dim" x="40" y="56" width="120" height="12"></rect>
+        <rect class="bar" x="160" y="56" width="80" height="12"></rect>
+        <text x="40" y="84" class="s">콜드 (24개월↑)          핫</text>
+        <rect class="node hi" x="300" y="20" width="240" height="70" rx="6"></rect>
+        <text x="320" y="44" class="b">Lakehouse (order_events)</text>
+        <rect class="bar" x="320" y="56" width="200" height="12"></rect>
+        <text x="320" y="84" class="s">전체 이력</text>
+
+        <path class="ln hi" d="M100,90 L100,130 L320,130" marker-end="url(#arrA)"></path>
+        <rect class="node" x="120" y="112" width="60" height="26" rx="13"></rect><text x="150" y="129" text-anchor="middle" class="m">① 선정</text>
+        <rect class="node" x="200" y="112" width="60" height="26" rx="13"></rect><text x="230" y="129" text-anchor="middle" class="m">② 복사</text>
+
+        <rect class="node hi" x="300" y="150" width="240" height="50" rx="6"></rect>
+        <text x="420" y="170" text-anchor="middle" class="b">③ 검증</text>
+        <text x="420" y="188" text-anchor="middle" class="s">건수 · 금액 합계 · 샘플 대조 → 모두 일치해야 진행</text>
+        <path class="ln hi" d="M420,90 L420,148" marker-end="url(#arrA)"></path>
+
+        <path class="ln" d="M300,175 L100,175 L100,214" marker-end="url(#arr)"></path>
+        <rect class="node warm" x="20" y="216" width="160" height="50" rx="6"></rect>
+        <text x="100" y="236" text-anchor="middle" class="b">④ DB 정리</text>
+        <text x="100" y="254" text-anchor="middle" class="s">플래그 → 유예 → 삭제</text>
+
+        <rect class="node" x="300" y="228" width="240" height="70" rx="6"></rect>
+        <text x="420" y="250" text-anchor="middle" class="b">⑤ 과거 조회 경로 (Query API)</text>
+        <text x="420" y="270" text-anchor="middle" class="s">최근 24개월 → DB (ms)</text>
+        <text x="420" y="288" text-anchor="middle" class="s">그 이전 → Trino (초 단위, 화면에 표시)</text>
+        <path class="ln" d="M420,200 L420,226" marker-end="url(#arr)"></path>
+      </svg>
+      <figcaption>③ 검증을 통과한 데이터만 ④로 갑니다. ⑤ 조회 경로가 준비되기 전에는 DB에서 지우지 않습니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ch10 (2/2) -->
+<section class="slide" data-ch="10b">
+  <header class="sh"><span>10 · 활용 사례 ③ (계속)</span><span class="num"></span></header>
+  <h2>콜드 데이터 이관 — 기준, 방식, 삭제 전 확인</h2>
+  <p class="lead">콜드 데이터는 "오래된 데이터"가 아니라 조회 빈도가 낮고, 변경이 드물며, 조회 지연을 허용할 수 있는 데이터입니다. 세 조건을 모두 만족해야 합니다.</p>
+  <div class="cols even">
+    <div>
+      <h3>이관 기준 예시 (정책 설명용)</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>데이터</th><th>기준</th><th>확인할 점</th></tr></thead>
+        <tbody>
+          <tr><td class="k">이벤트 이력</td><td>발생 후 6개월</td><td>재처리·중복 확인에 아직 필요한지</td></tr>
+          <tr><td class="k">완료된 거래</td><td>완료 후 1년</td><td>취소·환불·정정 가능성이 남았는지</td></tr>
+          <tr><td class="k">Audit Log</td><td>발생 후 3개월</td><td>조회 성능·보관·접근 정책</td></tr>
+          <tr><td class="k">활동 로그</td><td>발생 후 1개월</td><td>서비스 화면이 직접 쓰는지</td></tr>
+          <tr><td class="k">메시지</td><td>오래되고 조회 드묾</td><td>과거 메시지도 즉시 표시해야 하는지</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p style="margin-top: 8px; font-size: 14px">3년 전 거래라도 마이페이지에서 즉시 보여야 한다면, 그 화면에 필요한 <strong>요약은 DB에 남기고 상세 이력만</strong> 옮깁니다.</p>
+      <h3>이관 방식 — 처음에는 Kafka 없이도 가능</h3>
+      <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">정기 배치</td><td>변경이 끝난 과거 데이터를 기간별로 나눠 매일·매주 이관. <strong>가장 단순, 첫 시작으로 적합</strong></td></tr>
+          <tr><td class="k">초기 적재 + CDC</td><td>과거 데이터도 수정되며 변경분을 계속 반영해야 할 때</td></tr>
+          <tr><td class="k">Kafka 병행 적재</td><td>신규 이벤트를 발생 시점부터 Lakehouse에도 보관</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+    <div>
+      <h3>삭제 전 확인 목록</h3>
+      <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">이관 범위</td><td>어떤 기간·ID까지 옮겼는지 기록</td></tr>
+          <tr><td class="k">데이터 일치</td><td>건수 + ID 누락·중복 + 금액 합계</td></tr>
+          <tr><td class="k">변경 충돌</td><td>복사 이후 원본이 수정되지 않았는지 (상태·최종 변경 시각·버전으로 판정)</td></tr>
+          <tr><td class="k">조회 가능</td><td>Trino에서 실제 필요한 조건으로 조회</td></tr>
+          <tr><td class="k">복구 가능</td><td>백업과 복구 절차 확인</td></tr>
+          <tr><td class="k">서비스 영향</td><td>기존 API가 삭제된 데이터를 DB에서 계속 찾지 않는지</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note warm" style="margin-top: 10px"><strong>DB 정리용 삭제가 CDC를 타고 Lakehouse까지 지우면 안 됩니다.</strong> "보관 기간 종료에 따른 DB 정리"와 "실제 삭제 요청(개인정보 등)"을 이벤트 종류로 구분하고, 전자는 아카이브에서 유지, 후자는 모든 저장소에 전파합니다.</div>
+      <ul style="margin-top: 10px; font-size: 14px">
+        <li>DB에서 행을 지워도 디스크가 즉시 줄지 않을 수 있습니다. 공간 회수 방법은 DB 종류별로 따로 확인합니다.</li>
+        <li>최근·과거를 한 화면에서 이어 조회하면 경계 구간의 누락·중복, 정렬, 페이지 처리를 설계해야 합니다. 초기에는 과거 이력 조회·다운로드를 <strong>별도 기능</strong>으로 제공하는 편이 쉽습니다.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 12. ch11 -->
+<section class="slide" data-ch="11">
+  <header class="sh"><span>11 · 파일 서비스</span><span class="num"></span></header>
+  <h2>기존 파일 서비스와의 관계</h2>
+  <p class="lead">파일 업로드·다운로드 애플리케이션은 그대로 두고, 저장소만 MinIO로 옮깁니다. 파일용과 Lakehouse용 Bucket은 분리합니다.</p>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><strong>파일 애플리케이션 유지.</strong> 권한 확인, 메타데이터, 바이러스 검사 같은 로직은 지금 앱에 그대로 둡니다. 바뀌는 것은 "어디에 저장하느냐"뿐입니다.</li>
+        <li><strong>MinIO 저장 전환.</strong> 로컬 디스크·NAS 대신 S3 API로 저장합니다. 앱은 S3 SDK 한 층만 추가합니다.</li>
+        <li><strong>Bucket 분리.</strong> <code>files</code>(첨부·이미지)와 <code>lakehouse</code>(Parquet·메타데이터)를 나눕니다. 접근 권한, 보관 정책, 버전 관리를 따로 둘 수 있습니다.</li>
+        <li><strong>공유 시 고려.</strong> 같은 MinIO 클러스터를 쓰면 용량과 IO를 나눠 씁니다. 대량 분석 쿼리가 파일 다운로드를 느리게 하지 않는지 확인합니다.</li>
+      </ul>
+      <h3>데이터·기능별 우선 배치</h3>
+      <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">주문·결제 현재 상태, 이벤트 처리 상태</td><td>기존 DB</td></tr>
+          <tr><td class="k">이벤트 장기 이력 · 통합 분석</td><td>Kafka → Writer → MinIO(lakehouse), Trino 조회</td></tr>
+          <tr><td class="k">PDF·이미지·첨부파일 원본</td><td>파일 애플리케이션 → MinIO(files)</td></tr>
+          <tr><td class="k">파일 소유자 · 공유 권한 · 업무 정보</td><td>기존 DB</td></tr>
+          <tr><td class="k">파일 사용 이력 · 문서 추출 정보 분석</td><td>필요 시 Lakehouse로 전달</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note" style="margin-top: 8px">파일 서비스는 Iceberg나 Trino를 거치지 않습니다. 업로드·다운로드와 임시 URL 방식은 부록 D.</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="파일 애플리케이션과 Lakehouse Writer가 같은 MinIO의 서로 다른 Bucket을 쓰는 구조">
+        <rect class="node" x="20" y="30" width="200" height="60" rx="6"></rect>
+        <text x="120" y="52" text-anchor="middle" class="b">파일 애플리케이션 (유지)</text>
+        <text x="120" y="72" text-anchor="middle" class="s">업로드 · 다운로드 · 권한 · 메타</text>
+        <rect class="node hi" x="20" y="200" width="200" height="60" rx="6"></rect>
+        <text x="120" y="222" text-anchor="middle" class="b">Lakehouse Writer · Trino</text>
+        <text x="120" y="242" text-anchor="middle" class="s">Parquet 쓰기 · 읽기</text>
+
+        <rect class="zone plain" x="290" y="16" width="250" height="264" rx="8"></rect>
+        <text x="302" y="36" class="z" style="fill: var(--muted)">MinIO (S3 호환)</text>
+        <rect class="node" x="310" y="52" width="210" height="88" rx="6"></rect>
+        <text x="415" y="74" text-anchor="middle" class="b">bucket: files</text>
+        <text x="415" y="94" text-anchor="middle" class="m">attachments/…  images/…</text>
+        <text x="415" y="114" text-anchor="middle" class="s">버전 관리 · 임시 URL · 보관 정책 A</text>
+        <text x="415" y="130" text-anchor="middle" class="s">권한: 파일 앱 계정만</text>
+        <rect class="node hi" x="310" y="160" width="210" height="88" rx="6"></rect>
+        <text x="415" y="182" text-anchor="middle" class="b">bucket: lakehouse</text>
+        <text x="415" y="202" text-anchor="middle" class="m">warehouse/…/data  metadata</text>
+        <text x="415" y="222" text-anchor="middle" class="s">스냅샷 정리 · 보관 정책 B</text>
+        <text x="415" y="238" text-anchor="middle" class="s">권한: Writer·Trino 계정만</text>
+
+        <line class="ln" x1="220" y1="60" x2="308" y2="76" marker-end="url(#arr)"></line>
+        <text x="256" y="58" class="s">S3 API</text>
+        <line class="ln hi" x1="220" y1="230" x2="308" y2="214" marker-end="url(#arrA)"></line>
+        <text x="256" y="238" class="s">S3 API</text>
+        <line class="ln dash" x1="120" y1="90" x2="120" y2="198"></line>
+        <text x="130" y="148" class="s">서로 접근 불가</text>
+      </svg>
+      <figcaption>저장소는 공유하되 Bucket과 계정을 분리합니다. 한쪽 정책 변경이 다른 쪽에 영향을 주지 않습니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 13. ch12 -->
+<section class="slide" data-ch="12">
+  <header class="sh"><span>12 · 정합성과 운영</span><span class="num"></span></header>
+  <h2>데이터 정합성과 운영 원칙</h2>
+  <p class="lead">수집 방식, 이벤트 규약, 재처리, 권한, 유지보수를 처음부터 정합니다. 나중에 붙이면 이미 쌓인 데이터를 고칠 수 없습니다.</p>
+  <div class="cols wide">
+    <div>
+      <h3>수집 방식 · 초기 적재 + 변경 수집</h3>
+      <ul>
+        <li>기존 데이터는 초기 적재(배치)로, 이후 변경은 <strong>Transactional Outbox</strong> 또는 CDC로 받습니다. 앱이 DB 저장과 Kafka 발행을 따로 하면 하나만 성공하는 문제가 생깁니다(부록 C).</li>
+      </ul>
+      <h3>이벤트 규약 · 중복·순서·삭제</h3>
+      <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">eventId</td><td>같은 이벤트 중복 적재 방지</td><td class="k">entityId</td><td>같은 주문·메시지 식별</td></tr>
+          <tr><td class="k">entityVersion</td><td>오래된 변경이 최신을 덮지 않게</td><td class="k">eventType</td><td>생성·변경·취소·삭제 구분</td></tr>
+          <tr><td class="k">occurredAt / ingestedAt</td><td>발생 시각과 수집 시각 분리</td><td class="k">schemaVersion</td><td>형식 변경 관리</td></tr>
+          <tr><td class="k">tenantId / sourceSystem</td><td>조직 범위와 출처</td><td></td><td></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3 style="margin-top: 10px">운영 항목</h3>
+      <ul>
+        <li><strong>재처리.</strong> Kafka 보관 기간 안에서는 오프셋을 되감아 재적재합니다. 그 밖은 Iceberg 스냅샷과 초기 적재 절차로 복구합니다.</li>
+        <li><strong>접근 권한.</strong> Trino 카탈로그·스키마 단위 권한, 조회 감사 로그. 개인정보 컬럼은 마스킹 뷰로 제공합니다.</li>
+        <li><strong>파일 유지보수.</strong> 작은 파일 병합, 스냅샷 만료, 고아 파일 정리를 정기 작업으로 둡니다(부록 E).</li>
+        <li><strong>삭제 전파.</strong> 삭제 요청은 <code>eventType=DELETED</code> 이벤트로 세 계층에 전파하고, 과거 스냅샷·백업의 처리 정책을 함께 정합니다.</li>
+      </ul>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 360" role="img" aria-label="Writer 장애 후 재시작하여 마지막 커밋 이후를 재적재하고 eventId로 중복을 제거하는 장애·복구 흐름">
+        <text x="20" y="24" class="z">장애 · 복구 흐름</text>
+        <rect class="node warm" x="20" y="40" width="150" height="56" rx="6"></rect>
+        <text x="95" y="62" text-anchor="middle" class="b">Kafka</text>
+        <text x="95" y="80" text-anchor="middle" class="m">offset 40 41 42 43 44</text>
+        <line class="ln" x1="170" y1="68" x2="208" y2="68" marker-end="url(#arr)"></line>
+        <rect class="node hi" x="210" y="40" width="150" height="56" rx="6"></rect>
+        <text x="285" y="62" text-anchor="middle" class="b">Writer</text>
+        <text x="285" y="80" text-anchor="middle" class="s">42까지 파일 생성 · 커밋</text>
+        <line class="ln hi" x1="360" y1="68" x2="398" y2="68" marker-end="url(#arrA)"></line>
+        <rect class="node hi" x="400" y="40" width="140" height="56" rx="6"></rect>
+        <text x="470" y="62" text-anchor="middle" class="b">Iceberg 스냅샷 N</text>
+        <text x="470" y="80" text-anchor="middle" class="s">커밋 오프셋 = 42</text>
+
+        <rect class="node dim" x="210" y="120" width="150" height="40" rx="6"></rect>
+        <text x="285" y="138" text-anchor="middle" class="b">Writer 중단</text>
+        <text x="285" y="153" text-anchor="middle" class="s">43·44는 읽었지만 커밋 전</text>
+        <line class="ln" x1="285" y1="96" x2="285" y2="118" marker-end="url(#arr)"></line>
+
+        <rect class="node hi" x="210" y="184" width="150" height="56" rx="6"></rect>
+        <text x="285" y="204" text-anchor="middle" class="b">재시작</text>
+        <text x="285" y="222" text-anchor="middle" class="s">스냅샷 N의 오프셋(42)부터 다시 읽음</text>
+        <line class="ln" x1="285" y1="160" x2="285" y2="182" marker-end="url(#arr)"></line>
+        <path class="ln dash" d="M210,212 L95,212 L95,96" marker-end="url(#arr)"></path>
+        <text x="100" y="204" class="s">Kafka 보관 기간 안이면 재읽기 가능</text>
+
+        <rect class="node hi" x="400" y="184" width="140" height="56" rx="6"></rect>
+        <text x="470" y="204" text-anchor="middle" class="b">스냅샷 N+1</text>
+        <text x="470" y="222" text-anchor="middle" class="s">43·44 반영, 오프셋 = 44</text>
+        <line class="ln hi" x1="360" y1="212" x2="398" y2="212" marker-end="url(#arrA)"></line>
+
+        <rect class="node" x="20" y="270" width="520" height="70" rx="6"></rect>
+        <text x="40" y="292" class="b">중복 제거 기준</text>
+        <text x="40" y="312" class="s">커밋과 오프셋을 함께 기록하면 재시작 시 중복이 없습니다. 그래도 프로듀서 재전송·되감기 재처리로 같은 eventId가</text>
+        <text x="40" y="328" class="s">두 번 올 수 있으므로, 조회 시 eventId 기준 최신 1건만 취하는 뷰 또는 주기적 중복 제거 작업을 둡니다.</text>
+      </svg>
+      <figcaption>Writer는 커밋한 오프셋을 기억합니다. 재시작하면 마지막 커밋 다음부터 읽으므로 누락이 없습니다.</figcaption>
+      <h3 style="margin-top: 12px">처음부터 볼 운영 지표</h3>
+      <ul style="font-size: 14px">
+        <li>이벤트 발생 → Trino 조회까지 걸리는 시간</li>
+        <li>Kafka Consumer Lag와 마지막 성공 커밋 시각</li>
+        <li>원본 대비 적재 건수와 중복 이벤트 수</li>
+        <li>파일 수·크기와 유지보수 작업 실패</li>
+        <li>대표 쿼리의 응답 시간과 읽은 데이터량</li>
+      </ul>
+    </figure>
+  </div>
+</section>
+
+<!-- 14. ch13 -->
+<section class="slide" data-ch="13">
+  <header class="sh"><span>13 · 사례</span><span class="num"></span></header>
+  <h2>기업 사례에서 배울 점</h2>
+  <p class="lead">공개 자료에서 확인되는 것은 "업무 DB를 유지하면서 변경을 분석용 저장소로 전달"하거나 "기존 데이터 레이크를 Iceberg로 개선"한 사례입니다. 각 사례는 발표 당시 구성이며, 우리와 같은 제품 조합은 아닙니다.</p>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:11%">기업 · 출처</th><th style="width:24%">목적</th><th style="width:33%">기술과 접근 (발표 당시)</th><th>우리 프로젝트에 적용할 점</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="k">Uber<br><span class="pill">DBEvents 블로그, 2019</span></td>
+            <td>여러 업무 DB의 데이터를 <strong>공통 방식으로</strong> 데이터 레이크에 수집</td>
+            <td>MySQL binlog → StorageTapper → Kafka → Marmaray → Hudi(HDFS). <strong>초기 적재(Bootstrap)와 변경분 수집(CDC)</strong>을 분리. 행 식별자·증가 버전·삭제 여부를 표준 메타데이터로 부착, 오류 데이터는 오류 테이블로 격리, 체크포인트로 재시작. 이후 Flink 기반으로 수집 경로 개선(테이블 포맷은 Hudi)</td>
+            <td>초기 적재 + 변경분 수집을 함께 설계. "장애 후 어디서부터 다시 읽고, 어디까지 저장됐다고 판단할 것인가"를 검증 항목에 넣음. 상세는 부록 H</td>
+          </tr>
+          <tr>
+            <td class="k">SK텔레콤<br><span class="pill">Trino Summit 2022</span></td>
+            <td>Hive 기반 분석 환경의 확장 문제 해결과 <strong>분석 조회 개선</strong></td>
+            <td>저장 기반은 온프레미스 Hadoop/HDFS(MinIO 아님). 배치 조회와 임시 분석 조회 환경을 분리. 쿼리 계획·JMX·로그로 병목 분석 → Hive 메타데이터 접근과 파일 목록 조회 비용 확인 → Iceberg의 파일 통계·메타데이터로 불필요한 파일 읽기 감소. 파티션이 너무 많으면 계획 시간이 늘어나는 절충 확인</td>
+            <td>"Iceberg를 쓰면 빨라진다"로 끝내지 않음. <strong>실제 조회 조건 기준으로 파티션과 파일 배치</strong>를 설계. 고객별 조회와 월별 전체 집계는 요구하는 배치가 다를 수 있음</td>
+          </tr>
+          <tr>
+            <td class="k">Netflix<br><span class="pill">AWS re:Invent 2024</span></td>
+            <td>S3·Iceberg 기반 데이터 웨어하우스와 데이터 이동 구조(Data Bridge)</td>
+            <td>객체 저장 S3 · 테이블 관리 Iceberg · 처리·조회 Spark, Trino · 이벤트 전달·스트림 Kafka, Flink. <strong>구성요소 역할 분리</strong></td>
+            <td>제안 구성은 이와 비슷한 역할 분리를 갖습니다. 다만 S3를 MinIO로 바꿨을 때 운영·복구·성능이 동일하다고 볼 수는 없으므로 PoC에서 확인</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="note">주의: 앞서 논의한 "DB의 모든 기능을 MinIO로 옮기는 구조"는 어느 사례에도 없습니다. 세 회사 모두 업무 DB를 유지하고, 그 옆에 분석용 저장소를 두었습니다.</div>
+</section>
+
+<!-- 15. ch14 -->
+<section class="slide" data-ch="14">
+  <header class="sh"><span>14 · 계획</span><span class="num"></span></header>
+  <h2>단계별 구축 및 PoC 계획</h2>
+  <p class="lead">제품 도입 순서가 아니라 활용 사례 하나의 완성을 기준으로 단계를 나눕니다. 주문·결제부터 시작합니다.</p>
+  <div class="cols single">
+    <figure>
+      <svg class="d" viewBox="0 0 1100 250" role="img" aria-label="요구사항 확정부터 도메인 확장까지 다섯 단계 로드맵과 각 단계의 완료 기준">
+        <line class="ln" x1="30" y1="60" x2="1080" y2="60" marker-end="url(#arr)"></line>
+        <g>
+          <circle cx="110" cy="60" r="9" class="bar"></circle><text x="110" y="34" text-anchor="middle" class="b">1 요구사항 확정</text>
+          <rect class="node hi" x="30" y="84" width="180" height="120" rx="6"></rect>
+          <text x="42" y="106" class="s">범위: 주문·결제 통합 분석</text>
+          <text x="42" y="124" class="s">조회 패턴 · 응답 시간</text>
+          <text x="42" y="142" class="s">반영 지연 · 보관 정책</text>
+          <text x="42" y="176" class="z">완료: 측정 가능한 목표</text>
+        </g>
+        <g>
+          <circle cx="330" cy="60" r="9" class="bar"></circle><text x="330" y="34" text-anchor="middle" class="b">2 수집·보관 검증 (PoC)</text>
+          <rect class="node hi" x="240" y="84" width="180" height="120" rx="6"></rect>
+          <text x="252" y="106" class="s">원본 → Kafka → Writer</text>
+          <text x="252" y="124" class="s">→ Iceberg·MinIO·Catalog</text>
+          <text x="252" y="142" class="s">→ Trino 조회</text>
+          <text x="252" y="176" class="z">완료: 누락·중복·재시작 통과</text>
+        </g>
+        <g>
+          <circle cx="550" cy="60" r="9" class="bar"></circle><text x="550" y="34" text-anchor="middle" class="b">3 활용 사례 ① 구현</text>
+          <rect class="node" x="460" y="84" width="180" height="120" rx="6"></rect>
+          <text x="472" y="106" class="s">원본·통합·분석 테이블</text>
+          <text x="472" y="124" class="s">결제 성공률 · 불일치 후보</text>
+          <text x="472" y="142" class="s">Query API 연결 (필요 시)</text>
+          <text x="472" y="176" class="z">완료: 목표 부하에서 응답</text>
+        </g>
+        <g>
+          <circle cx="770" cy="60" r="9" class="bar"></circle><text x="770" y="34" text-anchor="middle" class="b">4 콜드 데이터·운영 보강</text>
+          <rect class="node" x="680" y="84" width="180" height="120" rx="6"></rect>
+          <text x="692" y="106" class="s">콜드 데이터 이관 (10장)</text>
+          <text x="692" y="124" class="s">삭제 전파 · 복구 · 모니터링</text>
+          <text x="692" y="142" class="s">유지보수 작업 자동화</text>
+          <text x="692" y="176" class="z">완료: 장애·복구 시나리오 통과</text>
+        </g>
+        <g>
+          <circle cx="990" cy="60" r="9" class="bar"></circle><text x="990" y="34" text-anchor="middle" class="b">5 도메인 확장</text>
+          <rect class="node" x="900" y="84" width="180" height="120" rx="6"></rect>
+          <text x="912" y="106" class="s">회원·채팅 연결 (9장)</text>
+          <text x="912" y="124" class="s">공통 규약으로 새 시스템 추가</text>
+          <text x="912" y="142" class="s">Search 계층 검토</text>
+          <text x="912" y="176" class="z">완료: 기존 기능 영향 없음</text>
+        </g>
+        <text x="30" y="236" class="s">1~2단계가 PoC 범위입니다. 2단계 완료 기준을 통과하지 못하면 3단계로 가지 않습니다.</text>
+      </svg>
+    </figure>
+    <div class="grid2" style="margin-top: 4px">
+      <div>
+        <h3>PoC에서 확인할 것</h3>
+        <ul>
+          <li>테스트 이벤트 N건이 Iceberg 테이블에 건수·금액 일치로 반영되는가</li>
+          <li>Writer 강제 종료 후 재시작 시 누락·중복이 없는가</li>
+          <li>이벤트 발생 → Trino 조회까지 지연이 목표 안인가</li>
+        </ul>
+      </div>
+      <div>
+        <h3>PoC에서 미루는 것</h3>
+        <ul>
+          <li>Flink 도입. 스트림 조인·이벤트 시간 집계가 필요해질 때 검토</li>
+          <li>ScyllaDB·OpenSearch 채택. 데이터량과 조회 패턴 확인 후 결정</li>
+          <li>메시지 본문 보관. 개인정보 정책과 함께 별도 검토</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 16. ch15 -->
+<section class="slide" data-ch="15">
+  <header class="sh"><span>15 · 결론</span><span class="num"></span></header>
+  <h2>기대 효과와 의사결정 사항</h2>
+  <p class="lead">효과는 PoC로 검증합니다. 시작하려면 아래 결정이 필요합니다.</p>
+  <div class="cols even">
+    <div>
+      <h3>검증할 효과</h3>
+      <ul>
+        <li><strong>통합 조회 개발 감소.</strong> 새 지표 요구가 API 개발이 아니라 SQL 작성으로 끝나는가.</li>
+        <li><strong>운영 DB 부담 완화.</strong> 분석·추출 쿼리를 Trino로 옮긴 뒤 DB 부하와 야간 배치 시간이 줄어드는가.</li>
+        <li><strong>이력 보관 비용.</strong> 콜드 데이터를 옮긴 뒤 DB 용량·백업 시간이 줄고, 객체 저장소 비용이 그보다 낮은가(부록 F).</li>
+        <li><strong>지표 일관성.</strong> 결제 성공률 같은 숫자를 팀마다 다르게 내지 않게 되는가.</li>
+      </ul>
+      <h3>첫 구축 결과물과 성공 기준 (주문·결제·환불 + 최소 회원 식별)</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>결과물</th><th>성공 기준</th></tr></thead>
+        <tbody>
+          <tr><td class="k">일별 주문·결제·환불 현황</td><td>같은 기준 시점의 원본 집계와 일치</td></tr>
+          <tr><td class="k">주문·결제 불일치 후보</td><td>반영 지연과 실제 오류를 구분</td></tr>
+          <tr><td class="k">과거 거래 조회·다운로드</td><td>업무에서 요구하는 시간 안에 완료 (예: 1년치 조인 집계 p95 30초)</td></tr>
+          <tr><td class="k">장애 후 재처리</td><td>누락과 잘못된 중복 집계 없이 복구</td></tr>
+          <tr><td class="k">콜드 데이터 이관</td><td>검증한 범위만 DB에서 정리</td></tr>
+          <tr><td class="k">반영 지연</td><td>이벤트 발생 → Trino 조회 5분 이내 (예시, 1단계에서 확정)</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+    <div>
+      <h3>결정이 필요한 항목</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>항목</th><th>제안</th><th>결정자</th></tr></thead>
+        <tbody>
+          <tr><td class="k">초기 대상</td><td>주문·결제 이벤트 한 종류(이벤트 이력 테이블)</td><td>데이터 플랫폼 · 커머스</td></tr>
+          <tr><td class="k">담당 조직</td><td>플랫폼(Kafka·MinIO·Trino·Catalog), 도메인팀(이벤트 발행·테이블 의미)</td><td>조직장</td></tr>
+          <tr><td class="k">성능 목표</td><td>대표 쿼리 3개와 p95 응답 시간</td><td>분석 소비 부서</td></tr>
+          <tr><td class="k">반영 지연</td><td>허용 지연(예: 5분)과 "방금 쓴 데이터가 아직 없을 때"의 화면 동작</td><td>서비스 기획</td></tr>
+          <tr><td class="k">보관 기준</td><td>데이터 종류별 보관 기간·삭제 기준. "5~10년"은 검토 항목으로</td><td>법무 · 보안 · 도메인</td></tr>
+          <tr><td class="k">수집 방식</td><td>Outbox 우선, 레거시는 CDC(부록 C)</td><td>도메인 개발</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note" style="margin-top: 12px">가장 먼저 정리할 네 가지: ① 과거 데이터의 서비스 조회 성능 가정, ② Catalog·Writer 선정, ③ 초기 수집의 정합성 방식, ④ 원본과 조회 모델의 책임 구분.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 17. 부록 A -->
+<section class="slide" data-ch="A">
+  <header class="sh"><span>부록 A</span><span class="num"></span></header>
+  <h2>구성요소별 상세 설명과 공식 문서</h2>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:14%">구성요소</th><th style="width:50%">상세</th><th>공식 문서</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Kafka</td><td>Topic·Partition·Offset으로 이벤트를 순서대로 보관. Writer는 Consumer로서 읽은 위치를 추적. 보관 기간 안에서는 되감아 재읽기 가능.</td><td><a href="https://kafka.apache.org/documentation/" target="_blank" rel="noopener">kafka.apache.org/documentation</a></td></tr>
+          <tr><td class="k">Kafka Connect Iceberg Sink</td><td>Apache Iceberg가 공식 제공하는 커넥터. 이벤트를 배치로 묶어 파일을 쓰고 커밋. 커밋 간격이 반영 지연을 결정.</td><td><a href="https://iceberg.apache.org/docs/latest/kafka-connect/" target="_blank" rel="noopener">iceberg.apache.org · Kafka Connect</a></td></tr>
+          <tr><td class="k">MinIO</td><td>S3 호환 객체 저장소. Bucket / Object / Key / Endpoint. Erasure Coding으로 디스크 장애 내성.</td><td><a href="https://min.io/docs/minio/linux/index.html" target="_blank" rel="noopener">min.io/docs</a></td></tr>
+          <tr><td class="k">Parquet</td><td>컬럼형 파일 포맷. Row Group·Column Chunk 단위로 필요한 컬럼만 읽기. 압축률이 높아 저장 비용 절감.</td><td><a href="https://parquet.apache.org/docs/" target="_blank" rel="noopener">parquet.apache.org/docs</a></td></tr>
+          <tr><td class="k">Iceberg</td><td>테이블 포맷 명세. 스키마·스냅샷·원자적 커밋·파티션 진화·파일 추적. 서버가 아니라 Writer와 엔진이 따르는 규칙.</td><td><a href="https://iceberg.apache.org/spec/" target="_blank" rel="noopener">iceberg.apache.org/spec</a></td></tr>
+          <tr><td class="k">Iceberg Catalog</td><td>테이블 이름 → 현재 메타데이터 위치. REST·JDBC·Hive Metastore 등. Writer와 Trino가 같은 Catalog를 써야 함. Trino Catalog(연결 설정 이름)와 구분.</td><td><a href="https://trino.io/docs/current/object-storage/metastores.html" target="_blank" rel="noopener">trino.io · Metastores</a></td></tr>
+          <tr><td class="k">Trino</td><td>Coordinator가 계획을 세우고 Worker가 파일을 읽어 계산. Iceberg 커넥터는 Parquet·ORC·Avro 지원. 연산과 저장을 따로 확장.</td><td><a href="https://trino.io/docs/current/connector/iceberg.html" target="_blank" rel="noopener">trino.io · Iceberg connector</a></td></tr>
+          <tr><td class="k">Trino ↔ MinIO</td><td>Trino의 S3 파일 시스템 문서가 MinIO 호환성 테스트를 명시. Endpoint·자격증명·path-style 설정으로 연결.</td><td><a href="https://trino.io/docs/current/object-storage/file-system-s3.html" target="_blank" rel="noopener">trino.io · S3 file system</a></td></tr>
+          <tr><td class="k">Iceberg 유지보수</td><td>스냅샷 만료, 고아 파일 삭제, 작은 파일 병합(compaction), 매니페스트 재작성.</td><td><a href="https://iceberg.apache.org/docs/latest/maintenance/" target="_blank" rel="noopener">iceberg.apache.org · Maintenance</a></td></tr>
+          <tr><td class="k">Debezium Outbox</td><td>Outbox 테이블의 행을 Kafka 이벤트로 전달하는 Outbox Event Router.</td><td><a href="https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html" target="_blank" rel="noopener">debezium.io · Outbox Event Router</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 18. 부록 B -->
+<section class="slide" data-ch="B">
+  <header class="sh"><span>부록 B</span><span class="num"></span></header>
+  <h2>이벤트 이력 테이블과 최신 상태 테이블의 차이</h2>
+  <p class="lead">같은 주문 이벤트라도 어떤 테이블을 만들지에 따라 적재 방식과 조회 의미가 달라집니다.</p>
+  <div class="cols">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>구분</th><th>이벤트 이력 테이블</th><th>최신 상태 테이블</th></tr></thead>
+        <tbody>
+          <tr><td class="k">행의 의미</td><td>일어난 사건 하나</td><td>엔티티 하나의 현재 상태</td></tr>
+          <tr><td class="k">적재 방식</td><td>append만. 단순하고 검증 쉬움</td><td>upsert. entityVersion으로 역순 방어 필요</td></tr>
+          <tr><td class="k">답하는 질문</td><td>어떤 일이 있었나? 처리 소요 시간은?</td><td>지금 어떤 상태인가?</td></tr>
+          <tr><td class="k">주의</td><td>생성·결제·취소 행을 단순 합산하면 매출이 틀림</td><td>과거 상태를 잃음. 이력에서 재구성 가능</td></tr>
+          <tr><td class="k">권장</td><td><strong>먼저 구축.</strong> 흐름 이해·검증에 유리</td><td>이력 위에서 뷰 또는 주기 작업으로 파생</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 280" role="img" aria-label="주문 A의 생성, 결제 완료, 취소 이벤트가 이력 테이블에는 세 행으로, 최신 상태 테이블에는 취소 한 행으로 저장되는 비교">
+        <rect class="node warm" x="180" y="20" width="200" height="50" rx="6"></rect>
+        <text x="280" y="40" text-anchor="middle" class="b">주문 A의 이벤트</text>
+        <text x="280" y="58" text-anchor="middle" class="s">① 생성 → ② 결제 완료 → ③ 취소</text>
+        <path class="ln" d="M230,70 L230,90 L120,90 L120,108" marker-end="url(#arr)"></path>
+        <path class="ln" d="M330,70 L330,90 L440,90 L440,108" marker-end="url(#arr)"></path>
+        <text x="130" y="102" class="s">append</text>
+        <text x="380" y="102" class="s">upsert (version↑만)</text>
+        <rect class="node hi" x="20" y="110" width="200" height="100" rx="6"></rect>
+        <text x="120" y="130" text-anchor="middle" class="b">order_events (이력)</text>
+        <text x="40" y="152" class="m">A · CREATED   · v1</text>
+        <text x="40" y="170" class="m">A · PAID      · v2</text>
+        <text x="40" y="188" class="m">A · CANCELLED · v3</text>
+        <rect class="node hi" x="340" y="110" width="200" height="100" rx="6"></rect>
+        <text x="440" y="130" text-anchor="middle" class="b">orders_current (상태)</text>
+        <text x="360" y="160" class="m">A · CANCELLED · v3</text>
+        <text x="360" y="188" class="s">v2가 늦게 와도 v3를 덮지 않음</text>
+        <text x="120" y="240" text-anchor="middle" class="s">"어떤 일이 있었나?"</text>
+        <text x="120" y="258" text-anchor="middle" class="s">이력 추적 · 처리 시간 분석</text>
+        <text x="440" y="240" text-anchor="middle" class="s">"지금 어떤 상태인가?"</text>
+        <text x="440" y="258" text-anchor="middle" class="s">현재 주문 상태 조회</text>
+        <path class="ln hi dash" d="M220,160 L340,160" marker-end="url(#arrA)"></path>
+        <text x="280" y="152" text-anchor="middle" class="s">이력에서 파생</text>
+      </svg>
+      <figcaption>이력이 있으면 상태는 언제든 다시 만들 수 있습니다. 반대는 불가능합니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 19. 부록 C -->
+<section class="slide" data-ch="C">
+  <header class="sh"><span>부록 C</span><span class="num"></span></header>
+  <h2>CDC와 Outbox 방식 비교</h2>
+  <p class="lead">"DB 저장과 Kafka 발행 중 하나만 성공하는" 문제를 푸는 두 방법입니다. 둘 다 DB 트랜잭션을 진실의 출발점으로 삼습니다.</p>
+  <div class="cols">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>항목</th><th>Transactional Outbox</th><th>CDC (테이블 직접 캡처)</th></tr></thead>
+        <tbody>
+          <tr><td class="k">원리</td><td>업무 변경과 발행할 이벤트를 <strong>같은 트랜잭션</strong>으로 outbox 테이블에 기록. Debezium이 outbox를 읽어 Kafka로 전달</td><td>DB 로그(binlog·WAL)를 읽어 테이블 변경을 그대로 이벤트로 전달</td></tr>
+          <tr><td class="k">이벤트 형태</td><td>앱이 설계한 <strong>업무 이벤트</strong>(ORDER_CREATED 등). 규약 적용 쉬움</td><td>테이블 행의 before/after. 업무 의미는 변환 단계에서 부여</td></tr>
+          <tr><td class="k">앱 수정</td><td>필요. outbox 쓰기 코드 추가</td><td>불필요. DB 접근 권한만</td></tr>
+          <tr><td class="k">어울리는 곳</td><td>우리가 코드를 고칠 수 있는 서비스</td><td>수정이 어려운 레거시·패키지 시스템</td></tr>
+          <tr><td class="k">주의</td><td>outbox 정리 작업 필요</td><td>스키마 변경이 그대로 이벤트에 노출. 트랜잭션 경계 복원 어려움</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="margin-top: 10px">권장: 신규·수정 가능한 서비스는 Outbox, 레거시는 CDC. 둘 다 12장의 이벤트 규약으로 변환해 Kafka에 넣습니다.</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="Outbox 방식은 업무 테이블과 outbox 테이블을 한 트랜잭션으로 쓰고 Debezium이 outbox를 읽어 Kafka로 보내며, CDC 방식은 DB 로그를 직접 읽어 Kafka로 보내는 비교">
+        <text x="20" y="24" class="z">Outbox</text>
+        <rect class="node" x="20" y="34" width="110" height="40" rx="6"></rect><text x="75" y="58" text-anchor="middle">주문 서비스</text>
+        <line class="ln" x1="130" y1="54" x2="168" y2="54" marker-end="url(#arr)"></line>
+        <rect class="zone" x="170" y="30" width="180" height="100" rx="6"></rect>
+        <text x="180" y="46" class="z">한 DB 트랜잭션</text>
+        <rect class="node" x="180" y="54" width="160" height="30" rx="4"></rect><text x="260" y="74" text-anchor="middle" class="m">orders (업무 테이블)</text>
+        <rect class="node hi" x="180" y="92" width="160" height="30" rx="4"></rect><text x="260" y="112" text-anchor="middle" class="m">outbox (이벤트 행)</text>
+        <line class="ln hi" x1="350" y1="107" x2="388" y2="107" marker-end="url(#arrA)"></line>
+        <rect class="node hi" x="390" y="88" width="70" height="38" rx="6"></rect><text x="425" y="106" text-anchor="middle" class="s">Debezium</text><text x="425" y="120" text-anchor="middle" class="s">Outbox Router</text>
+        <line class="ln hi" x1="460" y1="107" x2="498" y2="107" marker-end="url(#arrA)"></line>
+        <rect class="node warm" x="500" y="88" width="50" height="38" rx="6"></rect><text x="525" y="111" text-anchor="middle" class="b">Kafka</text>
+        <text x="180" y="146" class="s">둘 다 성공하거나 둘 다 실패 → 발행 누락 없음</text>
+
+        <text x="20" y="194" class="z">CDC</text>
+        <rect class="node" x="20" y="204" width="110" height="40" rx="6"></rect><text x="75" y="228" text-anchor="middle">레거시 시스템</text>
+        <line class="ln" x1="130" y1="224" x2="168" y2="224" marker-end="url(#arr)"></line>
+        <rect class="node" x="170" y="204" width="110" height="40" rx="6"></rect><text x="225" y="222" text-anchor="middle" class="m">orders</text><text x="225" y="238" text-anchor="middle" class="s">앱 수정 없음</text>
+        <line class="ln" x1="225" y1="244" x2="225" y2="262"></line>
+        <rect class="node dim" x="170" y="262" width="110" height="26" rx="4"></rect><text x="225" y="280" text-anchor="middle" class="m">binlog / WAL</text>
+        <line class="ln hi" x1="280" y1="275" x2="388" y2="275" marker-end="url(#arrA)"></line>
+        <rect class="node hi" x="390" y="256" width="70" height="38" rx="6"></rect><text x="425" y="274" text-anchor="middle" class="s">Debezium</text><text x="425" y="288" text-anchor="middle" class="s">+ 규약 변환</text>
+        <line class="ln hi" x1="460" y1="275" x2="498" y2="275" marker-end="url(#arrA)"></line>
+        <rect class="node warm" x="500" y="256" width="50" height="38" rx="6"></rect><text x="525" y="279" text-anchor="middle" class="b">Kafka</text>
+      </svg>
+      <figcaption>어느 쪽이든 "앱이 DB와 Kafka에 따로 쓰는" 구조는 피합니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 20. 부록 D -->
+<section class="slide" data-ch="D">
+  <header class="sh"><span>부록 D</span><span class="num"></span></header>
+  <h2>파일 업로드·다운로드 및 임시 URL 방식</h2>
+  <p class="lead">파일 애플리케이션이 권한을 확인하고, 실제 바이트는 클라이언트와 MinIO가 직접 주고받습니다.</p>
+  <div class="cols">
+    <div>
+      <h3>두 가지 전송 방식</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>방식</th><th>흐름</th><th>특징</th></tr></thead>
+        <tbody>
+          <tr><td class="k">앱 경유</td><td>클라이언트 → 파일 앱 → MinIO</td><td>앱이 바이트를 중계. 검사·변환 가능. 앱 서버 대역폭 소모</td></tr>
+          <tr><td class="k">임시 URL <span class="pill hi">권장</span></td><td>클라이언트 → 파일 앱(URL 발급) → 클라이언트 ↔ MinIO 직접</td><td>앱은 권한만 확인. 대용량에 유리. URL에 만료 시간</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3 style="margin-top: 10px">임시 URL(presigned URL) 요점</h3>
+      <ul>
+        <li>파일 앱이 자기 자격증명으로 서명한 URL을 발급합니다. 클라이언트는 자격증명 없이 그 URL로만 PUT/GET 합니다.</li>
+        <li>만료 시간(예: 업로드 15분, 다운로드 5분)과 HTTP 메서드, 객체 키가 URL에 고정됩니다.</li>
+        <li>업로드 완료는 클라이언트 신고가 아니라 <strong>앱이 MinIO에서 객체 존재·크기를 확인</strong>해 확정합니다.</li>
+        <li>외부 노출 시 MinIO Endpoint 앞에 리버스 프록시·TLS를 둡니다.</li>
+        <li>이 패턴은 AWS 공식 자료의 S3 직접 업로드 구조와 같습니다. 다만 AWS 전용 기능(Transfer Acceleration 등)과 MinIO가 지원하는 기능은 구현 시 구분합니다.</li>
+      </ul>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="클라이언트가 파일 앱에서 임시 URL을 발급받아 MinIO에 직접 업로드하고, 앱이 완료를 확인하는 흐름">
+        <rect class="node" x="20" y="120" width="110" height="44" rx="6"></rect><text x="75" y="146" text-anchor="middle" class="b">클라이언트</text>
+        <rect class="node hi" x="225" y="30" width="130" height="56" rx="6"></rect>
+        <text x="290" y="52" text-anchor="middle" class="b">파일 애플리케이션</text>
+        <text x="290" y="72" text-anchor="middle" class="s">권한 확인 · URL 서명</text>
+        <rect class="node" x="430" y="120" width="110" height="44" rx="6"></rect><text x="485" y="140" text-anchor="middle" class="b">MinIO</text><text x="485" y="156" text-anchor="middle" class="s">bucket: files</text>
+
+        <path class="ln" d="M130,132 L225,66" marker-end="url(#arr)"></path>
+        <text x="150" y="88" class="s">① 업로드 요청 (파일명·크기)</text>
+        <path class="ln hi" d="M240,86 L140,150" marker-end="url(#arrA)"></path>
+        <text x="150" y="176" class="s">② 임시 URL (PUT, 15분)</text>
+        <path class="ln hi" d="M130,142 L430,142" marker-end="url(#arrA)"></path>
+        <text x="280" y="134" text-anchor="middle" class="s">③ URL로 직접 PUT (바이트는 앱을 거치지 않음)</text>
+        <path class="ln" d="M130,156 L225,80"></path>
+        <path class="ln dash" d="M355,80 L470,120" marker-end="url(#arr)"></path>
+        <text x="392" y="92" class="s">④ 객체 존재·크기 확인</text>
+        <path class="ln" d="M75,164 L75,220 L225,220" marker-end="url(#arr)"></path>
+        <text x="90" y="212" class="s">⑤ 완료 신고</text>
+        <rect class="node hi" x="225" y="200" width="130" height="40" rx="6"></rect>
+        <text x="290" y="224" text-anchor="middle" class="s">메타데이터 저장 · 확정</text>
+        <text x="280" y="276" text-anchor="middle" class="s">다운로드도 같은 구조: 앱이 GET용 임시 URL(5분)을 발급하고 클라이언트가 MinIO에서 직접 받습니다</text>
+      </svg>
+      <figcaption>앱 서버는 제어 경로만 맡고 데이터 경로에서 빠집니다. 대용량 파일이 늘어도 앱을 키울 필요가 없습니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 21. 부록 E -->
+<section class="slide" data-ch="E">
+  <header class="sh"><span>부록 E</span><span class="num"></span></header>
+  <h2>파티션·파일 크기·스냅샷 유지보수</h2>
+  <p class="lead">Iceberg 테이블은 쌓기만 하면 느려집니다. 세 가지 정기 작업을 처음부터 일정에 넣습니다.</p>
+  <div class="cols">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>항목</th><th>기준 (초기 제안)</th><th>왜</th></tr></thead>
+        <tbody>
+          <tr><td class="k">파티션</td><td><code>days(occurred_at)</code>. 이벤트 이력은 일자 기준</td><td>기간 조회가 대부분이라 읽을 파일을 날짜로 잘라냄. Iceberg는 숨은 파티션이라 쿼리에 파티션 컬럼을 쓸 필요 없음</td></tr>
+          <tr><td class="k">파일 크기</td><td>목표 128~512MB. 작은 파일은 병합</td><td>Writer가 자주 커밋할수록 작은 파일이 많아지고, 파일 수만큼 열기 비용이 늘어 Trino가 느려짐</td></tr>
+          <tr><td class="k">병합 (compaction)</td><td>매일, 전날 파티션 대상 <code>rewrite_data_files</code></td><td>반영 지연은 짧게, 조회는 큰 파일로. 둘을 분리</td></tr>
+          <tr><td class="k">스냅샷 만료</td><td>7일 유지 후 <code>expire_snapshots</code></td><td>스냅샷이 참조하는 파일은 지워지지 않음. 만료해야 저장 공간 회수. 되감기 가능 기간과 맞춤</td></tr>
+          <tr><td class="k">고아 파일</td><td>주 1회 <code>remove_orphan_files</code>, 보관 기준 <strong>3일 이상</strong></td><td>실패한 커밋이 남긴 파일 정리. 기준을 쓰기 작업 시간보다 짧게 잡으면 <strong>기록 중인 파일까지 지울 수 있음</strong>(공식 문서 경고)</td></tr>
+          <tr><td class="k">매니페스트</td><td>병합과 함께 <code>rewrite_manifests</code></td><td>메타데이터 파일도 작게 쪼개지면 계획 수립이 느려짐</td></tr>
+          <tr><td class="k">오래된 메타데이터</td><td><code>write.metadata.previous-versions-max</code>로 개수 제한</td><td>잦은 커밋마다 metadata.json이 늘어남. 자동 정리 옵션으로 관리</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="Writer가 만든 작은 파일들이 스냅샷으로 커밋되고, 병합 작업이 큰 파일로 합친 새 스냅샷을 만들며, 만료 작업이 오래된 스냅샷과 파일을 지우는 흐름">
+        <text x="20" y="24" class="z">적재 (5분마다 커밋)</text>
+        <rect class="node" x="20" y="34" width="36" height="28" rx="4"></rect><rect class="node" x="62" y="34" width="36" height="28" rx="4"></rect><rect class="node" x="104" y="34" width="36" height="28" rx="4"></rect><rect class="node" x="146" y="34" width="36" height="28" rx="4"></rect><rect class="node" x="188" y="34" width="36" height="28" rx="4"></rect>
+        <text x="122" y="80" text-anchor="middle" class="s">작은 파일 다수 (수 MB) · 스냅샷 1~5</text>
+        <path class="ln hi" d="M240,48 L300,48" marker-end="url(#arrA)"></path>
+        <text x="270" y="40" text-anchor="middle" class="s">병합</text>
+        <text x="310" y="24" class="z">매일 compaction</text>
+        <rect class="node hi" x="310" y="30" width="120" height="36" rx="4"></rect>
+        <text x="370" y="52" text-anchor="middle" class="s">큰 파일 1개 (256MB)</text>
+        <text x="370" y="80" text-anchor="middle" class="s">스냅샷 6 (같은 데이터)</text>
+
+        <text x="20" y="130" class="z">스냅샷 이력</text>
+        <rect class="node dim" x="20" y="140" width="60" height="30" rx="4"></rect><text x="50" y="160" text-anchor="middle" class="s">S1</text>
+        <rect class="node dim" x="90" y="140" width="60" height="30" rx="4"></rect><text x="120" y="160" text-anchor="middle" class="s">S2</text>
+        <rect class="node dim" x="160" y="140" width="60" height="30" rx="4"></rect><text x="190" y="160" text-anchor="middle" class="s">…</text>
+        <rect class="node" x="230" y="140" width="60" height="30" rx="4"></rect><text x="260" y="160" text-anchor="middle" class="s">S5</text>
+        <rect class="node hi" x="300" y="140" width="60" height="30" rx="4"></rect><text x="330" y="160" text-anchor="middle" class="b">S6 현재</text>
+        <path class="ln" d="M50,170 L50,190 L260,190 L260,170"></path>
+        <text x="155" y="206" text-anchor="middle" class="s">7일 지난 스냅샷 → expire_snapshots</text>
+        <text x="155" y="222" text-anchor="middle" class="s">→ 어떤 스냅샷도 참조 안 하는 작은 파일 삭제, 공간 회수</text>
+
+        <rect class="node warm" x="400" y="130" width="140" height="100" rx="6"></rect>
+        <text x="470" y="152" text-anchor="middle" class="b">고아 파일</text>
+        <text x="470" y="172" text-anchor="middle" class="s">실패한 커밋이 남긴 파일</text>
+        <text x="470" y="188" text-anchor="middle" class="s">어느 스냅샷도 모름</text>
+        <text x="470" y="212" text-anchor="middle" class="s">주 1회 remove_orphan_files</text>
+        <text x="280" y="270" text-anchor="middle" class="s">반영 지연(짧은 커밋 주기)과 조회 성능(큰 파일)은 병합 작업이 있어야 동시에 만족됩니다</text>
+      </svg>
+      <figcaption>병합은 데이터를 바꾸지 않고 파일 배치만 바꿉니다. 새 스냅샷이 생기고 조회는 중단 없이 이어집니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 22. 부록 F -->
+<section class="slide" data-ch="F">
+  <header class="sh"><span>부록 F</span><span class="num"></span></header>
+  <h2>비용 산정 항목과 용량 계획</h2>
+  <p class="lead">숫자는 1단계에서 실제 이벤트 크기와 건수를 재서 채웁니다. 아래는 항목과 계산식입니다.</p>
+  <div class="cols even">
+    <div>
+      <h3>비용 항목</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>항목</th><th>포함 내용</th></tr></thead>
+        <tbody>
+          <tr><td class="k">저장 (MinIO)</td><td>디스크 용량 × Erasure Coding 계수(예: EC 4+2 → ×1.5), 스냅샷 보관 여유, 파일 Bucket 분</td></tr>
+          <tr><td class="k">Kafka 보관</td><td>보관 기간(예: 7일) × 일 유입량. 재처리 창을 얼마나 둘지가 곧 디스크</td></tr>
+          <tr><td class="k">연산 노드</td><td>Trino Coordinator 1 + Worker N, Kafka Connect Worker, Catalog 서비스</td></tr>
+          <tr><td class="k">네트워크</td><td>MinIO ↔ Trino 읽기 트래픽. 같은 랙·AZ 안에 두면 비용 최소</td></tr>
+          <tr><td class="k">운영</td><td>유지보수 작업 스케줄러, 모니터링, 백업 저장소, 담당 인력</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3 style="margin-top: 10px">저장 용량 계산식</h3>
+      <pre>연간 용량
+  = 일 이벤트 수 × 평균 이벤트 크기(JSON)
+    × Parquet 압축률 (보통 1/3 ~ 1/5)
+    × 365
+    × EC 계수 (예: 1.5)
+    × 스냅샷 여유 (예: 1.2)</pre>
+    </div>
+    <div>
+      <h3>예시 계산 (가정치, 1단계에서 실측으로 교체)</h3>
+      <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">일 이벤트 수</td><td>500만 건 (주문·결제·환불 합계)</td></tr>
+          <tr><td class="k">평균 크기</td><td>1 KB (JSON)</td></tr>
+          <tr><td class="k">원본 일 유입</td><td>≈ 5 GB</td></tr>
+          <tr><td class="k">Parquet 후</td><td>≈ 1.2 GB / 일 (압축률 1/4)</td></tr>
+          <tr><td class="k">연간 논리 용량</td><td>≈ 440 GB</td></tr>
+          <tr><td class="k">물리 디스크</td><td>≈ 800 GB / 년 (EC 1.5 × 여유 1.2)</td></tr>
+          <tr><td class="k">10년 보관 시</td><td>≈ 8 TB. 회원·채팅 추가 시 별도 산정</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note" style="margin-top: 12px">비교 기준은 "같은 이력을 운영 DB에 두었을 때의 스토리지·백업·성능 비용"입니다. 절대 금액보다 이 차이를 PoC 보고서에 넣습니다.</div>
+      <div class="note warm">Kafka 보관 기간과 Iceberg 스냅샷 유지 기간은 재처리 가능 창을 결정합니다. 짧게 잡으면 비용이 줄지만 복구 선택지도 줄어듭니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 23. 부록 G -->
+<section class="slide" data-ch="G">
+  <header class="sh"><span>부록 G</span><span class="num"></span></header>
+  <h2>예상 질문과 답변</h2>
+  <div class="cols even">
+    <div>
+      <h3>Q. Trino로 사용자 화면의 과거 조회를 바로 처리할 수 있나요?</h3>
+      <p>SQL로 조회는 됩니다. 사용자 화면이 요구하는 응답 시간과 동시 접속을 만족하는지는 별개입니다. 목표 부하로 검증하기 전에는 Serving 계층(DB)이 화면을 맡습니다.</p>
+      <h3>Q. 실시간인가요?</h3>
+      <p>아닙니다. Writer가 배치로 묶어 커밋하므로 분 단위 지연이 있습니다. 허용 지연을 정하고 "방금 쓴 데이터가 아직 없을 때"의 화면 동작을 함께 정합니다.</p>
+      <h3>Q. 운영 DB를 대체하나요?</h3>
+      <p>아닙니다. 업무 처리와 거래 상태의 기준은 운영 DB에 남습니다. Lakehouse는 이벤트로 갱신되는 조회용 복제본입니다.</p>
+      <h3>Q. 기존 파일 서비스는 바뀌나요?</h3>
+      <p>앱 로직은 그대로이고 저장소만 MinIO로 옮깁니다. 파일용 Bucket과 Lakehouse용 Bucket은 분리합니다.</p>
+    </div>
+    <div>
+      <h3>Q. 개인정보 삭제 요청은 어떻게 처리하나요?</h3>
+      <p>삭제 이벤트를 세 계층에 전파하고, Iceberg에서는 해당 행을 삭제한 뒤 스냅샷 만료로 과거 파일까지 정리합니다. 백업에 남은 데이터의 처리 기간도 정책에 넣습니다.</p>
+      <h3>Q. 장애가 나면 데이터가 유실되나요?</h3>
+      <p>Writer는 커밋한 오프셋을 기억하고 재시작 시 그 다음부터 읽습니다. Kafka 보관 기간 안이면 누락 없이 재적재됩니다. 그 밖은 초기 적재 절차로 복구합니다.</p>
+      <h3>Q. Flink는 왜 지금 안 쓰나요?</h3>
+      <p>첫 목표는 "Kafka 데이터를 저장하고 SQL로 확인"이라 Kafka Connect Iceberg Sink로 충분합니다. 스트림 조인, 이벤트 시간 집계가 필요해지면 그때 검토합니다.</p>
+      <h3>Q. 얼마나 걸리나요?</h3>
+      <p>1~2단계(요구사항 확정, 수집·보관 PoC)가 첫 마일스톤입니다. 2단계 완료 기준을 통과한 뒤 3단계 일정을 잡습니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 부록 H -->
+<section class="slide" data-ch="H">
+  <header class="sh"><span>부록 H</span><span class="num"></span></header>
+  <h2>Uber 사례 상세 — 업무 DB의 변경을 분석 플랫폼으로</h2>
+  <p class="lead">2019년 공개한 DBEvents 구조 기준입니다. 당시 기술은 Kafka·StorageTapper·Marmaray·Hudi·HDFS이며, 우리가 검토하는 MinIO·Iceberg 구성과는 구분합니다.</p>
+  <div class="cols">
+    <div>
+      <h3>무엇을 했나</h3>
+      <ul>
+        <li><strong>초기 적재와 변경분 적재 분리.</strong> 테이블 전체를 반복해 읽는 대신, 기존 데이터는 한 번(Bootstrap), 이후는 변경 로그만 반영합니다.</li>
+        <li><strong>초기 스냅샷은 복제본에서.</strong> StorageTapper가 MySQL 복제본에서 스냅샷을 읽어 Primary 부하를 피하고, 읽기 속도를 제한합니다.</li>
+        <li><strong>변경은 binlog에서.</strong> 변경 내용을 Avro 메시지로 바꿔 Kafka로 보내고, Marmaray가 읽어 Hudi 테이블에 <strong>upsert</strong>합니다.</li>
+        <li><strong>표준 메타데이터.</strong> 행 식별자, 증가하는 변경 버전, 삭제 여부를 메시지에 붙입니다. 버전 11 적용 뒤 버전 10이 늦게 와도 되돌아가지 않게 합니다.</li>
+        <li><strong>오류 격리.</strong> 변환 실패 데이터는 오류 테이블에 원본과 함께 보관하고, 원인을 고친 뒤 다시 파이프라인에 넣습니다.</li>
+        <li><strong>체크포인트.</strong> 마지막 성공 위치를 저장하고, 작업이 성공했을 때만 갱신합니다. 실패하면 이전 위치부터 다시 시작합니다.</li>
+      </ul>
+      <div class="note warm">체크포인트만으로 중복 방지가 완성되지 않습니다. 저장은 됐는데 체크포인트 저장 전에 죽을 수 있으므로, 재실행 시 같은 데이터를 안전하게 처리하는 규칙(eventId·버전)이 함께 필요합니다.</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 330" role="img" aria-label="MySQL 복제본에서 초기 스냅샷을, Primary의 binlog에서 변경분을 StorageTapper가 읽어 Kafka로 보내고 Marmaray가 Hudi 테이블에 적재하며, 오류는 오류 테이블로 격리되는 Uber DBEvents 구조">
+        <rect class="node" x="20" y="20" width="120" height="44" rx="6"></rect><text x="80" y="38" text-anchor="middle" class="b">MySQL Primary</text><text x="80" y="55" text-anchor="middle" class="s">업무 요청 처리</text>
+        <rect class="node dim" x="20" y="100" width="120" height="44" rx="6"></rect><text x="80" y="118" text-anchor="middle" class="b">MySQL 복제본</text><text x="80" y="135" text-anchor="middle" class="s">Primary 부하 회피</text>
+        <line class="ln dash" x1="80" y1="64" x2="80" y2="98" marker-end="url(#arr)"></line>
+        <rect class="node hi" x="200" y="60" width="130" height="44" rx="6"></rect><text x="265" y="78" text-anchor="middle" class="b">StorageTapper</text><text x="265" y="95" text-anchor="middle" class="s">변경 → Avro 메시지</text>
+        <path class="ln" d="M140,42 L200,74" marker-end="url(#arr)"></path><text x="150" y="36" class="s">② binlog 스트리밍</text>
+        <path class="ln" d="M140,122 L200,92" marker-end="url(#arr)"></path><text x="150" y="140" class="s">① 초기 스냅샷 (속도 제한)</text>
+        <line class="ln" x1="330" y1="82" x2="388" y2="82" marker-end="url(#arr)"></line>
+        <rect class="node warm" x="390" y="60" width="70" height="44" rx="6"></rect><text x="425" y="86" text-anchor="middle" class="b">Kafka</text>
+        <path class="ln" d="M425,104 L425,150" marker-end="url(#arr)"></path>
+        <rect class="node hi" x="350" y="152" width="150" height="56" rx="6"></rect>
+        <text x="425" y="172" text-anchor="middle" class="b">Marmaray</text>
+        <text x="425" y="190" text-anchor="middle" class="s">변환 · 적재 · 체크포인트</text>
+        <path class="ln hi" d="M425,208 L425,250" marker-end="url(#arrA)"></path><text x="435" y="234" class="s">정상 → upsert</text>
+        <rect class="node hi" x="330" y="252" width="190" height="56" rx="6"></rect>
+        <text x="425" y="272" text-anchor="middle" class="b">Hudi 분석 테이블 (HDFS)</text>
+        <text x="425" y="290" text-anchor="middle" class="s">키 기준 갱신: 주문 A 결제대기 → 결제완료</text>
+        <path class="ln warm" d="M350,180 L230,180 L230,250" marker-end="url(#arrW)"></path><text x="140" y="240" class="s">오류 → 격리</text>
+        <rect class="node warm" x="140" y="252" width="170" height="56" rx="6"></rect>
+        <text x="225" y="272" text-anchor="middle" class="b">오류 테이블</text>
+        <text x="225" y="290" text-anchor="middle" class="s">원본·오류 정보 보관 → 수정 후 재투입</text>
+        <path class="ln warm dash" d="M140,280 L60,280 L60,160 L200,100"></path>
+        <text x="200" y="128" class="s">메타: 행 ID · 버전 · 삭제 여부</text>
+      </svg>
+      <figcaption>변경 메시지를 수집하는 것과 모든 이력을 영구 보존하는 것은 별개입니다. Hudi upsert는 최신 상태를 유지합니다.</figcaption>
+    </figure>
+  </div>
+  <div class="note"><strong>콜드 데이터 이관에 적용할 때의 차이.</strong> 이 구조만으로는 "DB에서 지워도 분석 저장소에 남는 아카이브"가 되지 않습니다. DB 정리용 삭제를 CDC가 수집해 분석 테이블에서도 지우기 때문입니다. 장기 보관용 이력 테이블을 따로 두고, "보관 기간 종료에 따른 DB 정리"와 "실제 삭제 요청"을 구분하는 정책이 필요합니다(10장).</div>
+</section>
+
+  </div>
+
+  <nav class="nav" aria-label="슬라이드 이동">
+    <div class="left">
+      <span class="deckname">Lakehouse Layer 구축 제안</span>
+      <span id="chlabel"></span>
+    </div>
+    <div class="right">
+      <button class="btn text" id="tocBtn" type="button" title="목차로">목차</button>
+      <button class="btn" id="prev" type="button" aria-label="이전 슬라이드">‹</button>
+      <span class="counter" id="counter">1 / 1</span>
+      <button class="btn" id="next" type="button" aria-label="다음 슬라이드">›</button>
+    </div>
+  </nav>
+</div>
+
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var total = slides.length;
+  var idx = 0;
+  var bar = document.getElementById('bar');
+  var counter = document.getElementById('counter');
+  var chlabel = document.getElementById('chlabel');
+  var prev = document.getElementById('prev');
+  var next = document.getElementById('next');
+
+  var tocItems = [
+    ['1', '우리가 Lakehouse를 검토하는 이유'],
+    ['2', '이번 구축으로 해결할 문제'],
+    ['3', 'Lakehouse란 무엇인가'],
+    ['4', '기존 DB와 어떻게 역할을 나누는가'],
+    ['5', '전사 데이터 플랫폼에서의 위치'],
+    ['6', 'Lakehouse를 구성하는 기술'],
+    ['7', '데이터는 어떻게 저장되고 조회되는가'],
+    ['8', '활용 사례 ① 주문·결제 통합 분석'],
+    ['9', '활용 사례 ② 회원·채팅 데이터 분석'],
+    ['10', '활용 사례 ③ 콜드 데이터 이관'],
+    ['11', '기존 파일 서비스와의 관계'],
+    ['12', '데이터 정합성과 운영 원칙'],
+    ['13', '기업 사례에서 배울 점'],
+    ['14', '단계별 구축 및 PoC 계획'],
+    ['15', '기대 효과와 의사결정 사항'],
+    ['A', '구성요소별 상세 설명과 공식 문서'],
+    ['B', '이벤트 이력 테이블과 최신 상태 테이블의 차이'],
+    ['C', 'CDC와 Outbox 방식 비교'],
+    ['D', '파일 업로드·다운로드 및 임시 URL 방식'],
+    ['E', '파티션·파일 크기·스냅샷 유지보수'],
+    ['F', '비용 산정 항목과 용량 계획'],
+    ['G', '예상 질문과 답변'],
+    ['H', 'Uber 사례 상세 — 초기 적재·변경분 수집·오류 격리·체크포인트']
+  ];
+  var toc = document.getElementById('toc');
+  var appended = false;
+  tocItems.forEach(function (item) {
+    var isAppx = isNaN(parseInt(item[0], 10));
+    if (isAppx && !appended) {
+      var h = document.createElement('li');
+      h.className = 'appx';
+      h.textContent = '부록';
+      toc.appendChild(h);
+      appended = true;
+    }
+    var li = document.createElement('li');
+    var b = document.createElement('button');
+    b.type = 'button';
+    var n = document.createElement('span');
+    n.className = 'n';
+    n.textContent = isAppx ? '부록 ' + item[0] : String(item[0]).padStart(2, '0');
+    var t = document.createElement('span');
+    t.textContent = item[1];
+    b.appendChild(n); b.appendChild(t);
+    b.addEventListener('click', function () {
+      var target = slides.findIndex(function (s) { return s.getAttribute('data-ch') === item[0]; });
+      if (target >= 0) go(target);
+    });
+    li.appendChild(b);
+    toc.appendChild(li);
+  });
+
+  function labelFor(slide) {
+    var ch = slide.getAttribute('data-ch');
+    if (!ch) return '';
+    var n = parseInt(ch, 10);
+    return isNaN(n) ? '부록 ' + ch : n + '장';
+  }
+
+  function go(n) {
+    if (n < 0 || n >= total) return;
+    slides[idx].classList.remove('active');
+    idx = n;
+    slides[idx].classList.add('active');
+    slides[idx].scrollTop = 0;
+    counter.textContent = (idx + 1) + ' / ' + total;
+    bar.style.width = ((idx + 1) / total * 100) + '%';
+    chlabel.textContent = labelFor(slides[idx]);
+    prev.disabled = idx === 0;
+    next.disabled = idx === total - 1;
+    var numEl = slides[idx].querySelector('.num');
+    if (numEl) numEl.textContent = (idx + 1) + ' / ' + total;
+    try { history.replaceState(null, '', '#' + (idx + 1)); } catch (e) {}
+  }
+
+  prev.addEventListener('click', function () { go(idx - 1); });
+  next.addEventListener('click', function () { go(idx + 1); });
+  document.getElementById('tocBtn').addEventListener('click', function () { go(1); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(idx + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(idx - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); go(0); }
+    else if (e.key === 'End') { e.preventDefault(); go(total - 1); }
+  });
+
+  var touchX = null;
+  document.addEventListener('touchstart', function (e) { touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 60) go(dx < 0 ? idx + 1 : idx - 1);
+    touchX = null;
+  }, { passive: true });
+
+  var start = parseInt((location.hash || '#1').slice(1), 10);
+  if (isNaN(start) || start < 1 || start > total) start = 1;
+  slides[0].classList.remove('active');
+  idx = 0;
+  slides[0].classList.add('active');
+  go(start - 1);
+})();
+</script>
