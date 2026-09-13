@@ -8,3 +8,7 @@ kafka/examples/**/certs/*.key
 kafka/examples/**/certs/*.crt
 kafka/examples/**/certs/*.csr
 kafka/examples/**/certs/*.srl
+
+# Lakehouse 예제: 자격증명은 커밋하지 않는다
+lakehouse/examples/**/.env
+lakehouse/examples/**/*.rendered.json

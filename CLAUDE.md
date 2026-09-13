@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-Korean-language DevOps knowledge base. Topic directories (`docker/`, `redis/`, `kafka/`, `aws/`, `kubernetes/`) at the root hold the Markdown content; a Next.js app in `web/` renders it as a searchable learning site. `docs/` holds working drafts and plans — it has no `README.md`, so sync ignores it and nothing there reaches the site.
+Korean-language DevOps knowledge base. Topic directories (`docker/`, `redis/`, `kafka/`, `aws/`, `kubernetes/`, `minio/`, `lakehouse/`) at the root hold the Markdown content; a Next.js app in `web/` renders it as a searchable learning site. `docs/` holds working drafts and plans — it has no `README.md`, so sync ignores it and nothing there reaches the site.
 
 `AGENTS.md` covers the same ground for other agents — keep the two in sync when you change conventions here.
 
@@ -22,7 +22,7 @@ npm test                 # build, then node --test on the rendered HTML
 npm run lint             # ESLint over web/ (dist and .next ignored)
 ```
 
-There is no single-test runner — `npm test` builds and runs both cases in `tests/rendered-html.test.mjs`. That test imports the *built* worker (`dist/server/index.js`) and calls `worker.fetch`, so it only reflects source changes after a build (hence the `test` script builds first). It asserts on literal page strings and hard-codes the exact topic id list (`["docker", "redis", "kafka", "aws", "kubernetes"]`), so adding or renaming a topic — and some content edits — require updating the test.
+There is no single-test runner — `npm test` builds and runs both cases in `tests/rendered-html.test.mjs`. That test imports the *built* worker (`dist/server/index.js`) and calls `worker.fetch`, so it only reflects source changes after a build (hence the `test` script builds first). It asserts on literal page strings and hard-codes the exact topic id list (`["docker", "redis", "kafka", "aws", "kubernetes", "minio", "lakehouse"]`), so adding or renaming a topic — and some content edits — require updating the test.
 
 `kafka/examples/scenario-runner/` is a self-contained Java CLI (JDK 21+, Maven, Docker Compose) that reproduces Kafka failure scenarios and verifies no message loss — see its README for `docker compose up -d`, `mvn -q package -DskipTests`, and the scenario commands. Its `target/` and `reports/` outputs are why sync skips those subdirectory names. The same jar also ships `sample-*` commands (JSON produce/consume, Avro produce/consume, schema evolution) that need the `schema-registry` container from its compose file and the Confluent Maven repository declared in its `pom.xml`.
 

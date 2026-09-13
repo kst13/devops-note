@@ -11,6 +11,8 @@ S3 호환 오브젝트 스토리지 MinIO를 사내 파일 저장소로 도입�
 - [05 레이크하우스와 DB 콜드 데이터](concepts/05-lakehouse-and-cold-data.md) — Iceberg·Trino 연계, RDB 아카이빙 패턴
 - [06 레이크하우스 서버 배치](concepts/06-lakehouse-deployment-layout.md) — MinIO+Iceberg+Trino 단계별 배치, 노드 스펙, Trino 공식 요구사항
 
+레이크하우스 계층 전체(구성요소, 수집·조회 흐름, 운영 원칙, 로컬 PoC)는 별도 토픽 [Lakehouse](../lakehouse/README.md)에서 다룹니다. 위 05·06은 MinIO 관점(저장층·서버 배치)에 집중합니다.
+
 ## 상태
 
 도입 검토 단계입니다. 인프라(VM·스토리지) 확정 전이며, 구성안의 주소·용량 값은 예시입니다.

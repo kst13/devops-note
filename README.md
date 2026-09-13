@@ -19,6 +19,9 @@ docker/            Docker 핵심 개념, 명령어, 예제, 트러블슈팅 기�
 redis/             Redis 설정, 운영, 트러블슈팅 기록
 kafka/             Kafka 클러스터 설계, 설치, 운영 기록
 aws/               AWS CLI 개념, 인증·설정, 서비스별 명령어
+kubernetes/        Kubernetes 개념, k3d·k3s 실습, 워크로드 설계
+minio/             MinIO 오브젝트 스토리지 도입 검토·구성안
+lakehouse/         Kafka·MinIO·Iceberg·Trino 레이크하우스 계층 설계와 PoC
 ```
 
 각 주제 디렉터리는 필요에 따라 아래 구조를 따릅니다.
@@ -48,6 +51,9 @@ examples/          직접 실행해볼 수 있는 최소 예제
 - [Redis](redis/README.md)
 - [Kafka](kafka/README.md)
 - [AWS CLI](aws/README.md)
+- [Kubernetes](kubernetes/README.md)
+- [MinIO](minio/README.md)
+- [Lakehouse](lakehouse/README.md)
 
 ## 학습 사이트
 

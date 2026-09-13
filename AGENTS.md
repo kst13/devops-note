@@ -4,7 +4,7 @@
 
 This repository is a Korean-language DevOps knowledge base. Content is grouped by technology at the repository root:
 
-- `docker/`, `redis/`, `kafka/`, `aws/`, and `kubernetes/` hold concepts, CLI references, minimal examples, and troubleshooting notes per technology.
+- `docker/`, `redis/`, `kafka/`, `aws/`, `kubernetes/`, `minio/`, and `lakehouse/` hold concepts, CLI references, minimal examples, and troubleshooting notes per technology.
 - Each topic begins with a `README.md` that acts as its index and recommended reading order.
 
 Within a topic, place conceptual material in `concepts/`, incident-style guides in `troubleshooting/`, command references in `commands/`, reproducible demonstrations in `examples/`, and consumer-facing how-to series in `usage-guide/`. Number ordered concept files with two digits, for example `concepts/03-replication.md`. Add new top-level topics only when they represent a distinct DevOps technology or practice.

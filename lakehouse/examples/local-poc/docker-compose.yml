@@ -1,0 +1,169 @@
+# lakehouse-poc — 로컬 Lakehouse PoC (setup.sh 가 ~/lakehouse-poc 로 복사해 실행)
+#
+# 1단계 (기본):     minio + minio-init + iceberg-rest + trino
+# 2단계 (--connect): connect  ← profile "connect". 기존 kafka-home-lab 의 브로커에 external 네트워크로 붙는다.
+#
+# 자격증명은 같은 디렉터리의 .env 에서 읽는다 (setup.sh 가 생성, 커밋 금지).
+name: lakehouse-poc
+
+services:
+  # ---------- 저장: S3 호환 객체 저장소 ----------
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: lakehouse-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # 웹 콘솔
+    volumes:
+      - minio-data:/data
+    networks: [lakehouse-poc-net]
+
+  # 버킷·전용 계정·버킷 한정 정책 생성 (MinIO 구성안의 "서비스별 계정 + 버킷 단위 정책" 원칙)
+  minio-init:
+    image: quay.io/minio/mc:latest
+    container_name: lakehouse-minio-init
+    depends_on: [minio]
+    networks: [lakehouse-poc-net]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      LAKEHOUSE_ACCESS_KEY: ${LAKEHOUSE_ACCESS_KEY}
+      LAKEHOUSE_SECRET_KEY: ${LAKEHOUSE_SECRET_KEY}
+    volumes:
+      - ./minio/lakehouse-policy.json:/policy.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do
+          echo "minio 대기 중..."; sleep 2
+        done
+        mc mb --ignore-existing local/lakehouse
+        mc admin user add local "$$LAKEHOUSE_ACCESS_KEY" "$$LAKEHOUSE_SECRET_KEY" 2>/dev/null || echo "계정 이미 존재"
+        mc admin policy create local lakehouse-rw /policy.json 2>/dev/null || echo "정책 이미 존재"
+        mc admin policy attach local lakehouse-rw --user "$$LAKEHOUSE_ACCESS_KEY" 2>/dev/null || echo "정책 이미 연결됨"
+        echo "minio-init 완료: bucket=lakehouse user=$$LAKEHOUSE_ACCESS_KEY policy=lakehouse-rw"
+
+  # ---------- 관리: Iceberg REST Catalog (테이블 이름 → 현재 메타데이터 위치) ----------
+  # 등록 정보는 sqlite 파일(./catalog-data)에 남는다. 메타데이터 파일 자체는 MinIO 에 쓰므로
+  # 이 컨테이너도 S3 자격증명이 필요하다. 컨테이너는 iceberg 사용자로 실행되므로 catalog-data 는
+  # setup.sh 가 쓰기 가능하게 만든다.
+  iceberg-rest:
+    image: apache/iceberg-rest-fixture:1.10.1
+    container_name: lakehouse-catalog
+    restart: unless-stopped
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      CATALOG_WAREHOUSE: s3://lakehouse/warehouse
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      CATALOG_URI: jdbc:sqlite:/data/catalog.db?journal_mode=WAL
+      AWS_ACCESS_KEY_ID: ${LAKEHOUSE_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${LAKEHOUSE_SECRET_KEY}
+      AWS_REGION: us-east-1
+      LOG_LEVEL: WARN
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./catalog-data:/data
+    networks: [lakehouse-poc-net]
+
+  # ---------- 조회: Trino 1노드 (coordinator = worker) ----------
+  trino:
+    image: trinodb/trino:483
+    container_name: lakehouse-trino
+    restart: unless-stopped
+    depends_on: [iceberg-rest]
+    environment:
+      LAKEHOUSE_ACCESS_KEY: ${LAKEHOUSE_ACCESS_KEY}   # lakehouse.properties 의 ${ENV:...} 로 주입
+      LAKEHOUSE_SECRET_KEY: ${LAKEHOUSE_SECRET_KEY}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./trino/catalog/lakehouse.properties:/etc/trino/catalog/lakehouse.properties:ro
+    networks: [lakehouse-poc-net]
+
+  # ---------- 적재: Kafka Connect + Iceberg Sink (2단계, --connect) ----------
+  # 브로커는 kafka-home-lab (SASL_SSL, ACL). CA 는 홈랩 secrets 의 ca.crt(PEM) 를 그대로 신뢰한다.
+  # Iceberg 커넥터는 Confluent Hub 에서 최초 1회 설치되어 connect-plugins 볼륨에 남는다.
+  connect:
+    image: confluentinc/cp-kafka-connect:7.9.1
+    container_name: lakehouse-connect
+    restart: unless-stopped
+    profiles: [connect]
+    networks: [lakehouse-poc-net, kafka-home-lab-net]
+    ports:
+      - "8083:8083"
+    volumes:
+      - ${KAFKA_LAB_DIR}/secrets:/etc/kafka/secrets:ro
+      - connect-plugins:/usr/share/confluent-hub-components
+    command:
+      - bash
+      - -c
+      - |
+        if [ ! -d /usr/share/confluent-hub-components/iceberg-iceberg-kafka-connect ]; then
+          confluent-hub install --no-prompt iceberg/iceberg-kafka-connect:${ICEBERG_CONNECT_VERSION}
+        fi
+        exec /etc/confluent/docker/run
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9095
+      CONNECT_REST_PORT: 8083
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_GROUP_ID: lakehouse-connect
+      CONNECT_CONFIG_STORAGE_TOPIC: lakehouse-connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: lakehouse-connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: lakehouse-connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+      CONNECT_LOG4J_ROOT_LOGLEVEL: INFO
+      # Iceberg Sink 워커는 put() 호출 때만 제어 토픽을 poll(0) 한다. 데이터가 뜸하면 put() 이
+      # offset.flush.interval.ms(기본 60초)마다만 불려 제어 컨슈머가 그룹에 못 붙고 커밋이 계속
+      # 타임아웃된다(실측). 1초로 줄여 유휴 상태에서도 제어 이벤트를 제때 처리하게 한다.
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 1000
+
+      # 워커 자체 · 내부 producer/consumer/admin 모두 connect 계정으로 SASL_SSL 접속
+      CONNECT_SECURITY_PROTOCOL: SASL_SSL
+      CONNECT_SASL_MECHANISM: SCRAM-SHA-512
+      CONNECT_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required
+        username="connect" password="${CONNECT_PASSWORD}";
+      CONNECT_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/ca.crt
+      CONNECT_SSL_TRUSTSTORE_TYPE: PEM
+      CONNECT_PRODUCER_SECURITY_PROTOCOL: SASL_SSL
+      CONNECT_PRODUCER_SASL_MECHANISM: SCRAM-SHA-512
+      CONNECT_PRODUCER_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required
+        username="connect" password="${CONNECT_PASSWORD}";
+      CONNECT_PRODUCER_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/ca.crt
+      CONNECT_PRODUCER_SSL_TRUSTSTORE_TYPE: PEM
+      CONNECT_CONSUMER_SECURITY_PROTOCOL: SASL_SSL
+      CONNECT_CONSUMER_SASL_MECHANISM: SCRAM-SHA-512
+      CONNECT_CONSUMER_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required
+        username="connect" password="${CONNECT_PASSWORD}";
+      CONNECT_CONSUMER_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/ca.crt
+      CONNECT_CONSUMER_SSL_TRUSTSTORE_TYPE: PEM
+
+networks:
+  lakehouse-poc-net:
+    name: lakehouse-poc-net
+  kafka-home-lab-net:
+    external: true
+
+volumes:
+  minio-data:
+    name: lakehouse-poc-minio
+  connect-plugins:
+    name: lakehouse-poc-connect-plugins

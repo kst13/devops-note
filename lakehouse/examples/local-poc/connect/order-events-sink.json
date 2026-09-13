@@ -1,0 +1,32 @@
+{
+  "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
+  "tasks.max": "1",
+  "topics": "lakehouse.order.events",
+
+  "iceberg.tables": "commerce.order_events",
+  "iceberg.tables.auto-create-enabled": "true",
+  "iceberg.tables.evolve-schema-enabled": "true",
+  "iceberg.tables.auto-create-props.write.parquet.compression-codec": "zstd",
+
+  "iceberg.catalog.type": "rest",
+  "iceberg.catalog.uri": "http://iceberg-rest:8181",
+  "iceberg.catalog.warehouse": "s3://lakehouse/warehouse",
+  "iceberg.catalog.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
+  "iceberg.catalog.s3.endpoint": "http://minio:9000",
+  "iceberg.catalog.s3.path-style-access": "true",
+  "iceberg.catalog.s3.access-key-id": "__LAKEHOUSE_ACCESS_KEY__",
+  "iceberg.catalog.s3.secret-access-key": "__LAKEHOUSE_SECRET_KEY__",
+  "iceberg.catalog.client.region": "us-east-1",
+
+  "iceberg.control.topic": "lakehouse-control-iceberg",
+  "iceberg.control.commit.interval-ms": "30000",
+  "iceberg.kafka.security.protocol": "SASL_SSL",
+  "iceberg.kafka.sasl.mechanism": "SCRAM-SHA-512",
+  "iceberg.kafka.sasl.jaas.config": "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"connect\" password=\"__CONNECT_PASSWORD__\";",
+  "iceberg.kafka.ssl.truststore.location": "/etc/kafka/secrets/ca.crt",
+  "iceberg.kafka.ssl.truststore.type": "PEM",
+
+  "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+  "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+  "value.converter.schemas.enable": "false"
+}

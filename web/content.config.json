@@ -6,7 +6,11 @@
     "accent": "#2f7cf6",
     "accentSoft": "#e8f1ff",
     "order": 1,
-    "tags": ["Container", "Image", "Network"]
+    "tags": [
+      "Container",
+      "Image",
+      "Network"
+    ]
   },
   "redis": {
     "title": "Redis",
@@ -15,7 +19,11 @@
     "accent": "#ef5b4c",
     "accentSoft": "#ffebe8",
     "order": 2,
-    "tags": ["Cache", "Persistence", "HA"]
+    "tags": [
+      "Cache",
+      "Persistence",
+      "HA"
+    ]
   },
   "kafka": {
     "title": "Kafka",
@@ -24,7 +32,11 @@
     "accent": "#5b53c6",
     "accentSoft": "#eceaff",
     "order": 3,
-    "tags": ["Streaming", "HA", "Security"]
+    "tags": [
+      "Streaming",
+      "HA",
+      "Security"
+    ]
   },
   "aws": {
     "title": "AWS CLI",
@@ -33,7 +45,11 @@
     "accent": "#ec7211",
     "accentSoft": "#fdecd8",
     "order": 4,
-    "tags": ["Cloud", "CLI", "Automation"]
+    "tags": [
+      "Cloud",
+      "CLI",
+      "Automation"
+    ]
   },
   "kubernetes": {
     "title": "Kubernetes",
@@ -42,7 +58,11 @@
     "accent": "#326ce5",
     "accentSoft": "#e7eefc",
     "order": 5,
-    "tags": ["Orchestration", "k3s", "kubectl"]
+    "tags": [
+      "Orchestration",
+      "k3s",
+      "kubectl"
+    ]
   },
   "minio": {
     "title": "MinIO",
@@ -51,6 +71,23 @@
     "accent": "#c72c48",
     "accentSoft": "#fdeaee",
     "order": 6,
-    "tags": ["Storage", "S3", "Lakehouse"]
+    "tags": [
+      "Storage",
+      "S3",
+      "Lakehouse"
+    ]
+  },
+  "lakehouse": {
+    "title": "Lakehouse",
+    "kicker": "DATA LAKEHOUSE",
+    "description": "Kafka·MinIO·Iceberg·Trino로 서비스별 데이터를 장기 보관하고 SQL로 통합 조회하는 레이크하우스 계층의 개념, 역할 분담, 운영 원칙, 로컬 PoC를 정리합니다.",
+    "accent": "#1d6e8c",
+    "accentSoft": "#e1eff4",
+    "order": 7,
+    "tags": [
+      "Iceberg",
+      "Trino",
+      "MinIO"
+    ]
   }
 }
