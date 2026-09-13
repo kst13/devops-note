@@ -28,6 +28,7 @@ examples/          로컬 PoC (MinIO + Iceberg REST Catalog + Trino + Kafka Conn
 6. [데이터 정합성과 운영 원칙](concepts/06-consistency-and-operations.md) — Outbox·CDC, 이벤트 규약, 재처리, 유지보수, 운영 지표
 7. [기업 사례에서 배울 점](concepts/07-industry-cases.md) — Uber DBEvents, SK텔레콤 Trino Summit, Netflix Data Bridge
 8. [단계별 구축과 PoC 계획](concepts/08-rollout-plan.md) — 활용 사례 단위의 단계, 완료 기준, 의사결정 항목
+9. [구축 순서: 로컬 PoC부터 실서버까지](concepts/09-build-sequence.md) — MinIO → 카탈로그 → Trino → 첫 테이블 → Connect → 초기 적재 → 검증 → 운영 작업 → 조회 제공, 단계별 명령·설정·완료 기준
 
 실행 가능한 예제:
 
