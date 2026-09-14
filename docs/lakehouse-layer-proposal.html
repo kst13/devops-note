@@ -947,7 +947,7 @@ GROUP BY customer_id;</pre>
 
 <!-- 12. ch11 -->
 <section class="slide" data-ch="11a">
-  <header class="sh"><span>11 · 파일 서비스 (1/2)</span><span class="num"></span></header>
+  <header class="sh"><span>11 · 파일 서비스 (1/3)</span><span class="num"></span></header>
   <h2>파일 서비스를 왜 MinIO로 옮기는가</h2>
   <p class="lead">파일 하나를 넣고 꺼내는 기능만 보면 MinIO가 로컬 디스크나 NAS보다 나을 것이 없습니다. 옮기는 이유는 현재 파일 서비스에서 확인된 두 가지 문제 때문입니다.</p>
   <div class="cols even">
@@ -1009,7 +1009,7 @@ GROUP BY customer_id;</pre>
 </section>
 
 <section class="slide" data-ch="11">
-  <header class="sh"><span>11 · 파일 서비스 (2/2)</span><span class="num"></span></header>
+  <header class="sh"><span>11 · 파일 서비스 (2/3)</span><span class="num"></span></header>
   <h2>기존 파일 서비스와의 관계</h2>
   <p class="lead">파일 업로드·다운로드 애플리케이션은 그대로 두고, 저장소만 MinIO로 옮깁니다. 파일용과 Lakehouse용 Bucket은 분리합니다.</p>
   <div class="cols">
@@ -1019,7 +1019,6 @@ GROUP BY customer_id;</pre>
         <li><strong>MinIO 저장 전환.</strong> 로컬 디스크·NAS 대신 S3 API로 저장합니다. 앱은 S3 SDK 한 층만 추가합니다.</li>
         <li><strong>Bucket 분리.</strong> <code>files</code>(첨부·이미지)와 <code>lakehouse</code>(Parquet·메타데이터)를 나눕니다. 접근 권한, 보관 정책, 버전 관리를 따로 둘 수 있습니다.</li>
         <li><strong>공유 시 고려.</strong> 같은 MinIO 클러스터를 쓰면 용량과 IO를 나눠 씁니다. 대량 분석 쿼리가 파일 다운로드를 느리게 하지 않는지 확인합니다.</li>
-        <li><strong>옮길 때 챙길 것.</strong> <code>files</code> 버킷은 만들자마자 버저닝을 켭니다(나중에 켜면 그 전 파일은 보호 안 됨). 업로드 응답 ETag를 DB 메타데이터에 함께 저장합니다. 기존 파일은 복사 후 해시 대조로 검증하고 나서 원본을 정리합니다. 이미 깨진 파일이 있다면 이 단계에서 드러납니다.</li>
       </ul>
       <h3>데이터·기능별 우선 배치</h3>
       <div class="tablewrap">
@@ -1066,6 +1065,49 @@ GROUP BY customer_id;</pre>
       </svg>
       <figcaption>저장소는 공유하되 Bucket과 계정을 분리합니다. 한쪽 정책 변경이 다른 쪽에 영향을 주지 않습니다.</figcaption>
     </figure>
+  </div>
+</section>
+
+
+<section class="slide" data-ch="11c">
+  <header class="sh"><span>11 · 파일 서비스 (3/3)</span><span class="num"></span></header>
+  <h2>파일 이전 절차와 검증</h2>
+  <p class="lead">무중단 병행 전환 6단계입니다. 1·2·4단계에 "저장 확인"과 "삭제 복구"를 해결하는 검증이 들어갑니다. 통과하지 못하면 다음 단계로 가지 않습니다.</p>
+  <div class="cols wide">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:9%">단계</th><th style="width:30%">하는 일</th><th>검증 · 챙길 것</th></tr></thead>
+        <tbody>
+          <tr><td class="k">1</td><td>MinIO 구축, <code>files</code> 버킷 생성, 앱에 전용 키 발급</td><td><strong>버킷을 만들자마자 버저닝을 켠다.</strong> 켜기 전 객체는 보호되지 않으므로 백필(3단계)보다 먼저. 이전 버전 90일 정리 수명주기 규칙을 함께 건다. Object Lock이 필요하면 버킷 생성 시에만 켤 수 있다</td></tr>
+          <tr><td class="k">2</td><td>앱 수정: 쓰기는 MinIO, 읽기는 "MinIO 먼저 → 없으면 기존 경로"(이중 조회)</td><td><strong>업로드 응답 ETag를 검증하고 저장한다.</strong> 보내기 전 계산한 해시와 응답 ETag를 비교해 불일치면 재시도. ETag와 versionId를 DB 파일 메타데이터에 함께 저장. 5MB 이상 멀티파트는 ETag가 MD5가 아니므로 SHA256 체크섬 또는 HEAD로 확인</td></tr>
+          <tr><td class="k">3</td><td>기존 파일 백필: <code>mc mirror</code> 로 운영 중 백그라운드 복사</td><td>변경분만 다시 돌릴 수 있다. 1차 복사 후 전환 직전에 한 번 더 돌려 따라잡는다</td></tr>
+          <tr><td class="k">4</td><td>검증</td><td><strong>건수·용량 대조 + 전수 해시 대조.</strong> 원본 <code>md5sum</code> 목록과 MinIO ETag 목록을 <code>diff</code>. 원본 해시가 DB 메타데이터와도 다르면 <strong>기존 저장소에서 이미 깨진 파일</strong>이므로 목록을 남기고 담당자와 처리(재업로드·폐기)를 정한다</td></tr>
+          <tr><td class="k">5</td><td>이중 조회 제거(읽기도 MinIO만) → 관찰 기간</td><td>4단계를 통과한 뒤에만. 관찰 기간 동안 <code>mc undo</code>·<code>mc stat</code>으로 복구·확인 절차를 실제로 한 번 수행해 본다</td></tr>
+          <tr><td class="k">6</td><td>기존 마운트 저장소 회수 → 인프라팀에 반납 보고</td><td>관찰 기간이 끝난 뒤. "신규 저장 공간 요청"이 아니라 기존 사용분의 표준 저장소 이관 + 반납으로 보고한다</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>2단계 업로드 코드 요점</h3>
+      <pre>byte[] md5 = MessageDigest.getInstance("MD5").digest(bytes);
+PutObjectResponse res = s3.putObject(b -> b
+    .bucket("files").key(key)
+    .contentMD5(base64(md5))              // 서버가 대조, 불일치면 거부
+    .checksumAlgorithm(SHA256),           // 전송 무결성
+  RequestBody.fromBytes(bytes));
+if (!etag(res).equals(hex(md5)))
+  throw new IllegalStateException(key);   // 재시도
+meta.save(key, size, etag(res), res.versionId());</pre>
+      <h3 style="margin-top: 10px">4단계 검증 명령 요점</h3>
+      <pre>mc version info our-minio/files          # Enabled
+find /mnt/files -type f -print0 | xargs -0 md5sum \
+  | sed 's|/mnt/files/||' | sort -k2 > src.md5
+mc ls -r --json our-minio/files \
+  | jq -r '"\(.etag|gsub("\"";""))  \(.key)"' \
+  | sort -k2 > dst.md5
+diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
+      <div class="note" style="margin-top: 10px">이전 후: 저장 확인은 업로드 시 ETag 대조와 <code>mc stat</code>, 실수 삭제는 <code>mc undo</code>로 파일 단위 즉시 복구, 삭제 주체는 감사 로그에 남습니다. 상세 절차는 MinIO 토픽의 파일 이전 문서에 있습니다.</div>
+    </div>
   </div>
 </section>
 
@@ -1703,6 +1745,7 @@ GROUP BY customer_id;</pre>
     ['10', '활용 사례 ③ 콜드 데이터 이관'],
     ['11a', '파일 서비스를 왜 MinIO로 옮기는가'],
     ['11', '기존 파일 서비스와의 관계'],
+    ['11c', '파일 이전 절차와 검증'],
     ['12', '데이터 정합성과 운영 원칙'],
     ['13', '기업 사례에서 배울 점'],
     ['14', '단계별 구축 및 PoC 계획'],
