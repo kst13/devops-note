@@ -474,7 +474,7 @@
           <tr><td class="k">담당</td><td>업무 처리(트랜잭션), 화면 조회</td><td>장기 이력, 분석·집계·추출</td></tr>
           <tr><td class="k">데이터 범위</td><td>서비스에 필요한 최근 범위</td><td>전체 이력</td></tr>
           <tr><td class="k">응답 시간</td><td>수 ms, 예측 가능</td><td>수 초 ~ 수 분</td></tr>
-          <tr><td class="k">반영 시점</td><td>즉시</td><td>분 단위 지연</td></tr>
+          <tr><td class="k">반영 시점</td><td>즉시</td><td>분 단위 지연 <span class="pill hi">다음 장</span></td></tr>
           <tr><td class="k">데이터 지위</td><td><strong>거래 상태의 기준(원본)</strong></td><td>이벤트로 갱신되는 <strong>조회용 복제본</strong></td></tr>
           <tr><td class="k">동시 사용자</td><td>전체 사용자</td><td>분석가·배치·내부 도구</td></tr>
         </tbody>
@@ -539,6 +539,73 @@
   <div class="grid2">
     <div class="note">왼쪽 열의 기능은 이번 구축으로 <strong>바뀌지 않습니다.</strong> 오른쪽 열은 지금은 여러 DB를 따로 뒤져야 답할 수 있는 질문들입니다.</div>
     <div class="note warm">시간이 지나며 바뀌는 값(회원 등급 등)은 해석을 정해야 합니다. "현재 VIP인 회원의 과거 구매"와 "구매 당시 VIP였던 회원의 구매"는 다른 분석입니다.</div>
+  </div>
+</section>
+
+
+<section class="slide" data-ch="4c">
+  <header class="sh"><span>04 · 역할 분담 (반영 지연)</span><span class="num"></span></header>
+  <h2>반영 지연은 왜 생기고 얼마나 되는가</h2>
+  <p class="lead">Lakehouse에 데이터가 늦게 보이는 것은 장애가 아니라 설계입니다. 이벤트를 배치로 묶어 파일로 만들고 테이블에 커밋하는 구조에서 지연은 커밋 주기와 같습니다.</p>
+  <div class="cols wide">
+    <div>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:26%">구간</th><th style="width:20%">소요</th><th>왜</th></tr></thead>
+        <tbody>
+          <tr><td class="k">① 앱 → 운영 DB</td><td>즉시</td><td>트랜잭션 커밋. 화면은 여기를 읽으므로 사용자는 지연을 느끼지 않는다</td></tr>
+          <tr><td class="k">② 앱 → Kafka</td><td>수십 ms</td><td>이벤트 발행. 브로커 저장까지 확인(<code>acks=all</code>)</td></tr>
+          <tr><td class="k">③ Kafka → Iceberg 커밋</td><td><strong>0 ~ 커밋 주기</strong><br>(평균 주기의 절반)</td><td>Writer가 이벤트를 <strong>모았다가</strong> 한 번에 Parquet 파일을 만들고 스냅샷을 커밋한다. 이벤트마다 커밋하면 수 KB짜리 파일이 폭발해 조회가 느려지고 메타데이터가 비대해진다. <strong>지연의 대부분이 이 구간</strong></td></tr>
+          <tr><td class="k">④ 커밋 → 조회 화면</td><td>0 ~ 갱신 주기</td><td>대시보드·화면이 다시 조회하는 주기. 즉시 조회하면 0</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="tablewrap" style="margin-top: 10px">
+      <table>
+        <thead><tr><th>환경</th><th>커밋 주기</th><th>체감 지연</th><th>파일 생성</th></tr></thead>
+        <tbody>
+          <tr><td class="k">PoC (로컬)</td><td>30초</td><td>실측 15초 안팎, 최대 45초(화면 갱신 15초 포함)</td><td>테이블당 2분에 4개</td></tr>
+          <tr><td class="k">운영 제안</td><td>1~5분</td><td>목표 5분 이내 (15장 결정 항목)</td><td>테이블당 시간당 12~60개 → 일 단위 병합</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note warm" style="margin-top: 10px"><strong>커밋 주기는 "반영 지연 ↔ 파일 수"의 절충입니다.</strong> 짧게 잡으면 빨리 보이지만 작은 파일이 쌓여 조회 성능이 떨어지고 병합 작업이 늘어납니다. 그래서 커밋 주기는 짧게 두고 <strong>일 단위 병합(compaction)</strong>으로 큰 파일로 합치는 것이 운영 원칙입니다(12장, 부록 E).</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 330" role="img" aria-label="결제 시점부터 운영 DB 즉시 반영, Kafka 발행, Writer 배치 커밋, Trino 조회까지의 시간 흐름과 각 구간의 지연">
+        <line class="ln" x1="30" y1="60" x2="540" y2="60" marker-end="url(#arr)"></line>
+        <text x="540" y="46" text-anchor="end" class="s">시간 →</text>
+        <circle cx="60" cy="60" r="7" class="bar"></circle>
+        <text x="60" y="88" text-anchor="middle" class="b">결제</text>
+        <text x="60" y="104" text-anchor="middle" class="s">t = 0</text>
+        <circle cx="90" cy="60" r="5" class="bar"></circle>
+        <text x="90" y="34" text-anchor="middle" class="s">DB 커밋 · Kafka 발행 (ms)</text>
+        <rect class="node warm" x="100" y="120" width="260" height="56" rx="6"></rect>
+        <text x="230" y="142" text-anchor="middle" class="b">③ Writer 배치 대기</text>
+        <text x="230" y="160" text-anchor="middle" class="s">이벤트를 모으는 중 · 0 ~ 커밋 주기</text>
+        <path class="ln warm" d="M100,120 L100,66" marker-end="url(#arrW)"></path>
+        <path class="ln warm" d="M360,120 L360,66" marker-end="url(#arrW)"></path>
+        <circle cx="360" cy="60" r="7" class="bar warm"></circle>
+        <text x="360" y="88" text-anchor="middle" class="b">Iceberg 커밋</text>
+        <text x="360" y="104" text-anchor="middle" class="s">Parquet 파일 + 스냅샷</text>
+        <rect class="node hi" x="370" y="120" width="150" height="56" rx="6"></rect>
+        <text x="445" y="142" text-anchor="middle" class="b">④ 화면 갱신 대기</text>
+        <text x="445" y="160" text-anchor="middle" class="s">0 ~ 갱신 주기</text>
+        <circle cx="520" cy="60" r="7" class="bar"></circle>
+        <text x="520" y="88" text-anchor="middle" class="b">조회에 보임</text>
+
+        <text x="20" y="220" class="z">같은 시각에 두 화면이 보는 것</text>
+        <rect class="node" x="20" y="232" width="250" height="80" rx="6"></rect>
+        <text x="145" y="254" text-anchor="middle" class="b">주문·결제 화면 (운영 DB)</text>
+        <text x="145" y="274" text-anchor="middle" class="s">결제 직후 바로 "결제 완료"</text>
+        <text x="145" y="292" text-anchor="middle" class="s">업무 판단은 여기 기준</text>
+        <rect class="node hi" x="290" y="232" width="250" height="80" rx="6"></rect>
+        <text x="415" y="254" text-anchor="middle" class="b">Lakehouse 조회 화면 (Trino)</text>
+        <text x="415" y="274" text-anchor="middle" class="s">커밋 전까지는 아직 없음</text>
+        <text x="415" y="292" text-anchor="middle" class="s">이력·집계·분석은 여기 기준</text>
+      </svg>
+      <figcaption>결제 직후 운영 DB에는 있고 Lakehouse에는 없는 순간이 반드시 있습니다. 그래서 업무 판단은 운영 DB가 합니다.</figcaption>
+    </figure>
   </div>
 </section>
 
@@ -1772,6 +1839,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['3', 'Lakehouse 아키텍처 개요'],
       ['4', '운영 DB와의 역할 분담'],
       ['4b', '서비스별 역할 분담', '4'],
+      ['4c', '반영 지연은 왜 생기고 얼마나 되는가', '4'],
       ['5', '전사 데이터 플랫폼에서의 위치'],
       ['6', '구성 기술 스택'],
       ['7', '데이터 적재 및 조회 흐름']
