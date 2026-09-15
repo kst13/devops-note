@@ -350,7 +350,7 @@
 <!-- 1. 목차 -->
 <section class="slide">
   <header class="sh"><span>목차</span><span class="num"></span></header>
-  <h2>제안 구성</h2>
+  <h2>자료 구성</h2>
   <p class="lead">네 개 파트와 부록으로 구성했습니다. 항목을 누르면 해당 장으로 이동합니다.</p>
   <div class="toc" id="toc"></div>
 </section>
@@ -613,7 +613,7 @@
 <section class="slide" data-ch="5">
   <header class="sh"><span>05 · 플랫폼 구성</span><span class="num"></span></header>
   <h2>전사 데이터 플랫폼에서의 위치</h2>
-  <p class="lead">전사 데이터 플랫폼은 Serving·Lakehouse·Search 3계층으로 구성됩니다. 본 제안의 구축 범위는 Lakehouse 계층과 수집 경로입니다.</p>
+  <p class="lead">전사 데이터 플랫폼은 Serving·Lakehouse·Search 3계층으로 구성됩니다. 이 자료는 그중 Lakehouse 계층과 수집 경로만 다룹니다. Serving·Search 계층은 위치만 표시합니다.</p>
   <div class="cols wide">
     <div class="tablewrap">
       <table>
@@ -650,7 +650,7 @@
         <rect class="node dim" x="550" y="80" width="80" height="40" rx="6"></rect><text x="590" y="104" text-anchor="middle">ScyllaDB</text>
 
         <rect class="zone" x="392" y="140" width="246" height="102" rx="8"></rect>
-        <text x="404" y="156" class="z">이번 구축 범위 · Lakehouse</text>
+        <text x="404" y="156" class="z">이 자료의 범위 · Lakehouse</text>
         <rect class="node hi" x="402" y="170" width="118" height="40" rx="6"></rect>
         <text x="461" y="187" text-anchor="middle">Iceberg Writer</text><text x="461" y="202" text-anchor="middle" class="s">전체 이력 적재</text>
         <line class="ln hi" x1="520" y1="190" x2="548" y2="190" marker-end="url(#arrA)"></line>
@@ -1330,7 +1330,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
 <section class="slide" data-ch="13">
   <header class="sh"><span>13 · 기업 사례</span><span class="num"></span></header>
   <h2>기업 사례 분석 및 시사점</h2>
-  <p class="lead">공개 자료에서 확인된 사례는 업무 DB를 유지한 채 변경분을 분석 저장소로 전달하거나, 기존 데이터 레이크를 Iceberg 기반으로 개선한 유형입니다. 각 사례는 발표 시점의 구성이며 본 제안과 동일한 제품 조합은 아닙니다.</p>
+  <p class="lead">공개 자료에서 확인된 사례는 업무 DB를 유지한 채 변경분을 분석 저장소로 전달하거나, 기존 데이터 레이크를 Iceberg 기반으로 개선한 유형입니다. 각 사례는 발표 시점의 구성이며 이 자료의 구성과 동일한 제품 조합은 아닙니다.</p>
   <div class="cols single">
     <div class="tablewrap">
       <table>
@@ -1352,7 +1352,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
             <td class="k">Netflix<br><span class="pill">AWS re:Invent 2024</span></td>
             <td>S3·Iceberg 기반 데이터 웨어하우스와 데이터 이동 구조(Data Bridge)</td>
             <td>객체 저장 S3 · 테이블 관리 Iceberg · 처리·조회 Spark, Trino · 이벤트 전달·스트림 Kafka, Flink. <strong>구성요소 역할 분리</strong></td>
-            <td>제안 구성은 이와 비슷한 역할 분리를 갖습니다. 다만 S3를 MinIO로 바꿨을 때 운영·복구·성능이 동일하다고 볼 수는 없으므로 PoC에서 확인</td>
+            <td>이 자료의 구성은 이와 비슷한 역할 분리를 갖습니다. 다만 S3를 MinIO로 바꿨을 때 운영·복구·성능이 동일하다고 볼 수는 없으므로 PoC에서 확인</td>
           </tr>
         </tbody>
       </table>
