@@ -776,6 +776,74 @@
   </div>
 </section>
 
+<section class="slide" data-ch="6b2">
+  <header class="sh"><span>06 · 구성 기술 (Parquet 조회)</span><span class="num"></span></header>
+  <h2>Parquet 조회 방식 — 컬럼에서 행을 조립하는 원리</h2>
+  <p class="lead">컬럼별 덩어리 안에서 값의 순서가 같습니다. amount 의 3번째 값과 method 의 3번째 값은 같은 행에서 온 것이므로, 컬럼을 따로 읽어도 위치로 행을 다시 조립할 수 있습니다.</p>
+  <div class="cols">
+    <div>
+      <h3>조건 검색 <code>WHERE method = 'POINT'</code> 의 처리 순서</h3>
+      <ol class="steps">
+        <li><span class="i">1</span><span><strong>파일 건너뛰기.</strong> 파일 footer 의 method 최소·최대값으로 POINT 가 있을 수 없는 파일은 열지 않습니다. Iceberg 매니페스트의 통계가 이 판단을 파일을 열기 전에 해 줍니다.</span></li>
+        <li><span class="i">2</span><span><strong>행 그룹 건너뛰기.</strong> 파일 안은 행 그룹(수만~수십만 행) 단위로 나뉘고 그룹마다 통계가 따로 있습니다. 조건에 안 맞는 그룹은 읽지 않습니다.</span></li>
+        <li><span class="i">3</span><span><strong>조건 컬럼만 읽어 위치를 찾습니다.</strong> 남은 그룹에서 method 덩어리만 읽어 POINT 인 위치(3번째, 17번째 …)를 얻습니다.</span></li>
+        <li><span class="i">4</span><span><strong>그 위치의 값만 다른 컬럼에서 꺼내 행을 조립합니다.</strong> SELECT 에 없는 컬럼은 끝까지 읽지 않습니다.</span></li>
+      </ol>
+      <h3 style="margin-top: 12px">잘 맞는 쿼리와 안 맞는 쿼리</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:44%">쿼리</th><th style="width:14%">Parquet</th><th>이유</th></tr></thead>
+        <tbody>
+          <tr><td><code>SELECT method, sum(amount) … GROUP BY method</code></td><td class="k" style="color: var(--good)">매우 유리</td><td>컬럼 2개만 읽음. 30개 컬럼 테이블이면 I/O 가 1/15</td></tr>
+          <tr><td><code>WHERE occurred_at BETWEEN …</code> 기간 집계</td><td class="k" style="color: var(--good)">유리</td><td>파일·행 그룹 통계로 대부분 건너뜀. 파티션이 있으면 더 좁혀짐</td></tr>
+          <tr><td><code>WHERE order_id = 'order-50a5024f'</code> 단건</td><td class="k" style="color: var(--warm)">불리</td><td>인덱스가 없어 통계로 좁힌 뒤에도 파일을 열어 훑음</td></tr>
+          <tr><td><code>UPDATE … WHERE …</code></td><td class="k" style="color: var(--warm)">직접 불가</td><td>파일은 수정 불가. Iceberg 가 새 파일을 쓰고 옛 파일을 스냅샷에서 제외하는 방식으로 처리</td></tr>
+          <tr><td><code>SELECT *</code> 대량</td><td class="k">보통</td><td>모든 컬럼을 읽어 조립. 압축 덕에 행 단위 파일보다 크게 나쁘진 않음</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+    <div>
+      <figure>
+        <svg class="d" viewBox="0 0 560 250" role="img" aria-label="method 컬럼만 읽어 POINT인 위치를 찾고, 그 위치의 order_id와 amount 값만 꺼내 행을 조립하는 과정">
+          <text x="20" y="22" class="z">파일 안 컬럼 덩어리 (같은 위치 = 같은 행)</text>
+          <text x="20" y="52" class="s">위치</text><text x="90" y="52" text-anchor="middle" class="m">1</text><text x="150" y="52" text-anchor="middle" class="m">2</text><text x="210" y="52" text-anchor="middle" class="m">3</text><text x="270" y="52" text-anchor="middle" class="m">4</text><text x="330" y="52" text-anchor="middle" class="m">5</text>
+          <text x="20" y="82" class="s">order_id</text>
+          <rect class="node dim" x="66" y="66" width="48" height="24" rx="3"></rect><text x="90" y="82" text-anchor="middle" class="m">A</text>
+          <rect class="node dim" x="126" y="66" width="48" height="24" rx="3"></rect><text x="150" y="82" text-anchor="middle" class="m">B</text>
+          <rect class="node hi" x="186" y="66" width="48" height="24" rx="3"></rect><text x="210" y="82" text-anchor="middle" class="m">C</text>
+          <rect class="node dim" x="246" y="66" width="48" height="24" rx="3"></rect><text x="270" y="82" text-anchor="middle" class="m">D</text>
+          <rect class="node hi" x="306" y="66" width="48" height="24" rx="3"></rect><text x="330" y="82" text-anchor="middle" class="m">E</text>
+          <text x="20" y="116" class="s">method</text>
+          <rect class="node warm" x="66" y="100" width="48" height="24" rx="3"></rect><text x="90" y="116" text-anchor="middle" class="m">CARD</text>
+          <rect class="node warm" x="126" y="100" width="48" height="24" rx="3"></rect><text x="150" y="116" text-anchor="middle" class="m">BANK</text>
+          <rect class="node warm" x="186" y="100" width="48" height="24" rx="3"></rect><text x="210" y="116" text-anchor="middle" class="m">POINT</text>
+          <rect class="node warm" x="246" y="100" width="48" height="24" rx="3"></rect><text x="270" y="116" text-anchor="middle" class="m">CARD</text>
+          <rect class="node warm" x="306" y="100" width="48" height="24" rx="3"></rect><text x="330" y="116" text-anchor="middle" class="m">POINT</text>
+          <text x="20" y="150" class="s">amount</text>
+          <rect class="node dim" x="66" y="134" width="48" height="24" rx="3"></rect><text x="90" y="150" text-anchor="middle" class="m">35000</text>
+          <rect class="node dim" x="126" y="134" width="48" height="24" rx="3"></rect><text x="150" y="150" text-anchor="middle" class="m">45000</text>
+          <rect class="node hi" x="186" y="134" width="48" height="24" rx="3"></rect><text x="210" y="150" text-anchor="middle" class="m">12000</text>
+          <rect class="node dim" x="246" y="134" width="48" height="24" rx="3"></rect><text x="270" y="150" text-anchor="middle" class="m">9900</text>
+          <rect class="node hi" x="306" y="134" width="48" height="24" rx="3"></rect><text x="330" y="150" text-anchor="middle" class="m">30000</text>
+          <text x="20" y="184" class="s">customer</text>
+          <rect class="node dim" x="66" y="168" width="288" height="24" rx="3"></rect><text x="210" y="184" text-anchor="middle" class="s">읽지 않음 (SELECT 에 없음)</text>
+          <text x="380" y="82" class="s">③ method 만 읽어</text>
+          <text x="380" y="98" class="s">   POINT 위치 = 3, 5</text>
+          <text x="380" y="130" class="s">④ 그 위치의 값만 꺼냄</text>
+          <rect class="node hi" x="380" y="140" width="160" height="52" rx="6"></rect>
+          <text x="392" y="158" class="m">C | POINT | 12000</text>
+          <text x="392" y="176" class="m">E | POINT | 30000</text>
+          <text x="20" y="222" class="s">SELECT order_id, amount FROM payment_events WHERE method = 'POINT'</text>
+        </svg>
+        <figcaption>조건 컬럼(method)만 훑어 위치를 찾고, 그 위치의 필요한 컬럼만 꺼냅니다. customer 덩어리는 전혀 읽지 않습니다.</figcaption>
+      </figure>
+      <div class="note" style="margin-top: 10px"><strong>정렬과 파티션이 통계를 살립니다.</strong> 파일 안 행이 <code>occurred_at</code> 순이면 파일·행 그룹의 최소·최대 범위가 겹치지 않아 1·2단계에서 건너뛰는 양이 커집니다. <code>day(occurred_at)</code> 파티션은 같은 일을 디렉터리 수준에서 한 번 더 하는 것입니다.</div>
+      <div class="note warm">이것이 4장 역할 분담의 근거입니다. 키로 한 건을 찾는 조회는 운영 DB 가, 컬럼 몇 개를 수백만 행에 걸쳐 집계하는 조회는 Lakehouse 가 맡는 이유는 저장 방식의 차이입니다. 실제 읽은 양은 <code>EXPLAIN ANALYZE</code> 의 <code>Input: N rows</code> 로 확인합니다.</div>
+    </div>
+  </div>
+</section>
+
 <section class="slide" data-ch="6c">
   <header class="sh"><span>06 · 구성 기술 (Iceberg 메타데이터)</span><span class="num"></span></header>
   <h2>Iceberg 메타데이터 — MinIO에 실제로 생기는 파일</h2>
@@ -2036,6 +2104,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['5', '전사 데이터 플랫폼에서의 위치'],
       ['6', '구성 기술 스택'],
       ['6b', 'Parquet — 데이터 파일의 내부 구조', '6'],
+      ['6b2', 'Parquet 조회 방식 — 컬럼에서 행을 조립하는 원리', '6'],
       ['6c', 'Iceberg 메타데이터 — MinIO에 생기는 파일', '6'],
       ['6d', 'Iceberg Catalog — 테이블 이름에서 파일까지', '6'],
       ['7', '데이터 적재 및 조회 흐름']
