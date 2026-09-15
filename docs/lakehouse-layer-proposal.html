@@ -222,22 +222,53 @@
   .slide.title .meta { display: flex; gap: 28px; color: var(--muted); font-size: 14px; margin-top: 12px; font-family: var(--mono); }
 
   /* toc */
-  .toc { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 36px; list-style: none; padding: 0; margin: 0; }
-  .toc li { margin: 0; }
+  .toc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; list-style: none; padding: 0; margin: 0; }
+  .toc .part {
+    margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .toc .part::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: var(--part-color, var(--accent));
+  }
+  .toc .part.appx { grid-column: 1 / -1; --part-color: var(--muted); }
+  .toc .part-head { display: flex; align-items: baseline; gap: 10px; padding-left: 6px; }
+  .toc .part-no {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--part-color, var(--accent)); font-weight: 600;
+  }
+  .toc .part-title { font-size: 15px; font-weight: 600; }
+  .toc .part-range { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .toc .items { list-style: none; padding: 0 0 0 6px; margin: 0; display: grid; gap: 2px; }
+  .toc .part.appx .items { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 18px; }
+  .toc .items li { margin: 0; }
   .toc button {
     all: unset;
     display: grid;
-    grid-template-columns: 34px 1fr;
+    grid-template-columns: 30px 1fr;
     gap: 8px;
+    align-items: baseline;
     width: 100%;
-    padding: 6px 8px;
+    padding: 5px 8px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 14.5px;
+    font-size: 13.5px;
+    line-height: 1.35;
   }
-  .toc button:hover, .toc button:focus-visible { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
-  .toc .n { font-family: var(--mono); color: var(--muted); font-size: 12.5px; padding-top: 2px; }
-  .toc .appx { grid-column: 1 / -1; margin-top: 10px; color: var(--muted); font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .toc button:hover, .toc button:focus-visible { background: var(--surface); outline: 2px solid var(--part-color, var(--accent)); outline-offset: -2px; }
+  .toc .n { font-family: var(--mono); color: var(--part-color, var(--accent)); font-size: 12px; font-weight: 600; }
+  .toc .sub-n { color: var(--muted); font-weight: 400; }
+  @media (max-width: 1100px) { .toc { grid-template-columns: repeat(2, minmax(0, 1fr)); } .toc .part.appx .items { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 640px)  { .toc { grid-template-columns: 1fr; } .toc .part.appx .items { grid-template-columns: 1fr; } }
 
   /* nav */
   .nav {
@@ -320,8 +351,8 @@
 <section class="slide">
   <header class="sh"><span>목차</span><span class="num"></span></header>
   <h2>제안 구성</h2>
-  <p class="lead">추진 배경과 목표(1~2장), 아키텍처 정의(3~7장), 활용 방안(8~11장), 운영 체계와 추진 계획(12~15장) 순으로 구성했습니다.</p>
-  <ol class="toc" id="toc"></ol>
+  <p class="lead">네 개 파트와 부록으로 구성했습니다. 항목을 누르면 해당 장으로 이동합니다.</p>
+  <div class="toc" id="toc"></div>
 </section>
 
 <!-- 2. ch1 -->
@@ -1732,59 +1763,81 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
   var prev = document.getElementById('prev');
   var next = document.getElementById('next');
 
-  var tocItems = [
-    ['1', '우리가 Lakehouse를 검토하는 이유'],
-    ['2', '이번 구축으로 해결할 문제'],
-    ['3', 'Lakehouse 아키텍처 개요'],
-    ['4', '운영 DB와의 역할 분담'],
-    ['5', '전사 데이터 플랫폼에서의 위치'],
-    ['6', '구성 기술 스택'],
-    ['7', '데이터 적재 및 조회 흐름'],
-    ['8', '활용 사례 ① 주문·결제 통합 분석'],
-    ['9', '활용 사례 ② 회원·채팅 데이터 분석'],
-    ['10', '활용 사례 ③ 콜드 데이터 이관'],
-    ['11a', '파일 서비스 저장소 전환 근거'],
-    ['11', '기존 파일 서비스 연계 방안'],
-    ['11c', '파일 이전 절차와 검증'],
-    ['12', '데이터 정합성과 운영 원칙'],
-    ['13', '기업 사례 분석 및 시사점'],
-    ['14', '단계별 추진 계획 및 PoC'],
-    ['15', '기대 효과와 의사결정 사항'],
-    ['A', '구성요소별 상세 설명과 공식 문서'],
-    ['B', '이벤트 이력 테이블과 최신 상태 테이블의 차이'],
-    ['C', 'CDC와 Outbox 방식 비교'],
-    ['D', '파일 업로드·다운로드 및 임시 URL 방식'],
-    ['E', '파티션·파일 크기·스냅샷 유지보수'],
-    ['F', '비용 산정 항목과 용량 계획'],
-    ['G', '예상 질문과 답변'],
-    ['H', 'Uber 사례 상세 — 초기 적재·변경분 수집·오류 격리·체크포인트']
+  var tocParts = [
+    { no: 'Part 1', title: '추진 배경과 목표', range: '1~2장', color: '#B8741F', items: [
+      ['1', '추진 배경'],
+      ['2', '추진 목표']
+    ]},
+    { no: 'Part 2', title: '아키텍처 정의', range: '3~7장', color: '#1D6E8C', items: [
+      ['3', 'Lakehouse 아키텍처 개요'],
+      ['4', '운영 DB와의 역할 분담'],
+      ['4b', '서비스별 역할 분담', '4'],
+      ['5', '전사 데이터 플랫폼에서의 위치'],
+      ['6', '구성 기술 스택'],
+      ['7', '데이터 적재 및 조회 흐름']
+    ]},
+    { no: 'Part 3', title: '활용 방안', range: '8~11장', color: '#2E7D4F', items: [
+      ['8', '활용 사례 ① 주문·결제 통합 분석'],
+      ['9', '활용 사례 ② 회원·채팅 데이터 분석'],
+      ['10', '활용 사례 ③ 콜드 데이터 이관'],
+      ['10b', '이관 기준·방식·삭제 전 확인', '10'],
+      ['11a', '파일 서비스 저장소 전환 근거', '11'],
+      ['11', '기존 파일 서비스 연계 방안', '11'],
+      ['11c', '파일 이전 절차와 검증', '11']
+    ]},
+    { no: 'Part 4', title: '운영 체계와 추진 계획', range: '12~15장', color: '#5B53C6', items: [
+      ['12', '데이터 정합성과 운영 원칙'],
+      ['13', '기업 사례 분석 및 시사점'],
+      ['14', '단계별 추진 계획 및 PoC'],
+      ['15', '기대 효과와 의사결정 사항']
+    ]},
+    { no: 'Appendix', title: '부록', range: 'A~H', appx: true, items: [
+      ['A', '구성요소별 상세 설명과 공식 문서'],
+      ['B', '이벤트 이력 테이블과 최신 상태 테이블의 차이'],
+      ['C', 'CDC와 Outbox 방식 비교'],
+      ['D', '파일 업로드·다운로드 및 임시 URL 방식'],
+      ['E', '파티션·파일 크기·스냅샷 유지보수'],
+      ['F', '비용 산정 항목과 용량 계획'],
+      ['G', '예상 질문과 답변'],
+      ['H', 'Uber 사례 상세']
+    ]}
   ];
   var toc = document.getElementById('toc');
-  var appended = false;
-  tocItems.forEach(function (item) {
-    var isAppx = isNaN(parseInt(item[0], 10));
-    if (isAppx && !appended) {
-      var h = document.createElement('li');
-      h.className = 'appx';
-      h.textContent = '부록';
-      toc.appendChild(h);
-      appended = true;
-    }
-    var li = document.createElement('li');
-    var b = document.createElement('button');
-    b.type = 'button';
-    var n = document.createElement('span');
-    n.className = 'n';
-    n.textContent = isAppx ? '부록 ' + item[0] : String(parseInt(item[0], 10)).padStart(2, '0');
-    var t = document.createElement('span');
-    t.textContent = item[1];
-    b.appendChild(n); b.appendChild(t);
-    b.addEventListener('click', function () {
-      var target = slides.findIndex(function (s) { return s.getAttribute('data-ch') === item[0]; });
-      if (target >= 0) go(target);
+  tocParts.forEach(function (part) {
+    var box = document.createElement('section');
+    box.className = 'part' + (part.appx ? ' appx' : '');
+    if (part.color) box.style.setProperty('--part-color', part.color);
+    var head = document.createElement('div');
+    head.className = 'part-head';
+    var no = document.createElement('span'); no.className = 'part-no'; no.textContent = part.no;
+    var title = document.createElement('span'); title.className = 'part-title'; title.textContent = part.title;
+    var range = document.createElement('span'); range.className = 'part-range'; range.textContent = part.range;
+    head.appendChild(no); head.appendChild(title); head.appendChild(range);
+    box.appendChild(head);
+    var ul = document.createElement('ul');
+    ul.className = 'items';
+    part.items.forEach(function (item) {
+      var id = item[0], label = item[1], parentNo = item[2];
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.type = 'button';
+      var n = document.createElement('span');
+      n.className = 'n' + (parentNo ? ' sub-n' : '');
+      if (part.appx) n.textContent = id;
+      else if (parentNo) n.textContent = '└';
+      else n.textContent = String(parseInt(id, 10)).padStart(2, '0');
+      var t = document.createElement('span');
+      t.textContent = label;
+      b.appendChild(n); b.appendChild(t);
+      b.addEventListener('click', function () {
+        var target = slides.findIndex(function (s) { return s.getAttribute('data-ch') === id; });
+        if (target >= 0) go(target);
+      });
+      li.appendChild(b);
+      ul.appendChild(li);
     });
-    li.appendChild(b);
-    toc.appendChild(li);
+    box.appendChild(ul);
+    toc.appendChild(box);
   });
 
   function labelFor(slide) {
