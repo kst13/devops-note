@@ -33,6 +33,7 @@ examples/          로컬 PoC (MinIO + Iceberg REST Catalog + Trino + Kafka Conn
 실행 가능한 예제:
 
 - [로컬 PoC](examples/local-poc/README.md) — 1단계 MinIO + Catalog + Trino, 2단계 Kafka Connect Iceberg Sink를 홈랩 Kafka에 연결
+- [주문·결제 샘플](examples/order-payment-sample/README.md) — Spring Boot + Vue 화면에서 결제 → Kafka → Iceberg → Trino 조회까지 끝단 시연
 
 관련 문서:
 

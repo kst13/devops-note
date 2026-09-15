@@ -1,0 +1,60 @@
+# Lakehouse PoC 샘플 백엔드 설정
+#   (기본) local : 홈랩 Kafka(SASL_SSL :9094) + H2 + Trino(:8080). 비밀은 환경변수로 주입.
+#   플레인 브로커를 쓰려면 KAFKA_SECURITY_PROTOCOL=PLAINTEXT 로 두고 SASL 항목은 무시된다.
+server:
+  port: 8090
+
+app:
+  topics:
+    order: order.events
+    payment: payment.events
+  source-system: order-payment-sample
+  # 3단계 조회. Trino 가 없으면 조회 API 는 503 을 돌려주고 나머지 기능은 정상 동작한다.
+  analytics:
+    enabled: ${ANALYTICS_ENABLED:true}
+    trino-url: ${TRINO_JDBC_URL:jdbc:trino://localhost:8080/lakehouse/commerce}
+    trino-user: ${TRINO_USER:poc}
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:orderpayment;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    # usage-guide 표준: 무손실(acks=all + 멱등) + 배치 압축
+    producer:
+      acks: all
+      compression-type: lz4
+      batch-size: 65536
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+        linger.ms: 20
+        # 타입 헤더를 끈다 — Kafka Connect JsonConverter 는 순수 JSON 만 기대한다
+        spring.json.add.type.headers: false
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+      sasl.mechanism: SCRAM-SHA-512
+      sasl.jaas.config: >
+        org.apache.kafka.common.security.scram.ScramLoginModule required
+        username="${KAFKA_USER:order-service}" password="${KAFKA_PASSWORD:}";
+      ssl.truststore.location: ${KAFKA_TRUSTSTORE_LOCATION:${user.home}/kafka-home-lab/secrets/ca.crt}
+      ssl.truststore.type: PEM
+      ssl.endpoint.identification.algorithm: https
+
+logging:
+  level:
+    org.apache.kafka: WARN
+    io.trino: WARN
