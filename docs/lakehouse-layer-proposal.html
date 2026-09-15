@@ -545,13 +545,13 @@
 
 <section class="slide" data-ch="4c">
   <header class="sh"><span>04 · 역할 분담 (반영 지연)</span><span class="num"></span></header>
-  <h2>반영 지연은 왜 생기고 얼마나 되는가</h2>
+  <h2>반영 지연의 원인과 규모</h2>
   <p class="lead">Lakehouse에 데이터가 늦게 보이는 것은 장애가 아니라 설계입니다. 이벤트를 배치로 묶어 파일로 만들고 테이블에 커밋하는 구조에서 지연은 커밋 주기와 같습니다.</p>
   <div class="cols wide">
     <div>
       <div class="tablewrap">
       <table>
-        <thead><tr><th style="width:26%">구간</th><th style="width:20%">소요</th><th>왜</th></tr></thead>
+        <thead><tr><th style="width:26%">구간</th><th style="width:20%">소요</th><th>원인</th></tr></thead>
         <tbody>
           <tr><td class="k">① 앱 → 운영 DB</td><td>즉시</td><td>트랜잭션 커밋. 화면은 여기를 읽으므로 사용자는 지연을 느끼지 않는다</td></tr>
           <tr><td class="k">② 앱 → Kafka</td><td>수십 ms</td><td>이벤트 발행. 브로커 저장까지 확인(<code>acks=all</code>)</td></tr>
@@ -1877,7 +1877,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['3', 'Lakehouse 아키텍처 개요'],
       ['4', '운영 DB와의 역할 분담'],
       ['4b', '서비스별 역할 분담', '4'],
-      ['4c', '반영 지연은 왜 생기고 얼마나 되는가', '4'],
+      ['4c', '반영 지연의 원인과 규모', '4'],
       ['5', '전사 데이터 플랫폼에서의 위치'],
       ['6', '구성 기술 스택'],
       ['7', '데이터 적재 및 조회 흐름']
