@@ -867,31 +867,33 @@ GROUP BY customer_id;</pre>
 <section class="slide" data-ch="9">
   <header class="sh"><span>09 · 활용 사례 ②</span><span class="num"></span></header>
   <h2>회원·채팅 데이터 분석</h2>
-  <p class="lead">고객 단위의 이용 흐름을 시간순으로 연결합니다. 회원 DB와 채팅 DB에 분산되어 있던 이벤트가 Lakehouse에서 단일 타임라인으로 통합됩니다.</p>
+  <p class="lead">"채팅 상담을 받은 고객이 재구매를 더 하는가"처럼 회원·주문·채팅 세 시스템에 걸친 질문을 SQL 하나로 답합니다. 지금은 DB 세 곳에서 따로 뽑아 수작업으로 합쳐야 합니다.</p>
   <div class="cols">
     <div>
-      <h3>답하려는 질문</h3>
-      <ul>
-        <li><strong>가입 후 구매.</strong> 가입 후 N일 안에 첫 구매에 이르는 비율과 소요 시간.</li>
-        <li><strong>재구매.</strong> 첫 구매 후 재구매율, 재구매까지의 간격, 채팅 문의가 재구매에 미치는 영향.</li>
-        <li><strong>채팅 이용량.</strong> 대화방·메시지 수, 시간대별 분포, 담당자별 처리량.</li>
-        <li><strong>응답 시간.</strong> 고객 문의 시각부터 첫 응답까지의 시간 분포.</li>
-      </ul>
-      <h3>채팅은 메타데이터부터</h3>
+      <h3>예시 질문 — 상담 받은 고객은 재구매를 더 하는가</h3>
       <div class="tablewrap">
       <table>
+        <thead><tr><th style="width:18%"></th><th style="width:41%">지금</th><th>Lakehouse</th></tr></thead>
         <tbody>
-          <tr><td class="k">대화방 ID · 메시지 ID · 발송 시각</td><td>이용량과 활동 시간대</td></tr>
-          <tr><td class="k">발송 · 수신 · 실패 이벤트</td><td>전달 품질 분석</td></tr>
-          <tr><td class="k">상담 시작 · 첫 응답 시각</td><td>상담 채팅의 응답 시간</td></tr>
-          <tr><td class="k">첨부파일 ID · 크기 · 종류</td><td>파일 사용량 분석</td></tr>
+          <tr><td class="k">데이터 위치</td><td>가입일은 회원 DB, 구매 이력은 주문 DB, 상담 기록은 채팅 DB</td><td>세 시스템의 이벤트가 <code>customer_id</code> 기준으로 한 곳에 있음</td></tr>
+          <tr><td class="k">답하는 방법</td><td>DB마다 추출 요청 → 엑셀에서 고객 ID로 결합. 시스템마다 고객 ID 체계가 달라 매핑도 수작업</td><td>SQL 한 번. 매핑 테이블은 한 번만 만들어 둠</td></tr>
+          <tr><td class="k">소요</td><td>며칠. 질문이 조금만 바뀌어도 처음부터</td><td>수 초 ~ 수 분. 조건만 바꿔 다시 실행</td></tr>
+          <tr><td class="k">결과 신뢰</td><td>담당자마다 집계 기준이 달라 숫자가 안 맞음</td><td>같은 테이블·같은 SQL → 같은 숫자</td></tr>
         </tbody>
       </table>
       </div>
-      <ul style="margin-top: 8px">
-        <li>본문의 장기 보관·검색·요약은 접근 권한과 삭제 정책을 정한 뒤 확장합니다. 본문 검색은 Search 계층 몫입니다.</li>
-        <li>회원 식별자는 시스템마다 다를 수 있습니다. <code>customer_id</code> 매핑 테이블을 먼저 만듭니다.</li>
-      </ul>
+      <h3 style="margin-top: 12px">결과 모양 (예시 값)</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>첫 구매 후 30일 내 상담</th><th class="num">고객 수</th><th class="num">90일 내 재구매율</th><th class="num">평균 재구매 간격</th></tr></thead>
+        <tbody>
+          <tr><td>상담 있음</td><td class="num">1,240</td><td class="num">38%</td><td class="num">21일</td></tr>
+          <tr><td>상담 없음</td><td class="num">8,910</td><td class="num">24%</td><td class="num">33일</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p style="font-size: 13px; margin: 6px 0 0" class="muted">숫자는 설명용 예시입니다. 같은 방식으로 "가입 후 첫 구매까지 며칠 걸리는가", "상담 첫 응답까지 시간대별로 얼마나 걸리는가"에 답합니다.</p>
+      <div class="note" style="margin-top: 10px">채팅은 <strong>본문이 아니라 메타데이터</strong>(대화방·메시지 ID, 발송·응답 시각, 첨부 크기)부터 수집합니다. 이용량·응답 시간은 이것으로 충분하고, 본문 보관·검색은 개인정보 정책과 Search 계층에서 따로 다룹니다.</div>
     </div>
     <figure>
       <svg class="d" viewBox="0 0 560 300" role="img" aria-label="가입, 첫 구매, 채팅 문의, 재구매로 이어지는 고객 이용 흐름과 각 단계에서 측정하는 지표">
@@ -930,7 +932,7 @@ GROUP BY customer_id;</pre>
           <text x="330" y="276" text-anchor="middle" class="s">문의 → 첫 응답 시간</text>
         </g>
       </svg>
-      <figcaption>한 고객의 사건들이 시간순으로 이어져야 "문의한 고객이 재구매하는가" 같은 질문에 답할 수 있습니다.</figcaption>
+      <figcaption>고객 한 명의 가입·구매·상담·재구매가 한 타임라인에 있어야 위 표를 만들 수 있습니다. 지금은 이 선이 DB 세 곳에서 끊겨 있습니다.</figcaption>
     </figure>
   </div>
 </section>
