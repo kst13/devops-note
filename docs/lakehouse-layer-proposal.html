@@ -846,46 +846,48 @@
 
 <section class="slide" data-ch="6c">
   <header class="sh"><span>06 · 구성 기술 (Iceberg 메타데이터)</span><span class="num"></span></header>
-  <h2>Iceberg 메타데이터 — MinIO에 실제로 생기는 파일</h2>
-  <p class="lead">Iceberg는 서버가 아니라 파일 규약입니다. 테이블 하나는 MinIO 안에서 데이터 파일과 메타데이터 파일의 묶음으로 존재하고, 커밋할 때마다 메타데이터 파일이 한 세대 늘어납니다.</p>
+  <h2>Iceberg 메타데이터 — 커밋이 MinIO에 남기는 것</h2>
+  <p class="lead">테이블을 장부라고 보면 Parquet 는 낱장, 매니페스트는 낱장 묶음의 표지, 스냅샷은 "지금 장부에 속한 묶음" 쪽지, metadata.json 은 맨 앞 목차입니다. 커밋할 때마다 낱장·표지·쪽지가 하나씩 늘고 목차가 새 세대로 바뀝니다.</p>
   <div class="cols wide">
     <div>
-      <pre>lakehouse/                                   ← 버킷
-└── warehouse/commerce/
-    └── payment_events-3c093077…/            ← 테이블 (이름 + UUID)
-        ├── data/
-        │   ├── 00001-…-c2c4cc15-….parquet  4.6KB  7건
-        │   ├── 00001-…-2d6ea2a4-….parquet  4.4KB  4건
-        │   └── 00001-…-cebc260e-….parquet  4.3KB  2건
-        └── metadata/
-            ├── 00000-….metadata.json   2.2KB   ← 생성 직후
-            ├── 00001-….metadata.json   3.3KB   ← 1차 커밋 후
-            ├── 00002-….metadata.json   4.4KB
-            ├── 00003-….metadata.json   5.5KB   ← 현재
-            ├── snap-1597914…-….avro    4.4KB   ← 매니페스트 목록 ×4
-            └── 537892e5-…-m0.avro      7.7KB   ← 매니페스트 ×3</pre>
-      <p class="muted" style="font-size: 12.5px; margin: 6px 0 0">PoC 의 <code>payment_events</code> 실측. 커밋 3회 → Parquet 3개, metadata.json 4세대, 스냅샷 4개(생성 포함).</p>
+      <h3>PoC 의 payment_events 에 커밋 3번이 만든 것</h3>
+      <pre>테이블 생성      → 00000.metadata.json      목차만, 낱장 없음
+
+1차 커밋 (7건)   → parquet ①                낱장
+                 → m0.avro ①               표지: "낱장 ①, amount 1.2만~120만"
+                 → snap ①                  쪽지: "묶음 ①"
+                 → 00001.metadata.json      목차: 현재 = snap ①
+
+2차 커밋 (4건)   → parquet ②, m0.avro ②
+                 → snap ②                  쪽지: "묶음 ①, ②"  ← 이전 묶음도 다시 적음
+                 → 00002.metadata.json      목차: 현재 = snap ②
+
+3차 커밋 (2건)   → parquet ③, m0.avro ③
+                 → snap ③                  쪽지: "묶음 ①, ②, ③"
+                 → 00003.metadata.json      목차: 현재 = snap ③  ← Catalog 가 가리킴</pre>
+      <p class="muted" style="font-size: 12.5px; margin: 6px 0 0">결과: Parquet 3 · 매니페스트 3 · 스냅샷 쪽지 4(생성 포함) · 목차 4세대. 이전 목차와 쪽지를 지우지 않으므로 "2차 커밋 시점의 장부"를 그대로 다시 펼칠 수 있습니다(시점 조회).</p>
     </div>
     <div>
       <div class="tablewrap">
       <table>
-        <thead><tr><th style="width:26%">파일</th><th>담는 것</th><th style="width:26%">언제 늘어나나</th></tr></thead>
+        <thead><tr><th style="width:30%">파일</th><th style="width:22%">비유</th><th>실제로 담는 것</th></tr></thead>
         <tbody>
-          <tr><td class="k"><code>data/*.parquet</code></td><td>이벤트 본문. 한 번 쓰면 수정하지 않음</td><td>커밋마다 1개 이상</td></tr>
-          <tr><td class="k"><code>metadata/N-….metadata.json</code></td><td>테이블의 <strong>현재 상태</strong>: 스키마(버전별), 파티션 규칙, 스냅샷 목록, 현재 스냅샷 ID, 테이블 속성</td><td>커밋마다 새 세대. 이전 세대는 남김(설정으로 개수 제한)</td></tr>
-          <tr><td class="k"><code>snap-….avro</code> (매니페스트 목록)</td><td>스냅샷 하나가 참조하는 매니페스트 파일 목록과 요약(추가·삭제 파일 수)</td><td>커밋마다 1개</td></tr>
-          <tr><td class="k"><code>…-m0.avro</code> (매니페스트)</td><td>데이터 파일 경로, 레코드 수, <strong>컬럼별 최소·최대값·null 수</strong>, 파티션 값</td><td>커밋마다 1개. 병합 시 재작성</td></tr>
+          <tr><td class="k"><code>data/*.parquet</code></td><td>장부의 낱장</td><td>이벤트 본문. 한 번 쓰면 수정하지 않음</td></tr>
+          <tr><td class="k"><code>…-m0.avro</code><br>매니페스트</td><td>낱장 묶음의 표지</td><td>데이터 파일 경로, 레코드 수, <strong>컬럼별 최소·최대값·null 수</strong>. 조건에 안 맞는 낱장은 펼치지 않게 해 줌</td></tr>
+          <tr><td class="k"><code>snap-….avro</code><br>매니페스트 목록</td><td>"지금 장부에 속한 묶음" 쪽지</td><td>스냅샷 하나가 참조하는 매니페스트 목록. 커밋마다 새로 씀</td></tr>
+          <tr><td class="k"><code>0000N-….metadata.json</code></td><td>맨 앞 목차</td><td>스키마(버전별), 파티션 규칙, 스냅샷 목록, <strong>현재 스냅샷 ID</strong>. 커밋마다 새 세대</td></tr>
+          <tr><td class="k">Catalog</td><td>사서</td><td>"payment_events 의 현재 목차는 00003" — 테이블 이름 → 현재 metadata.json (다음 장)</td></tr>
         </tbody>
       </table>
       </div>
       <h3 style="margin-top: 12px">이 구조가 주는 것</h3>
       <ul style="font-size: 13.5px">
-        <li><strong>원자적 커밋.</strong> 새 Parquet 를 올리는 동안은 아무도 못 봅니다. 새 metadata.json 이 "현재"로 지정되는 순간 한꺼번에 보입니다. DB 커밋과 뜻은 같지만 단위가 다릅니다. DB 는 행 몇 개를 요청마다, Iceberg 는 파일 묶음(스냅샷)을 30초~수 분마다 확정합니다.</li>
-        <li><strong>시점 조회.</strong> 이전 metadata.json 과 스냅샷이 남아 있으므로 <code>FOR VERSION AS OF</code> 로 과거 상태를 그대로 읽습니다.</li>
-        <li><strong>파일 건너뛰기.</strong> 매니페스트의 컬럼 통계로 조건에 안 맞는 파일은 열지도 않습니다. 디렉터리 목록 조회(<code>LIST</code>)가 없어 객체 저장소에서 빠릅니다.</li>
-        <li><strong>스키마 변경.</strong> 컬럼 추가·이름 변경은 metadata.json 만 바뀌고 Parquet 는 그대로입니다.</li>
+        <li><strong>원자적 커밋.</strong> 낱장·표지·쪽지를 올리는 동안은 아무도 못 봅니다. 새 목차가 "현재"로 지정되는 순간 한꺼번에 보입니다. DB 커밋과 뜻은 같지만 DB 는 행 몇 개를 요청마다, Iceberg 는 낱장 묶음을 30초~수 분마다 확정합니다.</li>
+        <li><strong>시점 조회.</strong> 이전 목차·쪽지가 남아 <code>FOR VERSION AS OF</code> 로 과거 장부를 그대로 읽습니다.</li>
+        <li><strong>낱장 건너뛰기.</strong> 표지의 컬럼 통계로 조건에 안 맞는 파일은 열지 않습니다. 디렉터리 목록 조회가 없어 객체 저장소에서 빠릅니다.</li>
+        <li><strong>스키마 변경.</strong> 컬럼 추가·이름 변경은 목차만 바뀌고 낱장은 그대로입니다.</li>
       </ul>
-      <div class="note warm">메타데이터도 커밋마다 쌓입니다. 스냅샷 만료·매니페스트 재작성·오래된 metadata.json 정리가 정기 작업에 들어가는 이유입니다(부록 E).</div>
+      <div class="note warm">표지·쪽지·목차도 커밋마다 쌓입니다. 스냅샷 만료·매니페스트 재작성·오래된 목차 정리가 정기 작업에 들어가는 이유입니다(부록 E).</div>
     </div>
   </div>
 </section>
@@ -2105,7 +2107,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['6', '구성 기술 스택'],
       ['6b', 'Parquet — 데이터 파일의 내부 구조', '6'],
       ['6b2', 'Parquet 조회 방식 — 컬럼에서 행을 조립하는 원리', '6'],
-      ['6c', 'Iceberg 메타데이터 — MinIO에 생기는 파일', '6'],
+      ['6c', 'Iceberg 메타데이터 — 커밋이 MinIO에 남기는 것', '6'],
       ['6d', 'Iceberg Catalog — 테이블 이름에서 파일까지', '6'],
       ['7', '데이터 적재 및 조회 흐름']
     ]},
