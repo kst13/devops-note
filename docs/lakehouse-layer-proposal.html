@@ -1045,7 +1045,7 @@ GROUP BY customer_id;</pre>
 
 <!-- 12. ch11 -->
 <section class="slide" data-ch="11a">
-  <header class="sh"><span>11 · 파일 서비스 (1/3)</span><span class="num"></span></header>
+  <header class="sh"><span>11 · 파일 서비스 (1/4)</span><span class="num"></span></header>
   <h2>파일 서비스 저장소 전환 근거</h2>
   <p class="lead">단순 저장·조회 기능만 놓고 보면 MinIO가 로컬 디스크나 NAS 대비 우위가 없습니다. 전환 근거는 현재 파일 서비스에서 확인된 두 가지 문제에 있습니다.</p>
   <div class="cols even">
@@ -1106,8 +1106,45 @@ GROUP BY customer_id;</pre>
   </div>
 </section>
 
+<section class="slide" data-ch="11b">
+  <header class="sh"><span>11 · 파일 서비스 (2/4)</span><span class="num"></span></header>
+  <h2>파일 서비스 코드 분석 결과</h2>
+  <p class="lead">현재 파일 애플리케이션의 소스를 분석한 결과입니다. 파일시스템 구조 때문에 생긴 병목 여섯 가지가 확인됐고, 각각 MinIO의 기본 기능으로 대체됩니다.</p>
+  <div class="cols wide">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:30%">현재 코드</th><th style="width:30%">문제</th><th>MinIO에서는</th></tr></thead>
+        <tbody>
+          <tr><td>저장 경로가 <code>FileLocation</code> enum에 로컬 경로로 하드코딩</td><td>앱 2대 이상이면 NAS 마운트가 전제. 디스크 용량이 앱 서버에 묶임</td><td>앱은 버킷·키만 안다. 서버 수와 용량이 무관</td></tr>
+          <tr><td><code>walkFileTree</code>로 디렉터리를 순회해 파일 ID 탐색 (삭제, 메일 첨부 조회)</td><td>파일 수에 비례해 느려지는 <strong>O(n)</strong></td><td>키(<code>시스템/날짜/fileId</code>)로 직접 접근. 순회 없음</td></tr>
+          <tr><td>다운로드가 <code>ByteArrayResource</code>로 파일 전체를 JVM 메모리에 적재</td><td>최대 10GB 설정과 맞지 않음. 대용량·동시 다운로드가 힙·대역폭을 잡음</td><td>임시 URL로 클라이언트가 직접 받음. 정적 이미지도 동일</td></tr>
+          <tr><td>앱 레벨 AES256 암복호화 때마다 <strong>평문 임시 파일</strong>을 디스크에 썼다 지움</td><td>I/O 왕복, 평문이 잠시 디스크에 남음</td><td>서버 사이드 암호화(SSE)로 바꾸면 왕복 소멸 <span class="pill warm">결정 필요</span></td></tr>
+          <tr><td><code>FileScheduler</code>가 임시 파일을 30일 뒤 삭제</td><td>스케줄러 코드와 장애 지점</td><td><code>temp</code> 버킷 수명주기 규칙 하나</td></tr>
+          <tr><td>temp → storage 이동을 <code>Files.move</code>·복사로</td><td>앱 서버를 거치는 I/O</td><td>서버 사이드 <code>CopyObject</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>결정해야 하는 것 — 암호화 방식</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>선택</th><th>얻는 것</th><th>잃는 것</th></tr></thead>
+        <tbody>
+          <tr><td class="k">서버 사이드 암호화(SSE)로 전환</td><td>평문 임시 파일 왕복 소멸, 임시 URL 직접 다운로드 가능, 리사이징 단순화</td><td>암호화 주체가 앱에서 저장소로 이동. 키 관리 정책 재검토</td></tr>
+          <tr><td class="k">앱 레벨 AES 유지</td><td>보안 정책 변경 없음</td><td>임시 URL 불가. 앱이 복호화 스트리밍을 중계해야 해 다운로드 부하 분산 이점을 잃음</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note warm" style="margin-top: 8px">이 선택이 위 표 이점의 <strong>절반</strong>을 좌우합니다. 전환 전에 보안 담당과 먼저 정합니다 (15장 의사결정 항목).</div>
+      <h3 style="margin-top: 12px">수정 범위</h3>
+      <p style="font-size: 13.5px; margin: 0 0 8px"><code>FileServiceImpl</code>, <code>TransferHandler</code>, <code>FileController</code> 다운로드·리사이징, 메일 첨부 조회, <code>FileScheduler</code> 다섯 곳입니다. <strong>스토리지 인터페이스</strong>를 하나 두고 로컬 구현과 MinIO 구현을 나란히 두면 설정으로 전환·복귀할 수 있습니다. DB의 <code>FILE_PATH</code>는 로컬 경로에서 버킷·키로 의미가 바뀝니다.</p>
+      <div class="note">옮기지 않기로 해도 <code>walkFileTree</code> 제거와 다운로드 스트리밍 전환은 MinIO 없이 고칠 수 있는 항목입니다. 단일 서버·NAS로 문제없이 돌고 있다면 이 둘만 먼저 고치는 선택도 비용 대비 합리적입니다.</div>
+    </div>
+  </div>
+</section>
+
 <section class="slide" data-ch="11">
-  <header class="sh"><span>11 · 파일 서비스 (2/3)</span><span class="num"></span></header>
+  <header class="sh"><span>11 · 파일 서비스 (3/4)</span><span class="num"></span></header>
   <h2>기존 파일 서비스 연계 방안</h2>
   <p class="lead">파일 업로드·다운로드 애플리케이션은 유지하고 저장소만 MinIO로 전환합니다. 파일용 Bucket과 Lakehouse용 Bucket은 분리 운영합니다.</p>
   <div class="cols">
@@ -1168,7 +1205,7 @@ GROUP BY customer_id;</pre>
 
 
 <section class="slide" data-ch="11c">
-  <header class="sh"><span>11 · 파일 서비스 (3/3)</span><span class="num"></span></header>
+  <header class="sh"><span>11 · 파일 서비스 (4/4)</span><span class="num"></span></header>
   <h2>파일 이전 절차와 검증</h2>
   <p class="lead">무중단 병행 전환 6단계입니다. 1·2·4단계에 저장 검증과 삭제 복구를 보장하는 절차를 포함하며, 각 단계의 검증을 통과한 경우에만 다음 단계로 진행합니다.</p>
   <div class="cols wide">
@@ -1438,6 +1475,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
           <tr><td class="k">반영 지연</td><td>허용 지연(예: 5분)과 "방금 쓴 데이터가 아직 없을 때"의 화면 동작</td><td>서비스 기획</td></tr>
           <tr><td class="k">보관 기준</td><td>데이터 종류별 보관 기간·삭제 기준. "5~10년"은 검토 항목으로</td><td>법무 · 보안 · 도메인</td></tr>
           <tr><td class="k">수집 방식</td><td>Outbox 우선, 레거시는 CDC(부록 C)</td><td>도메인 개발</td></tr>
+          <tr><td class="k">파일 암호화 방식</td><td>MinIO 서버 사이드 암호화(SSE)로 전환 (11장). 앱 AES 유지 시 임시 URL 불가</td><td>보안 · 파일 서비스 개발</td></tr>
         </tbody>
       </table>
       </div>
@@ -1850,6 +1888,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['10', '활용 사례 ③ 콜드 데이터 이관'],
       ['10b', '이관 기준·방식·삭제 전 확인', '10'],
       ['11a', '파일 서비스 저장소 전환 근거', '11'],
+      ['11b', '파일 서비스 코드 분석 결과', '11'],
       ['11', '기존 파일 서비스 연계 방안', '11'],
       ['11c', '파일 이전 절차와 검증', '11']
     ]},
