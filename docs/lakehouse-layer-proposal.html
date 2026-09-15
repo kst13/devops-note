@@ -1,4 +1,4 @@
-<title>Lakehouse Layer 구축 제안</title>
+<title>Lakehouse Layer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -310,25 +310,25 @@
 <!-- 0. 표지 -->
 <section class="slide title active">
   <div class="kicker">Enterprise Data Platform</div>
-  <h1>Lakehouse Layer 구축 제안</h1>
-  <div class="sub">회원·주문·채팅·결제 데이터의 장기 보관과 통합 분석</div>
+  <h1>Lakehouse Layer</h1>
+  <div class="sub">애플리케이션 데이터의 장기 보관 및 통합 분석 체계</div>
   <div class="meta"><span>Kafka · Iceberg · MinIO · Trino</span><span>2026-09</span></div>
-  <p class="lead" style="margin-top: 18px">화살표 버튼 또는 키보드 <span class="kbd">←</span> <span class="kbd">→</span> 로 넘깁니다. 목차에서 원하는 장으로 바로 이동할 수 있습니다.</p>
+  <p class="lead" style="margin-top: 18px">화살표 버튼 또는 키보드 <span class="kbd">←</span> <span class="kbd">→</span> 로 이동합니다. 목차에서 각 장으로 직접 이동할 수 있습니다.</p>
 </section>
 
 <!-- 1. 목차 -->
 <section class="slide">
   <header class="sh"><span>목차</span><span class="num"></span></header>
-  <h2>이 제안의 흐름</h2>
-  <p class="lead">왜 필요한가(1~2장) → 무엇인가(3~7장) → 무엇에 쓰는가(8~11장) → 어떻게 운영하고 시작하는가(12~15장) 순서입니다.</p>
+  <h2>제안 구성</h2>
+  <p class="lead">추진 배경과 목표(1~2장), 아키텍처 정의(3~7장), 활용 방안(8~11장), 운영 체계와 추진 계획(12~15장) 순으로 구성했습니다.</p>
   <ol class="toc" id="toc"></ol>
 </section>
 
 <!-- 2. ch1 -->
 <section class="slide" data-ch="1">
-  <header class="sh"><span>01 · 배경</span><span class="num"></span></header>
-  <h2>우리가 Lakehouse를 검토하는 이유</h2>
-  <p class="lead">데이터가 서비스별 DB에 흩어져 있고, 통합해서 봐야 할 때마다 연결 코드를 새로 만듭니다. 그 사이 과거 데이터는 계속 쌓입니다.</p>
+  <header class="sh"><span>01 · 추진 배경</span><span class="num"></span></header>
+  <h2>추진 배경</h2>
+  <p class="lead">데이터가 서비스별 DB에 분산되어 있어 통합 조회 요구가 발생할 때마다 연계 개발이 반복됩니다. 동시에 과거 데이터는 운영 DB에 지속적으로 누적되고 있습니다.</p>
   <div class="cols">
     <div>
       <ul>
@@ -371,9 +371,9 @@
 
 <!-- 3. ch2 -->
 <section class="slide" data-ch="2">
-  <header class="sh"><span>02 · 목표</span><span class="num"></span></header>
-  <h2>이번 구축으로 해결할 문제</h2>
-  <p class="lead">세 가지를 목표로 잡습니다. 장기 이력 보관, 운영 DB 부담 완화, 서비스 간 분석입니다.</p>
+  <header class="sh"><span>02 · 추진 목표</span><span class="num"></span></header>
+  <h2>추진 목표</h2>
+  <p class="lead">장기 이력 보관, 운영 DB 부하 경감, 서비스 간 통합 분석의 세 가지를 목표로 설정합니다.</p>
   <div class="cols single">
     <div class="tablewrap">
       <table>
@@ -391,9 +391,9 @@
 
 <!-- 4. ch3 -->
 <section class="slide" data-ch="3">
-  <header class="sh"><span>03 · 개념</span><span class="num"></span></header>
-  <h2>Lakehouse란 무엇인가</h2>
-  <p class="lead">파일 저장소 위에 테이블 관리 기능을 얹고, SQL 엔진으로 조회하는 구조입니다. 세 층이 각각 다른 제품입니다.</p>
+  <header class="sh"><span>03 · 아키텍처 개요</span><span class="num"></span></header>
+  <h2>Lakehouse 아키텍처 개요</h2>
+  <p class="lead">객체 저장소 위에 테이블 관리 계층을 두고 SQL 엔진으로 조회하는 3계층 구조입니다. 각 계층은 독립된 제품으로 구성되어 개별 교체가 가능합니다.</p>
   <div class="cols">
     <div>
       <p>Data Lake는 다양한 데이터를 <strong>파일로</strong> 쌓는 구조입니다. 파일만 쌓으면 다음 질문에 답하기 어렵습니다.</p>
@@ -433,8 +433,8 @@
 <!-- 5. ch4 -->
 <section class="slide" data-ch="4">
   <header class="sh"><span>04 · 역할 분담</span><span class="num"></span></header>
-  <h2>기존 DB와 어떻게 역할을 나누는가</h2>
-  <p class="lead">업무 처리와 빠른 조회는 DB가, 장기 이력과 분석은 Lakehouse가 맡습니다. 나누는 기준은 데이터의 나이가 아니라 조회 요구사항입니다.</p>
+  <h2>운영 DB와의 역할 분담</h2>
+  <p class="lead">업무 처리와 저지연 조회는 운영 DB가, 장기 이력 보관과 분석은 Lakehouse가 담당합니다. 분담 기준은 데이터의 경과 기간이 아니라 조회 요구사항입니다.</p>
   <div class="cols">
     <div class="tablewrap">
       <table>
@@ -489,8 +489,8 @@
 <!-- 5b. ch4 (2/2) -->
 <section class="slide" data-ch="4b">
   <header class="sh"><span>04 · 역할 분담 (서비스별)</span><span class="num"></span></header>
-  <h2>우리 서비스에서는 각각 무엇을 맡는가</h2>
-  <p class="lead">로그인·주문 확정·결제 승인처럼 즉시 정확해야 하는 판단은 기존 시스템이 계속 맡습니다. Lakehouse의 반영 지연이 서비스 처리에 닿지 않게 하는 구조입니다.</p>
+  <h2>서비스별 역할 분담</h2>
+  <p class="lead">로그인·주문 확정·결제 승인과 같이 즉시성과 정확성이 요구되는 판단은 기존 시스템이 계속 담당합니다. Lakehouse의 반영 지연이 서비스 처리에 영향을 주지 않는 구조입니다.</p>
   <div class="cols single">
     <div class="tablewrap">
       <table>
@@ -513,9 +513,9 @@
 
 <!-- 6. ch5 -->
 <section class="slide" data-ch="5">
-  <header class="sh"><span>05 · 전체 그림</span><span class="num"></span></header>
+  <header class="sh"><span>05 · 플랫폼 구성</span><span class="num"></span></header>
   <h2>전사 데이터 플랫폼에서의 위치</h2>
-  <p class="lead">플랫폼은 Serving·Lakehouse·Search 세 계층으로 나뉩니다. 이번 구축 범위는 Lakehouse 계층과 그 수집 경로입니다.</p>
+  <p class="lead">전사 데이터 플랫폼은 Serving·Lakehouse·Search 3계층으로 구성됩니다. 본 제안의 구축 범위는 Lakehouse 계층과 수집 경로입니다.</p>
   <div class="cols wide">
     <div class="tablewrap">
       <table>
@@ -581,8 +581,8 @@
 <!-- 7. ch6 -->
 <section class="slide" data-ch="6">
   <header class="sh"><span>06 · 구성 기술</span><span class="num"></span></header>
-  <h2>Lakehouse를 구성하는 기술</h2>
-  <p class="lead">일곱 가지 구성요소가 각각 하나의 질문에 답합니다. Kafka·MinIO·Iceberg·Trino만으로는 완성되지 않고, Writer와 Catalog가 더 필요합니다.</p>
+  <h2>구성 기술 스택</h2>
+  <p class="lead">일곱 가지 구성요소가 각각 고유한 역할을 담당합니다. Kafka·MinIO·Iceberg·Trino 외에 Writer와 Catalog가 추가로 필요합니다.</p>
   <div class="cols wide">
     <div class="tablewrap">
       <table>
@@ -631,8 +631,8 @@
 <!-- 8. ch7 -->
 <section class="slide" data-ch="7">
   <header class="sh"><span>07 · 처리 흐름</span><span class="num"></span></header>
-  <h2>데이터는 어떻게 저장되고 조회되는가</h2>
-  <p class="lead">주문 이벤트 하나가 Kafka에 들어와 Trino에서 조회되기까지의 경로입니다. 파일 저장과 테이블 커밋은 다른 단계입니다.</p>
+  <h2>데이터 적재 및 조회 흐름</h2>
+  <p class="lead">주문 이벤트가 Kafka에 유입되어 Trino에서 조회되기까지의 처리 경로입니다. 파일 저장과 테이블 커밋은 별개의 단계로 구분됩니다.</p>
   <div class="cols">
     <div>
       <pre>{
@@ -698,7 +698,7 @@ GROUP BY customer_id;</pre>
 <section class="slide" data-ch="8">
   <header class="sh"><span>08 · 활용 사례 ①</span><span class="num"></span></header>
   <h2>주문·결제 통합 분석</h2>
-  <p class="lead">첫 번째 활용 사례이자 PoC 대상입니다. 주문·결제·환불을 원본 의미대로 쌓고, 화면용 통합 모델은 그 위에서 가공합니다.</p>
+  <p class="lead">1순위 활용 사례이자 PoC 대상입니다. 주문·결제·환불 데이터를 원본 의미대로 적재하고, 화면용 통합 모델은 그 위에서 파생합니다.</p>
   <div class="cols">
     <div>
       <h3>답하려는 질문</h3>
@@ -769,7 +769,7 @@ GROUP BY customer_id;</pre>
 <section class="slide" data-ch="9">
   <header class="sh"><span>09 · 활용 사례 ②</span><span class="num"></span></header>
   <h2>회원·채팅 데이터 분석</h2>
-  <p class="lead">고객 한 명의 이용 흐름을 시간순으로 이어 봅니다. 회원 DB와 채팅 DB에 나뉘어 있던 사건들이 Lakehouse에서는 한 타임라인이 됩니다.</p>
+  <p class="lead">고객 단위의 이용 흐름을 시간순으로 연결합니다. 회원 DB와 채팅 DB에 분산되어 있던 이벤트가 Lakehouse에서 단일 타임라인으로 통합됩니다.</p>
   <div class="cols">
     <div>
       <h3>답하려는 질문</h3>
@@ -841,7 +841,7 @@ GROUP BY customer_id;</pre>
 <section class="slide" data-ch="10">
   <header class="sh"><span>10 · 활용 사례 ③</span><span class="num"></span></header>
   <h2>콜드 데이터 이관</h2>
-  <p class="lead">운영 DB의 오래된 데이터를 Lakehouse로 옮기고 DB에서 정리합니다. 삭제보다 검증이 먼저입니다.</p>
+  <p class="lead">운영 DB의 장기 미사용 데이터를 Lakehouse로 이관하고 DB에서 정리합니다. 삭제에 앞서 검증을 완료합니다.</p>
   <div class="cols">
     <div>
       <ol class="steps">
@@ -894,7 +894,7 @@ GROUP BY customer_id;</pre>
 <section class="slide" data-ch="10b">
   <header class="sh"><span>10 · 활용 사례 ③ (계속)</span><span class="num"></span></header>
   <h2>콜드 데이터 이관 — 기준, 방식, 삭제 전 확인</h2>
-  <p class="lead">콜드 데이터는 "오래된 데이터"가 아니라 조회 빈도가 낮고, 변경이 드물며, 조회 지연을 허용할 수 있는 데이터입니다. 세 조건을 모두 만족해야 합니다.</p>
+  <p class="lead">콜드 데이터는 단순히 오래된 데이터가 아니라, 조회 빈도가 낮고 변경이 드물며 조회 지연을 허용할 수 있는 데이터를 의미합니다. 세 조건을 모두 충족해야 이관 대상입니다.</p>
   <div class="cols even">
     <div>
       <h3>이관 기준 예시 (정책 설명용)</h3>
@@ -948,8 +948,8 @@ GROUP BY customer_id;</pre>
 <!-- 12. ch11 -->
 <section class="slide" data-ch="11a">
   <header class="sh"><span>11 · 파일 서비스 (1/3)</span><span class="num"></span></header>
-  <h2>파일 서비스를 왜 MinIO로 옮기는가</h2>
-  <p class="lead">파일 하나를 넣고 꺼내는 기능만 보면 MinIO가 로컬 디스크나 NAS보다 나을 것이 없습니다. 옮기는 이유는 현재 파일 서비스에서 확인된 두 가지 문제 때문입니다.</p>
+  <h2>파일 서비스 저장소 전환 근거</h2>
+  <p class="lead">단순 저장·조회 기능만 놓고 보면 MinIO가 로컬 디스크나 NAS 대비 우위가 없습니다. 전환 근거는 현재 파일 서비스에서 확인된 두 가지 문제에 있습니다.</p>
   <div class="cols even">
     <div>
       <h3>현재 파일 서비스 (업로드·다운로드·삭제·조회)</h3>
@@ -1010,8 +1010,8 @@ GROUP BY customer_id;</pre>
 
 <section class="slide" data-ch="11">
   <header class="sh"><span>11 · 파일 서비스 (2/3)</span><span class="num"></span></header>
-  <h2>기존 파일 서비스와의 관계</h2>
-  <p class="lead">파일 업로드·다운로드 애플리케이션은 그대로 두고, 저장소만 MinIO로 옮깁니다. 파일용과 Lakehouse용 Bucket은 분리합니다.</p>
+  <h2>기존 파일 서비스 연계 방안</h2>
+  <p class="lead">파일 업로드·다운로드 애플리케이션은 유지하고 저장소만 MinIO로 전환합니다. 파일용 Bucket과 Lakehouse용 Bucket은 분리 운영합니다.</p>
   <div class="cols">
     <div>
       <ul>
@@ -1072,7 +1072,7 @@ GROUP BY customer_id;</pre>
 <section class="slide" data-ch="11c">
   <header class="sh"><span>11 · 파일 서비스 (3/3)</span><span class="num"></span></header>
   <h2>파일 이전 절차와 검증</h2>
-  <p class="lead">무중단 병행 전환 6단계입니다. 1·2·4단계에 "저장 확인"과 "삭제 복구"를 해결하는 검증이 들어갑니다. 통과하지 못하면 다음 단계로 가지 않습니다.</p>
+  <p class="lead">무중단 병행 전환 6단계입니다. 1·2·4단계에 저장 검증과 삭제 복구를 보장하는 절차를 포함하며, 각 단계의 검증을 통과한 경우에만 다음 단계로 진행합니다.</p>
   <div class="cols wide">
     <div class="tablewrap">
       <table>
@@ -1113,9 +1113,9 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
 
 <!-- 13. ch12 -->
 <section class="slide" data-ch="12">
-  <header class="sh"><span>12 · 정합성과 운영</span><span class="num"></span></header>
+  <header class="sh"><span>12 · 데이터 거버넌스</span><span class="num"></span></header>
   <h2>데이터 정합성과 운영 원칙</h2>
-  <p class="lead">수집 방식, 이벤트 규약, 재처리, 권한, 유지보수를 처음부터 정합니다. 나중에 붙이면 이미 쌓인 데이터를 고칠 수 없습니다.</p>
+  <p class="lead">수집 방식, 이벤트 규약, 재처리, 접근 권한, 유지보수 기준을 구축 초기에 확정합니다. 사후에 적용하면 기존 적재 데이터에는 소급할 수 없습니다.</p>
   <div class="cols wide">
     <div>
       <h3>수집 방식 · 초기 적재 + 변경 수집</h3>
@@ -1193,9 +1193,9 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
 
 <!-- 14. ch13 -->
 <section class="slide" data-ch="13">
-  <header class="sh"><span>13 · 사례</span><span class="num"></span></header>
-  <h2>기업 사례에서 배울 점</h2>
-  <p class="lead">공개 자료에서 확인되는 것은 "업무 DB를 유지하면서 변경을 분석용 저장소로 전달"하거나 "기존 데이터 레이크를 Iceberg로 개선"한 사례입니다. 각 사례는 발표 당시 구성이며, 우리와 같은 제품 조합은 아닙니다.</p>
+  <header class="sh"><span>13 · 기업 사례</span><span class="num"></span></header>
+  <h2>기업 사례 분석 및 시사점</h2>
+  <p class="lead">공개 자료에서 확인된 사례는 업무 DB를 유지한 채 변경분을 분석 저장소로 전달하거나, 기존 데이터 레이크를 Iceberg 기반으로 개선한 유형입니다. 각 사례는 발표 시점의 구성이며 본 제안과 동일한 제품 조합은 아닙니다.</p>
   <div class="cols single">
     <div class="tablewrap">
       <table>
@@ -1228,9 +1228,9 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
 
 <!-- 15. ch14 -->
 <section class="slide" data-ch="14">
-  <header class="sh"><span>14 · 계획</span><span class="num"></span></header>
-  <h2>단계별 구축 및 PoC 계획</h2>
-  <p class="lead">제품 도입 순서가 아니라 활용 사례 하나의 완성을 기준으로 단계를 나눕니다. 주문·결제부터 시작합니다.</p>
+  <header class="sh"><span>14 · 추진 계획</span><span class="num"></span></header>
+  <h2>단계별 추진 계획 및 PoC</h2>
+  <p class="lead">제품 도입 순서가 아니라 활용 사례 단위의 완성을 기준으로 단계를 구분합니다. 주문·결제 영역부터 착수합니다.</p>
   <div class="cols single">
     <figure>
       <svg class="d" viewBox="0 0 1100 250" role="img" aria-label="요구사항 확정부터 도메인 확장까지 다섯 단계 로드맵과 각 단계의 완료 기준">
@@ -1301,9 +1301,9 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
 
 <!-- 16. ch15 -->
 <section class="slide" data-ch="15">
-  <header class="sh"><span>15 · 결론</span><span class="num"></span></header>
+  <header class="sh"><span>15 · 기대 효과</span><span class="num"></span></header>
   <h2>기대 효과와 의사결정 사항</h2>
-  <p class="lead">효과는 PoC로 검증합니다. 시작하려면 아래 결정이 필요합니다.</p>
+  <p class="lead">기대 효과는 PoC를 통해 검증합니다. 착수를 위해 아래 항목의 의사결정이 필요합니다.</p>
   <div class="cols even">
     <div>
       <h3>검증할 효과</h3>
@@ -1735,20 +1735,20 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
   var tocItems = [
     ['1', '우리가 Lakehouse를 검토하는 이유'],
     ['2', '이번 구축으로 해결할 문제'],
-    ['3', 'Lakehouse란 무엇인가'],
-    ['4', '기존 DB와 어떻게 역할을 나누는가'],
+    ['3', 'Lakehouse 아키텍처 개요'],
+    ['4', '운영 DB와의 역할 분담'],
     ['5', '전사 데이터 플랫폼에서의 위치'],
-    ['6', 'Lakehouse를 구성하는 기술'],
-    ['7', '데이터는 어떻게 저장되고 조회되는가'],
+    ['6', '구성 기술 스택'],
+    ['7', '데이터 적재 및 조회 흐름'],
     ['8', '활용 사례 ① 주문·결제 통합 분석'],
     ['9', '활용 사례 ② 회원·채팅 데이터 분석'],
     ['10', '활용 사례 ③ 콜드 데이터 이관'],
-    ['11a', '파일 서비스를 왜 MinIO로 옮기는가'],
-    ['11', '기존 파일 서비스와의 관계'],
+    ['11a', '파일 서비스 저장소 전환 근거'],
+    ['11', '기존 파일 서비스 연계 방안'],
     ['11c', '파일 이전 절차와 검증'],
     ['12', '데이터 정합성과 운영 원칙'],
-    ['13', '기업 사례에서 배울 점'],
-    ['14', '단계별 구축 및 PoC 계획'],
+    ['13', '기업 사례 분석 및 시사점'],
+    ['14', '단계별 추진 계획 및 PoC'],
     ['15', '기대 효과와 의사결정 사항'],
     ['A', '구성요소별 상세 설명과 공식 문서'],
     ['B', '이벤트 이력 테이블과 최신 상태 테이블의 차이'],
