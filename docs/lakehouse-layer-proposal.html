@@ -812,7 +812,7 @@
       </div>
       <h3 style="margin-top: 12px">이 구조가 주는 것</h3>
       <ul style="font-size: 13.5px">
-        <li><strong>원자적 커밋.</strong> 새 Parquet 를 올리는 동안은 아무도 못 봅니다. 새 metadata.json 이 "현재"로 지정되는 순간 한꺼번에 보입니다.</li>
+        <li><strong>원자적 커밋.</strong> 새 Parquet 를 올리는 동안은 아무도 못 봅니다. 새 metadata.json 이 "현재"로 지정되는 순간 한꺼번에 보입니다. DB 커밋과 뜻은 같지만 단위가 다릅니다. DB 는 행 몇 개를 요청마다, Iceberg 는 파일 묶음(스냅샷)을 30초~수 분마다 확정합니다.</li>
         <li><strong>시점 조회.</strong> 이전 metadata.json 과 스냅샷이 남아 있으므로 <code>FOR VERSION AS OF</code> 로 과거 상태를 그대로 읽습니다.</li>
         <li><strong>파일 건너뛰기.</strong> 매니페스트의 컬럼 통계로 조건에 안 맞는 파일은 열지도 않습니다. 디렉터리 목록 조회(<code>LIST</code>)가 없어 객체 저장소에서 빠릅니다.</li>
         <li><strong>스키마 변경.</strong> 컬럼 추가·이름 변경은 metadata.json 만 바뀌고 Parquet 는 그대로입니다.</li>
