@@ -726,6 +726,159 @@
   </div>
 </section>
 
+
+<section class="slide" data-ch="6b">
+  <header class="sh"><span>06 · 구성 기술 (Parquet)</span><span class="num"></span></header>
+  <h2>Parquet — 데이터 파일의 내부 구조</h2>
+  <p class="lead">실제 이벤트 데이터가 담기는 파일 형식입니다. 행이 아니라 컬럼 단위로 저장하기 때문에 분석 쿼리가 필요한 컬럼만 읽을 수 있습니다.</p>
+  <div class="cols">
+    <div>
+      <h3>행 단위 저장과의 차이</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:24%"></th><th>행 단위 (CSV·JSON·RDB 페이지)</th><th>컬럼 단위 (Parquet)</th></tr></thead>
+        <tbody>
+          <tr><td class="k">저장 순서</td><td>주문1 전체 → 주문2 전체 → …</td><td>모든 주문의 amount → 모든 주문의 method → …</td></tr>
+          <tr><td class="k">"금액 합계" 쿼리</td><td>파일 전체를 읽고 amount 만 골라냄</td><td>amount 컬럼 덩어리만 읽음. 컬럼 30개 중 2개만 쓰면 I/O 가 그만큼 줄어듦</td></tr>
+          <tr><td class="k">압축</td><td>이질적인 값이 섞여 압축률이 낮음</td><td>같은 타입이 연속돼 압축률이 높음. JSON 대비 보통 3~5배 작음</td></tr>
+          <tr><td class="k">파일 안 통계</td><td>없음</td><td>컬럼별 최소·최대값을 파일 헤더에 기록. 조건에 안 맞는 파일은 열지 않음</td></tr>
+          <tr><td class="k">단건 조회·수정</td><td>유리</td><td>불리. 파일은 만들어지면 수정하지 않음 (append 전용)</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note" style="margin-top: 10px">Parquet 는 <strong>파일 하나 안의</strong> 구조를 정합니다. 여러 파일이 하나의 테이블을 이루게 하는 것은 Iceberg 의 일입니다(다음 장). Trino 의 Iceberg 커넥터는 ORC·Avro 도 읽지만 기본은 Parquet 입니다.</div>
+      <div class="note warm">PoC 실측: 결제 이벤트 7건이 든 Parquet 파일이 4.6KB, 4건이 4.4KB 입니다. 파일마다 스키마·통계 헤더가 붙어 작은 파일은 헤더 비중이 큽니다. 작은 파일이 많아지면 병합해야 하는 이유입니다(부록 E).</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="같은 세 주문을 행 단위로 저장한 파일과 컬럼 단위로 저장한 Parquet 파일을 비교하고, 금액 합계 쿼리가 Parquet에서는 금액 컬럼만 읽는 것을 보여주는 그림">
+        <text x="20" y="24" class="z" style="fill: var(--muted)">행 단위 파일</text>
+        <rect class="node dim" x="20" y="34" width="240" height="26" rx="4"></rect><text x="30" y="51" class="m">A | Kim | CARD  | 35000</text>
+        <rect class="node dim" x="20" y="64" width="240" height="26" rx="4"></rect><text x="30" y="81" class="m">B | Lee | POINT | 12000</text>
+        <rect class="node dim" x="20" y="94" width="240" height="26" rx="4"></rect><text x="30" y="111" class="m">C | Kim | BANK  | 45000</text>
+        <text x="20" y="144" class="s">SUM(amount): 세 행을 전부 읽고 금액만 골라냄</text>
+
+        <text x="300" y="24" class="z">Parquet (컬럼 단위)</text>
+        <rect class="node" x="300" y="34" width="56" height="86" rx="4"></rect><text x="328" y="50" text-anchor="middle" class="s">order</text><text x="328" y="70" text-anchor="middle" class="m">A</text><text x="328" y="86" text-anchor="middle" class="m">B</text><text x="328" y="102" text-anchor="middle" class="m">C</text>
+        <rect class="node" x="362" y="34" width="56" height="86" rx="4"></rect><text x="390" y="50" text-anchor="middle" class="s">customer</text><text x="390" y="70" text-anchor="middle" class="m">Kim</text><text x="390" y="86" text-anchor="middle" class="m">Lee</text><text x="390" y="102" text-anchor="middle" class="m">Kim</text>
+        <rect class="node" x="424" y="34" width="56" height="86" rx="4"></rect><text x="452" y="50" text-anchor="middle" class="s">method</text><text x="452" y="70" text-anchor="middle" class="m">CARD</text><text x="452" y="86" text-anchor="middle" class="m">POINT</text><text x="452" y="102" text-anchor="middle" class="m">BANK</text>
+        <rect class="node hi" x="486" y="34" width="56" height="86" rx="4"></rect><text x="514" y="50" text-anchor="middle" class="s">amount</text><text x="514" y="70" text-anchor="middle" class="m">35000</text><text x="514" y="86" text-anchor="middle" class="m">12000</text><text x="514" y="102" text-anchor="middle" class="m">45000</text>
+        <path class="ln hi" d="M514,160 L514,124" marker-end="url(#arrA)"></path>
+        <text x="514" y="178" text-anchor="middle" class="s">SUM(amount): 이 컬럼만 읽음</text>
+
+        <rect class="node" x="300" y="200" width="242" height="80" rx="6"></rect>
+        <text x="312" y="220" class="b">파일 헤더(footer)에 기록되는 통계</text>
+        <text x="312" y="240" class="m">amount: min 12000, max 45000</text>
+        <text x="312" y="256" class="m">method: CARD, POINT, BANK</text>
+        <text x="312" y="272" class="s">WHERE amount &gt; 50000 이면 이 파일은 열지 않음</text>
+      </svg>
+      <figcaption>같은 데이터도 컬럼 단위로 놓으면 필요한 컬럼만 읽고, 파일 통계로 파일 자체를 건너뛸 수 있습니다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="slide" data-ch="6c">
+  <header class="sh"><span>06 · 구성 기술 (Iceberg 메타데이터)</span><span class="num"></span></header>
+  <h2>Iceberg 메타데이터 — MinIO에 실제로 생기는 파일</h2>
+  <p class="lead">Iceberg는 서버가 아니라 파일 규약입니다. 테이블 하나는 MinIO 안에서 데이터 파일과 메타데이터 파일의 묶음으로 존재하고, 커밋할 때마다 메타데이터 파일이 한 세대 늘어납니다.</p>
+  <div class="cols wide">
+    <div>
+      <pre>lakehouse/                                   ← 버킷
+└── warehouse/commerce/
+    └── payment_events-3c093077…/            ← 테이블 (이름 + UUID)
+        ├── data/
+        │   ├── 00001-…-c2c4cc15-….parquet  4.6KB  7건
+        │   ├── 00001-…-2d6ea2a4-….parquet  4.4KB  4건
+        │   └── 00001-…-cebc260e-….parquet  4.3KB  2건
+        └── metadata/
+            ├── 00000-….metadata.json   2.2KB   ← 생성 직후
+            ├── 00001-….metadata.json   3.3KB   ← 1차 커밋 후
+            ├── 00002-….metadata.json   4.4KB
+            ├── 00003-….metadata.json   5.5KB   ← 현재
+            ├── snap-1597914…-….avro    4.4KB   ← 매니페스트 목록 ×4
+            └── 537892e5-…-m0.avro      7.7KB   ← 매니페스트 ×3</pre>
+      <p class="muted" style="font-size: 12.5px; margin: 6px 0 0">PoC 의 <code>payment_events</code> 실측. 커밋 3회 → Parquet 3개, metadata.json 4세대, 스냅샷 4개(생성 포함).</p>
+    </div>
+    <div>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:26%">파일</th><th>담는 것</th><th style="width:26%">언제 늘어나나</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><code>data/*.parquet</code></td><td>이벤트 본문. 한 번 쓰면 수정하지 않음</td><td>커밋마다 1개 이상</td></tr>
+          <tr><td class="k"><code>metadata/N-….metadata.json</code></td><td>테이블의 <strong>현재 상태</strong>: 스키마(버전별), 파티션 규칙, 스냅샷 목록, 현재 스냅샷 ID, 테이블 속성</td><td>커밋마다 새 세대. 이전 세대는 남김(설정으로 개수 제한)</td></tr>
+          <tr><td class="k"><code>snap-….avro</code> (매니페스트 목록)</td><td>스냅샷 하나가 참조하는 매니페스트 파일 목록과 요약(추가·삭제 파일 수)</td><td>커밋마다 1개</td></tr>
+          <tr><td class="k"><code>…-m0.avro</code> (매니페스트)</td><td>데이터 파일 경로, 레코드 수, <strong>컬럼별 최소·최대값·null 수</strong>, 파티션 값</td><td>커밋마다 1개. 병합 시 재작성</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3 style="margin-top: 12px">이 구조가 주는 것</h3>
+      <ul style="font-size: 13.5px">
+        <li><strong>원자적 커밋.</strong> 새 Parquet 를 올리는 동안은 아무도 못 봅니다. 새 metadata.json 이 "현재"로 지정되는 순간 한꺼번에 보입니다.</li>
+        <li><strong>시점 조회.</strong> 이전 metadata.json 과 스냅샷이 남아 있으므로 <code>FOR VERSION AS OF</code> 로 과거 상태를 그대로 읽습니다.</li>
+        <li><strong>파일 건너뛰기.</strong> 매니페스트의 컬럼 통계로 조건에 안 맞는 파일은 열지도 않습니다. 디렉터리 목록 조회(<code>LIST</code>)가 없어 객체 저장소에서 빠릅니다.</li>
+        <li><strong>스키마 변경.</strong> 컬럼 추가·이름 변경은 metadata.json 만 바뀌고 Parquet 는 그대로입니다.</li>
+      </ul>
+      <div class="note warm">메타데이터도 커밋마다 쌓입니다. 스냅샷 만료·매니페스트 재작성·오래된 metadata.json 정리가 정기 작업에 들어가는 이유입니다(부록 E).</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="6d">
+  <header class="sh"><span>06 · 구성 기술 (Catalog)</span><span class="num"></span></header>
+  <h2>Iceberg Catalog — 테이블 이름에서 데이터 파일까지</h2>
+  <p class="lead">MinIO 에는 metadata.json 이 세대별로 여러 개 있습니다. "지금 유효한 것이 어느 것인가"를 가리키는 포인터 하나가 필요하고, 그것을 관리하는 것이 Catalog 입니다.</p>
+  <div class="cols">
+    <div>
+      <h3>조회 경로</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:8%"></th><th style="width:30%">어디에 묻나</th><th>무엇을 얻나</th></tr></thead>
+        <tbody>
+          <tr><td class="k">①</td><td><strong>Catalog</strong></td><td><code>commerce.payment_events</code> → 현재 metadata.json 경로 (예: <code>…/metadata/00003-….metadata.json</code>)</td></tr>
+          <tr><td class="k">②</td><td>MinIO · metadata.json</td><td>스키마, 현재 스냅샷 ID, 그 스냅샷의 매니페스트 목록 경로</td></tr>
+          <tr><td class="k">③</td><td>MinIO · snap-….avro</td><td>매니페스트 파일 목록</td></tr>
+          <tr><td class="k">④</td><td>MinIO · …-m0.avro</td><td>데이터 파일 경로와 컬럼 통계 → 조건으로 파일 선별</td></tr>
+          <tr><td class="k">⑤</td><td>MinIO · data/*.parquet</td><td>선별된 파일만 읽어 필요한 컬럼 추출</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3 style="margin-top: 12px">왜 포인터를 객체 저장소가 아니라 Catalog에 두나</h3>
+      <p style="font-size: 13.5px; margin: 0 0 8px">커밋은 "현재 포인터를 이전 metadata → 새 metadata 로 바꾸는" 연산입니다. Writer 와 유지보수 작업이 동시에 커밋하면 이 교체가 <strong>원자적 비교·교체(CAS)</strong>여야 정확합니다. 객체 저장소는 이를 표준으로 보장하지 않고, DB 트랜잭션이나 REST 서버는 보장합니다. 그래서 대용량 파일은 MinIO 에, 포인터 교체만 Catalog 에 맡깁니다.</p>
+      <div class="note warm">Catalog 를 잃으면 MinIO 의 파일이 온전해도 테이블을 못 찾습니다. <strong>Catalog 와 MinIO 는 함께 백업</strong>합니다(12장). Writer 와 Trino 는 <strong>같은 Catalog</strong>를 봐야 Writer 가 커밋한 것을 Trino 가 찾습니다.</div>
+    </div>
+    <div>
+      <figure>
+        <svg class="d" viewBox="0 0 560 250" role="img" aria-label="Trino가 Catalog에서 현재 metadata.json 위치를 얻고, MinIO에서 metadata.json, 매니페스트 목록, 매니페스트, Parquet 순으로 따라가는 조회 경로">
+          <rect class="node hi" x="20" y="20" width="110" height="44" rx="6"></rect><text x="75" y="46" text-anchor="middle" class="b">Trino</text>
+          <rect class="node hi" x="200" y="20" width="150" height="44" rx="6"></rect><text x="275" y="38" text-anchor="middle" class="b">Iceberg Catalog</text><text x="275" y="55" text-anchor="middle" class="s">payment_events → 00003-….json</text>
+          <line class="ln hi" x1="130" y1="42" x2="198" y2="42" marker-end="url(#arrA)"></line><text x="164" y="34" text-anchor="middle" class="s">①</text>
+          <rect class="zone plain" x="20" y="90" width="520" height="150" rx="8"></rect>
+          <text x="32" y="108" class="z" style="fill: var(--muted)">MinIO · lakehouse 버킷</text>
+          <rect class="node" x="40" y="120" width="140" height="40" rx="6"></rect><text x="110" y="137" text-anchor="middle" class="m">00003-….metadata.json</text><text x="110" y="152" text-anchor="middle" class="s">② 스키마 · 현재 스냅샷</text>
+          <line class="ln" x1="180" y1="140" x2="208" y2="140" marker-end="url(#arr)"></line>
+          <rect class="node" x="210" y="120" width="110" height="40" rx="6"></rect><text x="265" y="137" text-anchor="middle" class="m">snap-….avro</text><text x="265" y="152" text-anchor="middle" class="s">③ 매니페스트 목록</text>
+          <line class="ln" x1="320" y1="140" x2="348" y2="140" marker-end="url(#arr)"></line>
+          <rect class="node" x="350" y="120" width="110" height="40" rx="6"></rect><text x="405" y="137" text-anchor="middle" class="m">…-m0.avro</text><text x="405" y="152" text-anchor="middle" class="s">④ 파일 경로 · 통계</text>
+          <line class="ln" x1="405" y1="160" x2="405" y2="188" marker-end="url(#arr)"></line>
+          <rect class="node hi" x="330" y="190" width="150" height="40" rx="6"></rect><text x="405" y="207" text-anchor="middle" class="m">data/*.parquet</text><text x="405" y="222" text-anchor="middle" class="s">⑤ 선별된 파일만 읽음</text>
+          <path class="ln hi" d="M75,64 L75,140 L38,140" marker-end="url(#arrA)"></path>
+        </svg>
+        <figcaption>Catalog 는 ①에서 한 번만 쓰입니다. 나머지는 MinIO 의 파일을 따라가는 과정입니다.</figcaption>
+      </figure>
+      <h3 style="margin-top: 10px">구현 선택</h3>
+      <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">REST</td><td>HTTP 규약. 엔진 간 호환이 가장 넓음. 규약을 제공하는 서버(Polaris, Nessie 등)를 따로 둠. <span class="pill hi">PoC: REST fixture + sqlite</span></td></tr>
+          <tr><td class="k">JDBC (Postgres)</td><td>관계형 DB 테이블 두 개에 포인터·네임스페이스 저장. 구성이 가장 단순. <span class="pill">운영 1단계 제안</span></td></tr>
+          <tr><td class="k">Hive Metastore</td><td>기존 Hadoop 생태계 호환용</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="muted" style="font-size: 12.5px; margin: 6px 0 0">이름이 비슷한 두 개념: <code>lakehouse.commerce.payment_events</code> 의 <code>lakehouse</code> 는 <strong>Trino Catalog</strong>(연결 설정 파일 이름)이고, 그 설정 안에서 지정하는 REST·JDBC 가 <strong>Iceberg Catalog</strong>입니다.</p>
+    </div>
+  </div>
+</section>
+
 <!-- 8. ch7 -->
 <section class="slide" data-ch="7">
   <header class="sh"><span>07 · 처리 흐름</span><span class="num"></span></header>
@@ -1882,6 +2035,9 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['4c', '반영 지연의 원인과 규모', '4'],
       ['5', '전사 데이터 플랫폼에서의 위치'],
       ['6', '구성 기술 스택'],
+      ['6b', 'Parquet — 데이터 파일의 내부 구조', '6'],
+      ['6c', 'Iceberg 메타데이터 — MinIO에 생기는 파일', '6'],
+      ['6d', 'Iceberg Catalog — 테이블 이름에서 파일까지', '6'],
       ['7', '데이터 적재 및 조회 흐름']
     ]},
     { no: 'Part 3', title: '활용 방안', range: '8~11장', color: '#2E7D4F', items: [
