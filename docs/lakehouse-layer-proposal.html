@@ -2005,15 +2005,35 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
   <h2>샘플 프로젝트에서 주문 하나가 지나간 실제 경로</h2>
   <p class="lead">2026-09-16 10:24에 화면에서 만든 주문 <code>order-72af1e5f</code>(노트북 1,200,000원) 한 건이 남긴 흔적을 각 단계에서 그대로 확인한 기록입니다. 발행부터 조회 가능까지 9초 걸렸습니다.</p>
   <figure class="full">
-    <svg class="d" style="max-width: 1100px; margin: 0 auto" viewBox="0 0 900 150" role="img" aria-label="주문 생성 시각 10:24:03부터 Kafka 발행, Connect 폴링과 버퍼, 10:24:12 커밋과 Catalog 포인터 교체, Trino 조회 가능까지의 타임라인">
-      <line class="ln" x1="30" y1="60" x2="880" y2="60" marker-end="url(#arr)"></line>
-      <circle cx="80" cy="60" r="7" class="bar"></circle><text x="80" y="36" text-anchor="middle" class="b">10:24:03.2</text><text x="80" y="88" text-anchor="middle" class="s">화면 주문 생성</text><text x="80" y="104" text-anchor="middle" class="s">H2 저장 · Kafka 발행</text>
-      <circle cx="260" cy="60" r="7" class="bar"></circle><text x="260" y="36" text-anchor="middle" class="b">10:24:03~12</text><text x="260" y="88" text-anchor="middle" class="s">Connect 가 poll</text><text x="260" y="104" text-anchor="middle" class="s">열린 Parquet 에 기록 (버퍼)</text>
-      <rect class="node warm" x="160" y="118" width="200" height="22" rx="4"></rect><text x="260" y="133" text-anchor="middle" class="s">Kafka lag 1 · Trino 에는 아직 없음</text>
-      <circle cx="520" cy="60" r="8" class="bar warm"></circle><text x="520" y="36" text-anchor="middle" class="b">10:24:12.4 커밋</text><text x="520" y="88" text-anchor="middle" class="s">파일 3개 업로드 → Catalog 포인터 교체</text><text x="520" y="104" text-anchor="middle" class="s">00007 → 00008.metadata.json</text>
-      <circle cx="760" cy="60" r="7" class="bar"></circle><text x="760" y="36" text-anchor="middle" class="b">10:24:12+</text><text x="760" y="88" text-anchor="middle" class="s">Trino 조회에 보임</text><text x="760" y="104" text-anchor="middle" class="s">파이프라인 화면 lag 0 · 행 +1</text>
-      <path class="ln hi" d="M80,70 L80,145 L760,145 L760,70" marker-end="url(#arrA)"></path>
-      <text x="420" y="140" text-anchor="middle" class="s" style="fill: var(--accent)">반영 지연 9초 (커밋 주기 30초 안의 어느 시점에 이벤트가 왔는지에 따라 0~30초)</text>
+    <svg class="d" style="max-width: 1100px; margin: 0 auto" viewBox="0 0 900 210" role="img" aria-label="주문 생성 시각 10:24:03부터 Kafka 발행, Connect 폴링과 버퍼, 10:24:12 커밋과 Catalog 포인터 교체, Trino 조회 가능까지의 타임라인">
+      <line class="ln" x1="30" y1="70" x2="880" y2="70" marker-end="url(#arr)"></line>
+      <text x="880" y="56" text-anchor="end" class="s">시간 →</text>
+
+      <circle cx="90" cy="70" r="7" class="bar"></circle>
+      <text x="90" y="30" text-anchor="middle" class="b">10:24:03.2</text>
+      <text x="90" y="46" text-anchor="middle" class="s">화면 주문 생성</text>
+      <text x="90" y="98" text-anchor="middle" class="s">H2 저장</text>
+      <text x="90" y="114" text-anchor="middle" class="s">Kafka 발행</text>
+
+      <circle cx="300" cy="70" r="7" class="bar"></circle>
+      <text x="300" y="30" text-anchor="middle" class="b">10:24:03 ~ 12</text>
+      <text x="300" y="46" text-anchor="middle" class="s">Connect 가 poll</text>
+      <text x="300" y="98" text-anchor="middle" class="s">열린 Parquet 에 기록 (버퍼)</text>
+      <text x="300" y="114" text-anchor="middle" class="s">Kafka lag 1 · Trino 에는 아직 없음</text>
+
+      <circle cx="560" cy="70" r="8" class="bar warm"></circle>
+      <text x="560" y="30" text-anchor="middle" class="b">10:24:12.4 커밋</text>
+      <text x="560" y="46" text-anchor="middle" class="s">파일 3개 업로드 → Catalog 포인터 교체</text>
+      <text x="560" y="98" text-anchor="middle" class="s">00007 → 00008.metadata.json</text>
+      <text x="560" y="114" text-anchor="middle" class="s">컨슈머 오프셋 커밋 · lag 0</text>
+
+      <circle cx="800" cy="70" r="7" class="bar"></circle>
+      <text x="800" y="30" text-anchor="middle" class="b">10:24:12 +</text>
+      <text x="800" y="46" text-anchor="middle" class="s">Trino 조회에 보임</text>
+      <text x="800" y="98" text-anchor="middle" class="s">파이프라인 화면 행 +1</text>
+
+      <path class="ln hi" d="M90,130 L90,160 L800,160 L800,130" marker-end="url(#arrA)" marker-start="url(#arrA)"></path>
+      <text x="445" y="184" text-anchor="middle" class="s" style="fill: var(--accent)">반영 지연 9초 — 커밋 주기 30초 안의 어느 시점에 이벤트가 왔는지에 따라 0 ~ 30초</text>
     </svg>
   </figure>
   <div class="tablewrap">
