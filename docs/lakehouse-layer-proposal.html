@@ -1757,10 +1757,15 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
     </svg>
     <figcaption>빨라진 것은 읽기 속도가 아니라 앞단입니다. 목록 조회가 사라지고, 열기 전에 건너뜁니다.</figcaption>
   </figure>
-  <div class="scenario">
-    <span class="pill hi">같은 예시</span>
-    <span>목차 1개 + 쪽지 1개를 읽어 표지 270개(파티션당 1개)를 얻고, 표지의 <code>amount</code> max로 100만 미만인 파일을 건너뜁니다.</span>
-    <span>실제로 여는 파일은 한도 초과가 섞인 <strong>수십 개</strong>. LIST 0회, 메타스토어 질의 1회.</span>
+  <div class="scenario" style="display: block">
+    <div style="margin-bottom: 8px"><span class="pill hi">같은 예시 적용</span> <span>"지난 9개월 한도 초과(amount ≥ 1,000,000) 결제 실패 건수" — 파일 12,960개, 파티션 270개</span></div>
+    <ol class="steps">
+      <li><span class="i">1</span><span><strong>Catalog에 한 번 묻는다.</strong> "payment_events의 현재 목차는?" → <code>00512-….metadata.json</code>. Hive의 메타스토어 질의 270회가 여기서 <strong>1회</strong>로 끝납니다.</span></li>
+      <li><span class="i">2</span><span><strong>목차에서 현재 쪽지를 연다.</strong> 쪽지에는 표지 270개(파티션당 1개)의 경로와 각 표지가 담당하는 파티션 값(dt)이 적혀 있습니다. 디렉터리 LIST <strong>0회</strong>.</span></li>
+      <li><span class="i">3</span><span><strong>표지 270개를 읽어 파일을 고른다.</strong> 표지마다 파일 48개의 <code>amount</code> 최소·최대값이 있습니다. 최대값이 100만 미만인 파일은 조건에 맞는 행이 있을 수 없으므로 <strong>열지 않습니다</strong>. 한도 초과는 드물어 12,960개 중 남는 파일은 <strong>수십 개</strong>입니다.</span></li>
+      <li><span class="i">4</span><span><strong>남은 파일만 연다.</strong> 그 안에서도 <code>amount</code> 컬럼 덩어리를 먼저 읽어 조건에 맞는 행 위치를 찾고, <code>event_type = 'PAYMENT_FAILED'</code>인 행만 셉니다(6장 Parquet 조회 방식).</span></li>
+    </ol>
+    <div class="muted" style="font-size: 12.5px; margin-top: 8px">amount가 파티션 컬럼이 아니어도 <strong>파일 단위로, 열기 전에</strong> 걸러집니다. Hive는 폴더 이름으로만 거를 수 있어 파티션이 아닌 조건에는 속수무책이었습니다. 파티션 조건(dt)도 표지에 값이 있어 파일을 열지 않고 걸러집니다.</div>
   </div>
   <div class="tablewrap">
     <table>
