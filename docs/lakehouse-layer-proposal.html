@@ -1698,6 +1698,54 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
   </div>
 </section>
 
+<section class="slide" data-ch="13c2">
+  <header class="sh"><span>13 · 기업 사례 (Hive의 병목)</span><span class="num"></span></header>
+  <h2>Hive 테이블 포맷의 병목과 Iceberg의 해결</h2>
+  <p class="lead">Hive에서 테이블은 "이 디렉터리 아래 파일 전부"입니다. 어떤 파일이 테이블에 속하는지 어디에도 적혀 있지 않아 조회할 때마다 디렉터리를 뒤집니다. 이 정의 하나에서 다섯 가지 병목이 나옵니다.</p>
+  <div class="cols wide">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:22%">Hive 병목</th><th style="width:40%">왜 생기나</th><th>Iceberg</th></tr></thead>
+        <tbody>
+          <tr><td class="k">① 파일 목록 조회가 파일 수에 비례</td><td>기간 조회면 파티션 디렉터리마다 <code>LIST</code>. 파티션 259개 × 파일 수십 개 = 수천 번 호출. 객체 저장소는 LIST가 특히 비싸고 1,000개씩 페이지로 나뉨. <strong>쿼리 시작 전 계획 단계에서 수십 초</strong></td><td>파일 목록을 매니페스트(표지)에 기록. LIST 없이 쪽지·표지 몇 개만 읽음</td></tr>
+          <tr><td class="k">② 파티션마다 메타스토어 호출</td><td>파티션 경로를 알아내려고 메타스토어 DB에 파티션 수만큼 질의. 파티션이 수만 개면 메타스토어가 병목. 그래서 잘게 못 나눔</td><td>파티션 값도 매니페스트에. Catalog에는 "현재 목차 위치" 한 번만 묻는다</td></tr>
+          <tr><td class="k">③ 파일을 열어야 조건 판단</td><td>메타스토어에 파일별 통계가 없음. 파티션 컬럼이 아닌 조건(<code>amount &gt; 1000000</code>)은 파티션 안 파일을 전부 열어 footer를 읽어야 걸러냄. 대부분 읽고 버림</td><td>매니페스트의 컬럼 min·max로 파일을 열기 전에 건너뜀</td></tr>
+          <tr><td class="k">④ 원자적 커밋 없음</td><td>쓰기는 파일을 디렉터리에 넣으면 끝. 10개 쓰는 중 조회하면 3개만 보임. 완료 표시로 쓰는 디렉터리 rename이 객체 저장소에는 없어 복사·삭제로 흉내 → 비원자적. 실패한 작업의 파일도 테이블로 읽힘</td><td>새 목차를 쓰고 Catalog 포인터를 교체하는 순간 전체가 한 번에 보임. 실패한 쓰기는 어디에도 등록되지 않음</td></tr>
+          <tr><td class="k">⑤ 스키마·파티션이 물리 구조에 묶임</td><td>컬럼이 위치·이름으로 파일과 대응 → 이름을 바꾸면 옛 파일을 못 읽거나 잘못 읽음. 파티션은 디렉터리 구조 → 월별에서 일별로 바꾸려면 전부 재작성</td><td>컬럼은 <strong>ID</strong>로 대응해 이름 변경이 안전. 파티션 규칙은 목차에 있어 바꿔도 옛 파일은 옛 규칙으로 읽음</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <figure>
+        <svg class="d" viewBox="0 0 560 280" role="img" aria-label="Hive는 테이블을 디렉터리로 정의해 조회마다 디렉터리 목록을 뒤지고, Iceberg는 목차·쪽지·표지에 파일 목록과 통계를 기록해 필요한 파일만 찾아가는 비교">
+          <text x="20" y="22" class="z" style="fill: var(--muted)">Hive · 테이블 = 디렉터리</text>
+          <rect class="node dim" x="20" y="34" width="110" height="36" rx="6"></rect><text x="75" y="50" text-anchor="middle" class="s">메타스토어</text><text x="75" y="64" text-anchor="middle" class="s">경로만 있음</text>
+          <line class="ln" x1="130" y1="52" x2="168" y2="52" marker-end="url(#arr)"></line>
+          <rect class="node dim" x="170" y="28" width="120" height="48" rx="6"></rect><text x="230" y="46" text-anchor="middle" class="m">dt=2026-09-14/</text><text x="230" y="60" text-anchor="middle" class="m">dt=2026-09-15/</text><text x="230" y="72" text-anchor="middle" class="m">dt=2026-09-16/ …</text>
+          <line class="ln" x1="290" y1="52" x2="328" y2="52" marker-end="url(#arr)"></line>
+          <text x="308" y="44" text-anchor="middle" class="s">LIST</text>
+          <rect class="node dim" x="330" y="28" width="210" height="48" rx="6"></rect><text x="435" y="46" text-anchor="middle" class="s">파일 수십 개 × 파티션마다</text><text x="435" y="62" text-anchor="middle" class="s">통계 없음 → 열어 봐야 앎</text>
+          <text x="280" y="98" text-anchor="middle" class="s">파티션·파일이 늘수록 계획 단계가 길어지고, 쓰는 중에는 반쪽 결과가 보임</text>
+
+          <text x="20" y="136" class="z">Iceberg · 테이블 = 목차가 가리키는 파일 집합</text>
+          <rect class="node hi" x="20" y="148" width="110" height="36" rx="6"></rect><text x="75" y="164" text-anchor="middle" class="s">Catalog</text><text x="75" y="178" text-anchor="middle" class="s">현재 목차 1건</text>
+          <line class="ln hi" x1="130" y1="166" x2="168" y2="166" marker-end="url(#arrA)"></line>
+          <rect class="node hi" x="170" y="148" width="100" height="36" rx="6"></rect><text x="220" y="164" text-anchor="middle" class="s">목차 · 쪽지</text><text x="220" y="178" text-anchor="middle" class="s">파일 목록</text>
+          <line class="ln hi" x1="270" y1="166" x2="308" y2="166" marker-end="url(#arrA)"></line>
+          <rect class="node hi" x="310" y="148" width="100" height="36" rx="6"></rect><text x="360" y="164" text-anchor="middle" class="s">표지</text><text x="360" y="178" text-anchor="middle" class="s">컬럼 min·max</text>
+          <line class="ln hi" x1="410" y1="166" x2="448" y2="166" marker-end="url(#arrA)"></line>
+          <rect class="node hi" x="450" y="148" width="90" height="36" rx="6"></rect><text x="495" y="164" text-anchor="middle" class="s">낱장</text><text x="495" y="178" text-anchor="middle" class="s">선별된 것만</text>
+          <text x="280" y="212" text-anchor="middle" class="s">LIST 없음 · 열기 전에 건너뜀 · 포인터 교체로 원자적 커밋</text>
+          <rect class="node warm" x="20" y="232" width="520" height="36" rx="6"></rect>
+          <text x="280" y="254" text-anchor="middle" class="s">Hive는 장부에 목차가 없어 매번 서가를 뒤졌고, Iceberg는 목차를 만든 것입니다 (6장)</text>
+        </svg>
+        <figcaption>SK텔레콤이 측정으로 찾은 병목은 ①②였고, Iceberg 전환으로 ①②③이 함께 풀렸습니다.</figcaption>
+      </figure>
+      <div class="note" style="margin-top: 10px">Iceberg도 매니페스트가 너무 많아지면 ①과 비슷한 문제가 다시 생깁니다. 파티션을 잘게 나누거나 작은 커밋이 쌓이면 표지·쪽지 수가 늘어 계획 시간이 다시 늘어납니다. 부록 E의 병합·매니페스트 재작성이 그 대응입니다.</div>
+    </div>
+  </div>
+</section>
+
 <section class="slide" data-ch="13d">
   <header class="sh"><span>13 · 기업 사례 (Netflix)</span><span class="num"></span></header>
   <h2>Netflix — S3·Iceberg·Trino 분석 플랫폼과 구성요소 역할 분리</h2>
@@ -2239,6 +2287,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['13', '기업 사례 분석 및 시사점'],
       ['13b', 'Uber — 업무 DB 변경 데이터의 분석 플랫폼 전달', '13'],
       ['13c', 'SK텔레콤 — Trino·Iceberg 분석 조회 개선', '13'],
+      ['13c2', 'Hive 테이블 포맷의 병목과 Iceberg의 해결', '13'],
       ['13d', 'Netflix — 구성요소 역할 분리', '13'],
       ['14', '단계별 추진 계획 및 PoC'],
       ['15', '기대 효과와 의사결정 사항']
