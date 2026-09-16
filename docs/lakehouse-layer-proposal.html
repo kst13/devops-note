@@ -191,6 +191,7 @@
 
   figure { margin: 0; }
   figure svg { width: 100%; height: auto; display: block; }
+  figure.full { width: 100%; }
   figcaption { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 
   /* diagram vocabulary */
@@ -1915,9 +1916,9 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
   <header class="sh"><span>14 · 추진 계획 (로컬 PoC 환경)</span><span class="num"></span></header>
   <h2>로컬 PoC 환경 구성</h2>
   <p class="lead">PC 한 대에 Docker Compose 프로젝트 3개, 네트워크 2개, 컨테이너 6개로 구성했습니다. Kafka 홈랩은 실서버와 같은 보안 흐름(SASL_SSL·ACL)을 유지하고, Lakehouse 부분만 별도 프로젝트로 붙였습니다.</p>
-  <div class="cols wide">
-    <figure>
-      <svg class="d" viewBox="0 0 640 330" role="img" aria-label="Kafka 홈랩 compose 프로젝트 두 개와 Lakehouse PoC compose 프로젝트 하나가 두 개의 Docker 네트워크로 연결되고, 호스트의 샘플 앱이 Kafka와 Trino에 접속하는 로컬 구성도">
+  <figure class="full">
+
+      <svg class="d" style="max-width: 1100px; margin: 0 auto" viewBox="0 0 640 330" role="img" aria-label="Kafka 홈랩 compose 프로젝트 두 개와 Lakehouse PoC compose 프로젝트 하나가 두 개의 Docker 네트워크로 연결되고, 호스트의 샘플 앱이 Kafka와 Trino에 접속하는 로컬 구성도">
         <rect class="zone plain" x="10" y="16" width="250" height="210" rx="8"></rect>
         <text x="22" y="34" class="z" style="fill: var(--muted)">~/kafka-home-lab · 네트워크 kafka-home-lab-net</text>
         <rect class="node warm" x="24" y="48" width="222" height="70" rx="6"></rect>
@@ -1966,7 +1967,8 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
         <path class="ln" d="M460,250 L541,166" marker-end="url(#arr)"></path>
       </svg>
       <figcaption>운영의 /opt/kafka·/opt/kafka-ecosystem 분리를 흉내 내 브로커와 SR을 별도 compose로 두고, Lakehouse는 external 네트워크로 브로커에 붙습니다.</figcaption>
-    </figure>
+  </figure>
+  <div class="grid2">
     <div>
       <div class="tablewrap">
       <table>
@@ -1978,7 +1980,10 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
         </tbody>
       </table>
       </div>
-      <h3 style="margin-top: 12px">운영과 다른 점</h3>
+      <div class="note" style="margin-top: 10px">보안 흐름(SASL_SSL, ACL, 계정 분리, 버킷 한정 정책)은 실서버와 같게 두어, 여기서 겪은 ACL·인증 문제가 그대로 운영 체크리스트가 됩니다.</div>
+    </div>
+    <div>
+      <h3>운영과 다른 점</h3>
       <div class="tablewrap">
       <table>
         <tbody>
@@ -1991,7 +1996,6 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
         </tbody>
       </table>
       </div>
-      <div class="note" style="margin-top: 10px">보안 흐름(SASL_SSL, ACL, 계정 분리, 버킷 한정 정책)은 실서버와 같게 두어, 여기서 겪은 ACL·인증 문제가 그대로 운영 체크리스트가 됩니다.</div>
     </div>
   </div>
 </section>
