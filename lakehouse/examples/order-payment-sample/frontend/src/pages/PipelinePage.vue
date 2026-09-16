@@ -111,68 +111,103 @@ onBeforeUnmount(() => clearInterval(timer))
     <div v-if="status" class="flow">
       <!-- ① 앱 -->
       <section class="stage" :class="{ down: !status.app.ok }">
-        <div class="stage-head"><span class="no">①</span><span class="name">앱 · H2</span><span class="role">운영 DB 역할 · 이벤트 발행</span></div>
-        <template v-if="status.app.ok">
-          <div class="metric"><span class="k">주문</span><span class="v">{{ status.app.orders }}</span></div>
-          <div class="metric"><span class="k">결제</span><span class="v">{{ status.app.payments }}</span></div>
-          <div class="sub">→ {{ status.app.topics.join(', ') }}</div>
-        </template>
-        <div v-else class="err">{{ status.app.error }}</div>
+        <div class="who"><span class="no">①</span><div><div class="name">앱 · H2</div><div class="role">운영 DB 역할. 주문·결제를 저장하고 이벤트를 발행</div></div></div>
+        <div class="what">
+          <table v-if="status.app.ok">
+            <tbody>
+              <tr><th>주문 (H2)</th><td class="num big">{{ status.app.orders }}</td><td class="muted">건</td></tr>
+              <tr><th>결제 (H2)</th><td class="num big">{{ status.app.payments }}</td><td class="muted">건</td></tr>
+              <tr><th>발행 토픽</th><td colspan="2" class="mono">{{ status.app.topics.join('  ·  ') }}</td></tr>
+            </tbody>
+          </table>
+          <div v-else class="err">{{ status.app.error }}</div>
+        </div>
       </section>
-      <div class="arrow"><span>send()</span></div>
+      <div class="link">↓ 결제할 때마다 send() 로 이벤트 발행 (ORDER_CREATED, PAYMENT_REQUESTED, PAYMENT_COMPLETED …)</div>
 
       <!-- ② Kafka -->
       <section class="stage" :class="{ down: !status.kafka.ok }">
-        <div class="stage-head"><span class="no">②</span><span class="name">Kafka</span><span class="role">토픽 · 파티션 · 오프셋</span></div>
-        <template v-if="status.kafka.ok">
-          <div v-for="tp in status.kafka.topics" :key="tp.topic" class="metric">
-            <span class="k mono">{{ tp.topic }}</span>
-            <span class="v">{{ tp.messages }}<small class="muted"> msg · {{ tp.partitions.map((p) => p.endOffset).join('/') }}</small></span>
-          </div>
-          <div class="sub" :class="totalLag > 0 ? 'warn' : 'good'">커넥터 lag 합계 {{ totalLag }} <small>(0 이면 모두 적재됨)</small></div>
-          <div v-for="g in status.kafka.groups" :key="g.group" class="sub mono">{{ g.group.replace('connect-', '') }} · committed {{ g.committed }} · lag {{ g.lag }}</div>
-        </template>
-        <div v-else class="err">{{ status.kafka.error }}</div>
+        <div class="who"><span class="no">②</span><div><div class="name">Kafka</div><div class="role">토픽에 이벤트를 순서대로 보관. 커넥터가 어디까지 읽었는지(lag)가 여기서 보임</div></div></div>
+        <div class="what">
+          <template v-if="status.kafka.ok">
+            <table>
+              <thead><tr><th>토픽</th><th class="num">메시지 수</th><th>파티션별 끝 오프셋</th><th>커넥터 그룹</th><th class="num">커밋 오프셋</th><th class="num">lag</th></tr></thead>
+              <tbody>
+                <tr v-for="(tp, i) in status.kafka.topics" :key="tp.topic">
+                  <td class="mono">{{ tp.topic }}</td>
+                  <td class="num big">{{ tp.messages }}</td>
+                  <td class="mono">{{ tp.partitions.map((p) => 'P' + p.partition + '=' + p.endOffset).join('  ') }}</td>
+                  <td class="mono">{{ status.kafka.groups[i]?.group }}</td>
+                  <td class="num">{{ status.kafka.groups[i]?.committed }}</td>
+                  <td class="num"><span class="pill" :class="Number(status.kafka.groups[i]?.lag) > 0 ? 'CANCELLED' : 'COMPLETED'">{{ status.kafka.groups[i]?.lag }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="hint">lag = 끝 오프셋 − 커넥터가 커밋한 오프셋. <strong :class="totalLag > 0 ? 'warn' : 'good'">{{ totalLag > 0 ? `아직 ${totalLag}건이 Iceberg 로 넘어가지 않았습니다` : '모든 메시지가 Iceberg 에 적재됐습니다' }}</strong></p>
+          </template>
+          <div v-else class="err">{{ status.kafka.error }}</div>
+        </div>
       </section>
-      <div class="arrow"><span>poll</span></div>
+      <div class="link">↓ Iceberg Sink 커넥터가 poll 로 읽어 30초 동안 모음</div>
 
       <!-- ③ Connect -->
       <section class="stage" :class="{ down: !status.connect.ok }">
-        <div class="stage-head"><span class="no">③</span><span class="name">Kafka Connect</span><span class="role">Iceberg Sink · 30초 커밋</span></div>
-        <template v-if="status.connect.ok">
-          <div v-for="c in status.connect.connectors" :key="c.name" class="metric">
-            <span class="k mono">{{ c.name }}</span>
-            <span class="v"><span class="pill" :class="c.state === 'RUNNING' && c.tasks?.every((t) => t === 'RUNNING') ? 'COMPLETED' : 'FAILED'">{{ c.state }}<template v-if="c.tasks"> / task {{ c.tasks.join(',') }}</template></span></span>
-          </div>
-          <div class="sub">이벤트를 모았다가 Parquet 로 쓰고 스냅샷 커밋</div>
-        </template>
-        <div v-else class="err">{{ status.connect.error }}</div>
+        <div class="who"><span class="no">③</span><div><div class="name">Kafka Connect</div><div class="role">Iceberg Sink. 모은 이벤트를 Parquet 파일로 쓰고 30초마다 스냅샷 커밋</div></div></div>
+        <div class="what">
+          <table v-if="status.connect.ok">
+            <thead><tr><th>커넥터</th><th>상태</th><th>태스크</th><th>커밋 주기</th></tr></thead>
+            <tbody>
+              <tr v-for="c in status.connect.connectors" :key="c.name">
+                <td class="mono">{{ c.name }}</td>
+                <td><span class="pill" :class="c.state === 'RUNNING' ? 'COMPLETED' : 'FAILED'">{{ c.state }}</span></td>
+                <td><span v-for="(t, i) in c.tasks || []" :key="i" class="pill" :class="t === 'RUNNING' ? 'COMPLETED' : 'FAILED'" style="margin-right: 4px">{{ t }}</span><span v-if="c.error" class="err">{{ c.error }}</span></td>
+                <td>{{ (c.commitIntervalMs || 0) / 1000 }}초</td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="err">{{ status.connect.error }}</div>
+        </div>
       </section>
-      <div class="arrow"><span>파일 + 커밋</span></div>
+      <div class="link">↓ ④ 파일 업로드 → ⑤ 스냅샷 커밋 (Catalog 의 "현재 목차" 교체)</div>
 
       <!-- ④ Iceberg / MinIO -->
-      <section class="stage wide" :class="{ down: !status.iceberg.ok }">
-        <div class="stage-head"><span class="no">④</span><span class="name">Iceberg / MinIO</span><span class="role">Parquet + 메타데이터 + Catalog</span></div>
-        <template v-if="status.iceberg.ok">
-          <div v-for="tb in status.iceberg.tables" :key="tb.table" class="tbl">
-            <div class="metric"><span class="k mono">{{ tb.table }}</span><span class="v">{{ tb.records }}<small class="muted"> rec · 파일 {{ tb.files }} · 스냅샷 {{ tb.snapshots }} · {{ kb(tb.bytes) }}</small></span></div>
-            <div class="sub">마지막 커밋 {{ hhmmss(tb.lastCommittedAt) }} <template v-if="tb.lastAddedRecords">(+{{ tb.lastAddedRecords }}건)</template></div>
-            <div class="sub mono" :title="tb.kafkaOffsets">스냅샷에 기록된 Connect 제어 오프셋 {{ tb.kafkaOffsets }}</div>
-            <div class="sub mono" :title="tb.location">{{ tb.location }}</div>
-          </div>
-        </template>
-        <div v-else class="err">{{ status.iceberg.error }}</div>
+      <section class="stage" :class="{ down: !status.iceberg.ok }">
+        <div class="who"><span class="no">④</span><div><div class="name">Iceberg / MinIO</div><div class="role">Parquet 데이터 파일 + 메타데이터. 커밋마다 스냅샷·파일이 하나씩 늘어남</div></div></div>
+        <div class="what">
+          <template v-if="status.iceberg.ok">
+            <table>
+              <thead><tr><th>테이블</th><th class="num">레코드</th><th class="num">파일</th><th class="num">스냅샷</th><th class="num">크기</th><th>마지막 커밋</th><th>MinIO 경로</th></tr></thead>
+              <tbody>
+                <tr v-for="tb in status.iceberg.tables" :key="tb.table">
+                  <td class="mono">{{ tb.table }}</td>
+                  <td class="num big">{{ tb.records }}</td>
+                  <td class="num">{{ tb.files }}</td>
+                  <td class="num">{{ tb.snapshots }}</td>
+                  <td class="num">{{ kb(tb.bytes) }}</td>
+                  <td>{{ hhmmss(tb.lastCommittedAt) }}<span v-if="tb.lastAddedRecords" class="muted"> (+{{ tb.lastAddedRecords }}건)</span></td>
+                  <td class="mono wrap">{{ tb.location }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="hint">레코드 수 = Parquet 파일에 들어 있는 행의 합. ② 의 커밋 오프셋 합계와 같아야 정상입니다.</p>
+          </template>
+          <div v-else class="err">{{ status.iceberg.error }}</div>
+        </div>
       </section>
-      <div class="arrow"><span>Catalog → 파일 읽기</span></div>
+      <div class="link">↓ Trino 가 Catalog 에서 현재 메타데이터를 찾아 Parquet 를 읽음</div>
 
       <!-- ⑤ Trino -->
       <section class="stage" :class="{ down: !status.trino.ok }">
-        <div class="stage-head"><span class="no">⑤</span><span class="name">Trino</span><span class="role">SQL 조회</span></div>
-        <template v-if="status.trino.ok">
-          <div v-for="tb in status.trino.tables" :key="tb.t" class="metric"><span class="k mono">{{ tb.t.replace('commerce.', '') }}</span><span class="v">{{ tb.rows }}<small class="muted"> rows</small></span></div>
-          <div class="sub">→ <router-link to="/analytics">Lakehouse 조회 화면</router-link></div>
-        </template>
-        <div v-else class="err">{{ status.trino.error }}</div>
+        <div class="who"><span class="no">⑤</span><div><div class="name">Trino</div><div class="role">SQL 조회. 조회 화면이 보는 숫자</div></div></div>
+        <div class="what">
+          <table v-if="status.trino.ok">
+            <tbody>
+              <tr v-for="tb in status.trino.tables" :key="tb.t"><th class="mono">{{ tb.t }}</th><td class="num big">{{ tb.rows }}</td><td class="muted">rows</td></tr>
+              <tr><th></th><td colspan="2"><router-link to="/analytics">→ Lakehouse 조회 화면에서 집계 보기</router-link></td></tr>
+            </tbody>
+          </table>
+          <div v-else class="err">{{ status.trino.error }}</div>
+        </div>
       </section>
     </div>
 
@@ -192,24 +227,27 @@ onBeforeUnmount(() => clearInterval(timer))
 </template>
 
 <style scoped>
-.flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1.5fr auto 1fr; gap: 6px; align-items: stretch; }
-@media (max-width: 1100px) { .flow { grid-template-columns: 1fr; } .arrow { transform: rotate(90deg); height: 30px; } }
-.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.flow { display: grid; gap: 0; }
+.stage {
+  display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px;
+}
 .stage.down { border-color: var(--bad); background: var(--bad-soft); }
-.stage-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
-.stage-head .no { font-family: var(--mono, monospace); color: var(--accent); font-weight: 700; }
-.stage-head .name { font-weight: 700; font-size: 15px; }
-.stage-head .role { color: var(--muted); font-size: 11.5px; }
-.metric { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.metric .k { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.metric .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.metric .v small { font-size: 11px; font-weight: 400; }
-.sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sub.good { color: var(--good); font-weight: 600; }
-.sub.warn { color: var(--warn); font-weight: 600; }
-.tbl { border-top: 1px dashed var(--line); padding-top: 6px; }
-.tbl:first-of-type { border-top: 0; padding-top: 0; }
+@media (max-width: 800px) { .stage { grid-template-columns: 1fr; } }
+.who { display: flex; gap: 10px; align-items: flex-start; }
+.who .no { font-family: var(--mono, monospace); color: var(--accent); font-weight: 700; font-size: 20px; line-height: 1.1; }
+.who .name { font-weight: 700; font-size: 16px; }
+.who .role { color: var(--muted); font-size: 12.5px; margin-top: 2px; line-height: 1.45; }
+.what { min-width: 0; }
+.what table { width: auto; min-width: 60%; }
+.what th { white-space: nowrap; }
+.what td, .what th { padding: 6px 12px 6px 0; vertical-align: middle; }
+.what tbody th { text-align: left; color: var(--muted); font-weight: 500; background: none; }
+.what td.big { font-size: 20px; font-weight: 700; }
+.what td.wrap { white-space: normal; word-break: break-all; font-size: 11.5px; color: var(--muted); }
+.hint { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.hint .good { color: var(--good); }
+.hint .warn { color: var(--warn); }
 .err { color: var(--bad); font-size: 12.5px; word-break: break-all; }
-.arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; }
-.arrow::before { content: "→"; font-size: 22px; line-height: 1; color: var(--accent); }
+.link { color: var(--muted); font-size: 12.5px; padding: 6px 0 6px 26px; }
 </style>
