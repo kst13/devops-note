@@ -1785,7 +1785,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
 <section class="slide" data-ch="13d">
   <header class="sh"><span>13 · 기업 사례 (Netflix)</span><span class="num"></span></header>
   <h2>Netflix — S3·Iceberg·Trino 분석 플랫폼과 구성요소 역할 분리</h2>
-  <p class="lead">AWS re:Invent 2024 Data Bridge 발표 기준입니다. Netflix는 Iceberg 테이블 포맷을 만들어 공개한 곳이기도 합니다. 가져올 것은 "저장·테이블 관리·엔진·수집을 서로 다른 제품으로 나누고 각자 교체할 수 있게 한" 구조입니다.</p>
+  <p class="lead">AWS re:Invent 2024 Data Bridge 발표 기준입니다. Netflix는 Iceberg 테이블 포맷을 만들어 Apache에 기증한 곳입니다. "Lakehouse"라는 용어를 만든 곳은 아니며(Databricks, 2020), 이 자료의 구성이 Netflix 아키텍처를 옮긴 것도 아닙니다. 가져올 것은 "저장·테이블 관리·엔진·수집을 서로 다른 제품으로 나누고 각자 교체할 수 있게 한" 구조입니다.</p>
   <div class="cols">
     <div>
       <h3>풀려던 문제</h3>
@@ -2255,6 +2255,8 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       <p>Writer는 커밋한 오프셋을 기억하고 재시작 시 그 다음부터 읽습니다. Kafka 보관 기간 안이면 누락 없이 재적재됩니다. 그 밖은 초기 적재 절차로 복구합니다.</p>
       <h3>Q. Flink는 왜 지금 안 쓰나요?</h3>
       <p>첫 목표는 "Kafka 데이터를 저장하고 SQL로 확인"이라 Kafka Connect Iceberg Sink로 충분합니다. 스트림 조인, 이벤트 시간 집계가 필요해지면 그때 검토합니다.</p>
+      <h3>Q. 이 구성은 Netflix 같은 회사의 공식 아키텍처인가요?</h3>
+      <p>아닙니다. Netflix는 핵심 부품인 Iceberg 테이블 포맷을 만들어 Apache에 기증한 곳이고, 지금도 S3·Spark·Trino와 함께 쓰고 있습니다. "Lakehouse"라는 용어는 2020년 Databricks가 정의해 퍼뜨린 업계 개념입니다. 이 자료의 Kafka·MinIO·Iceberg·Trino 조합은 그 개념을 오픈소스 부품으로 구현한 것이지 특정 회사의 구성을 옮긴 것이 아닙니다.</p>
       <h3>Q. 얼마나 걸리나요?</h3>
       <p>1~2단계(요구사항 확정, 수집·보관 PoC)가 첫 마일스톤입니다. 2단계 완료 기준을 통과한 뒤 3단계 일정을 잡습니다.</p>
     </div>
