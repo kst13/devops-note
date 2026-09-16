@@ -1586,9 +1586,9 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
             <td>"Iceberg를 쓰면 빨라진다"로 끝내지 않음. <strong>실제 조회 조건 기준으로 파티션과 파일 배치</strong>를 설계. 고객별 조회와 월별 전체 집계는 요구하는 배치가 다를 수 있음</td>
           </tr>
           <tr>
-            <td class="k">Netflix<br><span class="pill">AWS re:Invent 2024</span></td>
-            <td>S3·Iceberg 기반 데이터 웨어하우스와 데이터 이동 구조(Data Bridge)</td>
-            <td>객체 저장 S3 · 테이블 관리 Iceberg · 처리·조회 Spark, Trino · 이벤트 전달·스트림 Kafka, Flink. <strong>구성요소 역할 분리</strong></td>
+            <td class="k">Netflix<br><span class="pill">AWS re:Invent 2023 NFX306</span></td>
+            <td>약 1EB 규모 데이터 레이크를 Hive에서 <strong>Iceberg 전용</strong>으로 전환</td>
+            <td>300PB를 이동 최소화 방식으로 이관. 상태 기계 기반 이관 도구, 보안 Iceberg 테이블, <strong>Iceberg REST 카탈로그</strong> 개발. 객체 저장 S3 · 테이블 Iceberg · 엔진 Spark, Trino 로 <strong>역할 분리</strong></td>
             <td>이 자료의 구성은 이와 비슷한 역할 분리를 갖습니다. 다만 S3를 MinIO로 바꿨을 때 운영·복구·성능이 동일하다고 볼 수는 없으므로 PoC에서 확인</td>
           </tr>
         </tbody>
@@ -1597,7 +1597,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
   </div>
   <div class="grid2">
     <div class="note">주의: 앞서 논의한 "DB의 모든 기능을 MinIO로 옮기는 구조"는 어느 사례에도 없습니다. 세 회사 모두 업무 DB를 유지하고, 그 옆에 분석용 저장소를 두었습니다.</div>
-    <div class="note" style="border-left-color: var(--muted); background: var(--surface-2)"><strong>연도는 발표 시점입니다.</strong> Iceberg 자체는 Netflix가 2017년 개발을 시작해 2018년 Apache에 기증했고 2020년 최상위 프로젝트가 됐습니다. 순서는 Netflix가 만듦(2018) → SK텔레콤이 도입해 발표(2022) → Netflix가 최근 구성을 발표(2024)입니다. Uber(2019)는 자체 포맷 Hudi를 썼습니다.</div>
+    <div class="note" style="border-left-color: var(--muted); background: var(--surface-2)"><strong>연도는 발표 시점입니다.</strong> Iceberg 자체는 Netflix가 2017년 개발을 시작해 2018년 Apache에 기증했고 2020년 최상위 프로젝트가 됐습니다. 순서는 Netflix가 만듦(2018) → SK텔레콤이 도입해 발표(2022) → Netflix가 레이크 전체를 Iceberg 전용으로 전환한 과정을 발표(2023)입니다. Uber(2019)는 자체 포맷 Hudi를 썼습니다.</div>
   </div>
 </section>
 
@@ -1787,25 +1787,27 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
 
 <section class="slide" data-ch="13d">
   <header class="sh"><span>13 · 기업 사례 (Netflix)</span><span class="num"></span></header>
-  <h2>Netflix — S3·Iceberg·Trino 분석 플랫폼과 구성요소 역할 분리</h2>
-  <p class="lead">AWS re:Invent 2024 Data Bridge 발표 기준입니다. Netflix는 Iceberg 테이블 포맷을 만들어 Apache에 기증한 곳입니다. "Lakehouse"라는 용어를 만든 곳은 아니며(Databricks, 2020), 이 자료의 구성이 Netflix 아키텍처를 옮긴 것도 아닙니다. 가져올 것은 "저장·테이블 관리·엔진·수집을 서로 다른 제품으로 나누고 각자 교체할 수 있게 한" 구조입니다.</p>
+  <h2>Netflix — Hive에서 Iceberg 전용 데이터 레이크로</h2>
+  <p class="lead">AWS re:Invent 2023 NFX306 발표 기준입니다. Netflix는 Iceberg를 만들어 Apache에 기증한 곳이고, 이 발표는 자기 데이터 레이크를 Hive에서 Iceberg 전용으로 옮긴 과정입니다. "Lakehouse"라는 용어를 만든 곳은 아니며(Databricks, 2020), 이 자료의 구성이 Netflix 아키텍처를 옮긴 것도 아닙니다.</p>
   <div class="cols">
     <div>
       <h3>풀려던 문제</h3>
-      <p style="font-size: 13.5px">수만 개 테이블과 페타바이트 규모에서, Hive 방식처럼 디렉터리 목록으로 테이블을 정의하면 파일 목록 관리와 동시 쓰기의 정합성이 한계에 이르렀습니다. 여러 엔진(Spark, Trino 등)이 같은 데이터를 안전하게 읽고 쓰려면 <strong>엔진과 무관한 테이블 규약</strong>이 필요했습니다. 그 답으로 Iceberg를 만들었습니다.</p>
-      <h3>역할 분리 (발표 자료에 등장하는 기술)</h3>
+      <p style="font-size: 13.5px">약 1EB 규모에서 Hive 방식(테이블 = 디렉터리)은 파일 목록 관리와 동시 쓰기 정합성이 한계에 이르렀습니다. 여러 엔진이 같은 데이터를 안전하게 읽고 쓰려면 <strong>엔진과 무관한 테이블 규약</strong>이 필요했고, 그 답으로 Iceberg를 만든 뒤 남은 Hive 테이블 300PB를 Iceberg로 옮겨 레이크 전체를 Iceberg 전용으로 바꿨습니다.</p>
+      <h3>발표의 핵심 내용과 이 자료의 대응</h3>
       <div class="tablewrap">
       <table>
-        <thead><tr><th>역할</th><th>Netflix</th><th>이 자료</th></tr></thead>
+        <thead><tr><th>항목</th><th>Netflix (2023 발표)</th><th>이 자료</th></tr></thead>
         <tbody>
           <tr><td class="k">객체 저장</td><td>Amazon S3</td><td>MinIO (S3 호환)</td></tr>
-          <tr><td class="k">테이블 관리</td><td>Apache Iceberg</td><td>Apache Iceberg</td></tr>
+          <tr><td class="k">테이블 관리</td><td>Apache Iceberg (전용)</td><td>Apache Iceberg</td></tr>
+          <tr><td class="k">카탈로그</td><td>자체 개발한 Iceberg REST 카탈로그</td><td>REST(PoC) → Postgres JDBC → 필요 시 REST</td></tr>
           <tr><td class="k">처리·조회</td><td>Spark, Trino</td><td>Trino (필요 시 Spark 추가)</td></tr>
-          <tr><td class="k">이벤트 전달·스트림</td><td>Kafka, Flink</td><td>Kafka, Kafka Connect (Flink는 미룸)</td></tr>
+          <tr><td class="k">이관 방식</td><td>데이터 이동 최소화, 상태 기계 기반 이관 도구</td><td>초기 적재 + 변경분 수집 (9장)</td></tr>
+          <tr><td class="k">이점으로 든 것</td><td>시점 조회, 스키마 진화, 보안 테이블</td><td>6장 메타데이터·부록 E</td></tr>
         </tbody>
       </table>
       </div>
-      <div class="note warm" style="margin-top: 8px">역할 분리는 같지만 규모와 운영 방식은 다릅니다. S3를 MinIO로 바꿨을 때 내구성·복구·성능이 동일하다고 볼 수 없으므로, MinIO의 분산 구성과 백업은 PoC와 부록 E·F에서 따로 확인합니다.</div>
+      <div class="note warm" style="margin-top: 8px">역할 분리는 같지만 규모와 운영 방식은 다릅니다. S3를 MinIO로 바꿨을 때 내구성·복구·성능이 동일하다고 볼 수 없으므로, MinIO의 분산 구성과 백업은 PoC와 부록 E·F에서 따로 확인합니다. 참고로 2024년 발표(NFX304 Data Bridge)는 배치 데이터 이동 제어판 소개이며 Iceberg는 목적지 중 하나로만 나옵니다.</div>
     </div>
     <div>
       <figure>
@@ -1827,7 +1829,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       <ul style="font-size: 13.5px">
         <li>저장소·카탈로그·엔진·수집기를 각각 교체 가능하게 설계합니다. 6장 Catalog가 그 연결점입니다.</li>
         <li>엔진을 하나(Trino)로 시작하되, 배치 처리가 필요해지면 같은 테이블에 Spark를 붙일 수 있습니다.</li>
-        <li>Iceberg를 만든 조직이 페타바이트 규모에서 쓰고 있다는 점이 테이블 포맷 선택의 근거가 됩니다. 규모가 다르므로 구성은 단순하게 시작합니다.</li>
+        <li>Iceberg를 만든 조직이 엑사바이트 규모 레이크를 Iceberg 전용으로 운영한다는 점이 테이블 포맷 선택의 근거가 됩니다. 규모가 다르므로 구성은 단순하게 시작합니다.</li>
       </ul>
     </div>
   </div>
@@ -2259,7 +2261,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       <h3>Q. Flink는 왜 지금 안 쓰나요?</h3>
       <p>첫 목표는 "Kafka 데이터를 저장하고 SQL로 확인"이라 Kafka Connect Iceberg Sink로 충분합니다. 스트림 조인, 이벤트 시간 집계가 필요해지면 그때 검토합니다.</p>
       <h3>Q. 이 구성은 Netflix 같은 회사의 공식 아키텍처인가요?</h3>
-      <p>아닙니다. Netflix는 핵심 부품인 Iceberg 테이블 포맷을 만들어 Apache에 기증한 곳이고, 지금도 S3·Spark·Trino와 함께 쓰고 있습니다. "Lakehouse"라는 용어는 2020년 Databricks가 정의해 퍼뜨린 업계 개념입니다. 이 자료의 Kafka·MinIO·Iceberg·Trino 조합은 그 개념을 오픈소스 부품으로 구현한 것이지 특정 회사의 구성을 옮긴 것이 아닙니다.</p>
+      <p>아닙니다. Netflix는 핵심 부품인 Iceberg 테이블 포맷을 만들어 Apache에 기증한 곳이고, 2023년 발표 기준으로 자기 데이터 레이크 전체를 Iceberg 전용으로 운영합니다. "Lakehouse"라는 용어는 2020년 Databricks가 정의해 퍼뜨린 업계 개념입니다. 이 자료의 Kafka·MinIO·Iceberg·Trino 조합은 그 개념을 오픈소스 부품으로 구현한 것이지 특정 회사의 구성을 옮긴 것이 아닙니다.</p>
       <h3>Q. 얼마나 걸리나요?</h3>
       <p>1~2단계(요구사항 확정, 수집·보관 PoC)가 첫 마일스톤입니다. 2단계 완료 기준을 통과한 뒤 3단계 일정을 잡습니다.</p>
     </div>
@@ -2330,7 +2332,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['13c', 'SK텔레콤 — Trino·Iceberg 분석 조회 개선', '13'],
       ['13c2', 'Hive 테이블 포맷의 병목', '13'],
       ['13c3', 'Iceberg가 다섯 병목을 푸는 방식', '13'],
-      ['13d', 'Netflix — 구성요소 역할 분리', '13'],
+      ['13d', 'Netflix — Hive에서 Iceberg 전용 레이크로', '13'],
       ['14', '단계별 추진 계획 및 PoC'],
       ['15', '기대 효과와 의사결정 사항']
     ]},

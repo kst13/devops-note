@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | Uber · DBEvents 블로그 (2019) | 여러 업무 DB의 데이터를 공통 방식으로 데이터 레이크에 수집 | MySQL binlog → StorageTapper → Kafka → Marmaray → Hudi(HDFS). 초기 적재와 변경분 수집 분리 | 초기 적재 + 변경분 수집을 함께 설계. "장애 후 어디서부터 다시 읽나"를 검증 항목에 |
 | SK텔레콤 · Trino Summit 2022 | Hive 기반 분석 환경의 확장 문제 해결과 분석 조회 개선 | 온프레미스 Hadoop/HDFS. Iceberg 파일 통계로 불필요한 파일 읽기 감소 | 실제 조회 조건 기준으로 파티션·파일 배치 설계 |
-| Netflix · AWS re:Invent 2024 | S3·Iceberg 기반 데이터 웨어하우스와 데이터 이동 구조(Data Bridge) | S3 · Iceberg · Spark, Trino · Kafka, Flink. 구성요소 역할 분리 | 비슷한 역할 분리. S3→MinIO 교체 시 운영·복구·성능은 PoC로 확인 |
+| Netflix · AWS re:Invent 2023 NFX306 | 약 1EB 레이크를 Hive에서 Iceberg 전용으로 전환 | 300PB 이동 최소화 이관, 상태 기계 기반 도구, 보안 테이블, Iceberg REST 카탈로그 개발. S3 · Iceberg · Spark, Trino | 비슷한 역할 분리. S3→MinIO 교체 시 운영·복구·성능은 PoC로 확인 |
 
 ## 2. Uber — 업무 DB의 변경 데이터를 분석 플랫폼으로
 
@@ -67,18 +67,22 @@ Trino SQL ──▶ Iceberg 메타데이터 (파일 위치 · 컬럼 통계) ─
 
 적용할 점: "Iceberg를 쓰면 빨라진다"로 끝내지 않습니다. 실제 조회 조건을 기준으로 파티션과 파일 배치를 설계합니다. 고객별 조회와 월별 전체 집계는 요구하는 데이터 배치가 다를 수 있습니다. 수치를 인용할 때는 발표 자료 출처를 확인합니다.
 
-## 4. Netflix — S3·Iceberg·Trino 분석 플랫폼
+## 4. Netflix — Hive에서 Iceberg 전용 데이터 레이크로
 
-AWS re:Invent 2024 Data Bridge 발표에는 S3와 Iceberg 기반 데이터 웨어하우스, Spark와 Trino, Kafka와 Flink를 포함한 데이터 이동 구조가 나옵니다.
+Netflix는 Iceberg를 만들어 2018년 Apache에 기증한 곳입니다. AWS re:Invent 2023 NFX306 발표는 약 1EB 규모 데이터 레이크를 Hive에서 Iceberg 전용으로 옮긴 과정을 다룹니다.
 
-| 역할 | 발표 자료에 등장하는 기술 |
-| --- | --- |
-| 객체 저장 | Amazon S3 |
-| 분석 테이블 관리 | Apache Iceberg |
-| 데이터 처리·조회 | Spark, Trino |
-| 이벤트 전달·스트림 처리 | Kafka, Flink |
+- 남아 있던 Hive 테이블 300PB를 데이터 이동을 최소화하는 방식으로 이관했습니다. 이관 도구는 상태 기계로 만들어 단계별 진행과 재시도를 관리했습니다.
+- 보안 Iceberg 테이블과 자체 Iceberg REST 카탈로그, 메타데이터·테이블 관리 서비스를 개발했습니다.
+- 이점으로 시점 조회, 스키마 진화, 사용자 마찰 감소를 들었습니다.
 
-적용할 점: 우리 구성은 이와 비슷한 역할 분리를 갖습니다. 다만 S3를 MinIO로 바꾸었을 때 운영·복구·성능까지 동일하다고 볼 수는 없습니다. PoC에서 확인합니다.
+| 역할 | Netflix (2023 발표) | 이 문서 |
+| --- | --- | --- |
+| 객체 저장 | Amazon S3 | MinIO (S3 호환) |
+| 테이블 관리 | Apache Iceberg (전용) | Apache Iceberg |
+| 카탈로그 | 자체 Iceberg REST 카탈로그 | REST(PoC) → Postgres JDBC → 필요 시 REST |
+| 처리·조회 | Spark, Trino | Trino |
+
+적용할 점: 우리 구성은 이와 비슷한 역할 분리를 갖습니다. 다만 S3를 MinIO로 바꾸었을 때 운영·복구·성능까지 동일하다고 볼 수는 없습니다. PoC에서 확인합니다. 참고로 2024년 발표(NFX304 Data Bridge)는 배치 데이터 이동 제어판 소개이며, Iceberg는 여러 목적지 중 하나로 나옵니다.
 
 ## 5. 공식 문서에서 확인한 연결
 
@@ -101,5 +105,6 @@ AWS re:Invent 2024 Data Bridge 발표에는 S3와 Iceberg 기반 데이터 웨�
 - [Uber Engineering — DBEvents: A Standardized Framework for Efficiently Ingesting Data into Uber's Apache Hadoop Data Lake](https://www.uber.com/blog/dbevents-ingestion-framework/)
 - [Uber — StorageTapper (GitHub)](https://github.com/uber/storagetapper), [Uber — Marmaray (GitHub)](https://github.com/uber/marmaray)
 - Trino Summit 2022 — SK Telecom 발표 (trino.io 블로그와 Trino YouTube 채널의 Summit 2022 세션에서 "SK Telecom"으로 검색)
-- AWS re:Invent 2024 — Netflix Data Bridge 세션 (AWS Events 공개 자료에서 세션명으로 검색)
+- [AWS re:Invent 2023 — Netflix's journey to an Apache Iceberg-only data lake (NFX306)](https://www.youtube.com/watch?v=jMFMEk8jFu8)
+- [Netflix Tech Blog — Data Bridge: How Netflix simplifies data movement (re:Invent 2024 NFX304 관련)](https://netflixtechblog.medium.com/data-bridge-how-netflix-simplifies-data-movement-36d10d91c313)
 - [Iceberg — Kafka Connect](https://iceberg.apache.org/docs/latest/kafka-connect/), [Trino — Metastores](https://trino.io/docs/current/object-storage/metastores.html), [Trino — S3 file system](https://trino.io/docs/current/object-storage/file-system-s3.html)
