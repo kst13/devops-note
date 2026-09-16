@@ -1030,70 +1030,61 @@ GROUP BY customer_id;</pre>
 <!-- 9. ch8 -->
 <section class="slide" data-ch="8">
   <header class="sh"><span>08 · 활용 사례 ①</span><span class="num"></span></header>
-  <h2>주문·결제 통합 분석</h2>
-  <p class="lead">1순위 활용 사례이자 PoC 대상입니다. 주문·결제·환불 데이터를 원본 의미대로 적재하고, 화면용 통합 모델은 그 위에서 파생합니다.</p>
+  <h2>회원·주문 통합 분석</h2>
+  <p class="lead">1순위 활용 사례이자 PoC 대상입니다. 회원 DB와 주문 DB에 나뉘어 있는 데이터를 <code>customer_id</code>로 연결해, 회원 유형별 주문 현황과 회원별 재주문을 봅니다.</p>
   <div class="cols">
     <div>
       <h3>답하려는 질문</h3>
       <ul>
-        <li><strong>결제 성공률.</strong> 결제 시도 대비 성공 비율을 PG·결제수단·시간대별로 봅니다.</li>
-        <li><strong>취소·환불 현황.</strong> 주문 취소, 부분 환불, 여러 차례 환불을 건수와 금액으로 집계합니다.</li>
-        <li><strong>주문·결제 불일치 후보.</strong> 주문은 결제 완료인데 결제 성공 이벤트가 없는 건, 환불 합계가 결제액을 넘는 건을 찾습니다.</li>
+        <li><strong>회원 유형별 주문 수·주문 금액.</strong> 개인·법인, 등급, 가입 채널별로 일·월 주문 수와 금액. 유형별 취소율.</li>
+        <li><strong>회원별 재주문 횟수.</strong> 첫 주문 이후 몇 번 더 주문했는가, 재주문 간격은 며칠인가, 재주문율이 유형별로 다른가.</li>
+        <li><strong>가입 후 첫 주문까지 기간.</strong> 가입 시각과 첫 <code>ORDER_CREATED</code> 시각의 차이. N일 안에 첫 주문에 이르는 비율.</li>
       </ul>
       <h3>테이블 3단계 (Iceberg 안의 논리 구분)</h3>
       <div class="tablewrap">
       <table>
         <tbody>
-          <tr><td class="k">① 수집 이력</td><td><code>order_events</code> <code>payment_events</code> <code>refund_events</code></td><td>문제 추적과 재처리. 각 의미대로 보존</td></tr>
-          <tr><td class="k">② 정제 데이터</td><td><code>orders</code> <code>payment_attempts</code> <code>refunds</code></td><td>중복·타입·상태·식별자 정리. 일관된 업무 단위</td></tr>
-          <tr><td class="k">③ 분석 테이블</td><td><code>daily_payment_summary</code> <code>order_payment_mismatch</code></td><td>반복 조회를 쉽게. 마이페이지용 <code>unified_transaction</code>도 여기</td></tr>
+          <tr><td class="k">① 수집 이력</td><td><code>member_events</code> <code>order_events</code></td><td>가입·유형 변경·탈퇴, 주문 생성·취소를 사건 단위로 보존</td></tr>
+          <tr><td class="k">② 정제 데이터</td><td><code>members</code> <code>member_type_history</code> <code>orders</code></td><td>현재 회원 상태, 유형 변경 이력(시작·종료 시각), 주문 단위 정리</td></tr>
+          <tr><td class="k">③ 분석 테이블</td><td><code>daily_orders_by_member_type</code> <code>member_reorder_summary</code></td><td>유형별 일 주문 수·금액·취소율, 회원별 첫 주문일·재주문 횟수·마지막 주문일</td></tr>
         </tbody>
       </table>
       </div>
-      <div class="note warm" style="margin-top: 8px">한 주문에 결제 시도와 환불이 여러 건 붙습니다. 단순 조인 후 합산하면 중복 집계됩니다. 주문·결제 시도·환불을 각각의 단위로 두고 집계 규칙을 정합니다.</div>
-      <div class="note">불일치 후보는 반영 지연 때문에 일시적으로 생길 수 있습니다. 유예 시간을 두고 원본 시스템에서 재확인한 뒤 운영 조치로 연결합니다.</div>
+      <div class="note warm" style="margin-top: 8px"><strong>회원 유형은 시점을 정해야 합니다.</strong> "지금 VIP인 회원의 지난달 주문"과 "지난달 주문 당시 VIP였던 주문"은 다른 숫자입니다. 유형 변경 이력을 남겨야 후자를 계산할 수 있고, 회원 DB의 현재 상태만으로는 전자밖에 안 됩니다.</div>
+      <div class="note">결제 이벤트(<code>payment_events</code>)를 같은 방식으로 붙이면 결제 성공률, 취소·환불 현황, 주문·결제 불일치 후보까지 같은 테이블 구조에서 확장됩니다. 로컬 PoC 샘플이 이 확장 형태를 먼저 구현해 두었습니다.</div>
     </div>
     <figure>
-      <svg class="d" viewBox="0 0 560 320" role="img" aria-label="주문 하나에 여러 결제와 여러 환불이 연결되고, 원본 테이블에서 통합 조회 모델과 분석 지표가 가공되는 연결도">
+      <svg class="d" viewBox="0 0 560 320" role="img" aria-label="회원 이벤트와 주문 이벤트가 customer_id로 연결되고, 유형 변경 이력을 거쳐 회원 유형별 주문 집계와 회원별 재주문 집계로 가공되는 연결도">
         <text x="20" y="24" class="z">① 수집 이력 (이벤트)</text>
-        <rect class="node" x="20" y="36" width="140" height="64" rx="6"></rect>
-        <text x="90" y="56" text-anchor="middle" class="b">order_events</text>
-        <text x="90" y="74" text-anchor="middle" class="m">order_id · status</text>
-        <text x="90" y="90" text-anchor="middle" class="s">생성 → 결제완료 → 취소</text>
-        <line class="ln" x1="160" y1="68" x2="208" y2="68" marker-end="url(#arr)"></line>
-        <text x="184" y="60" text-anchor="middle" class="s">1 : n</text>
-        <rect class="node" x="210" y="36" width="140" height="64" rx="6"></rect>
-        <text x="280" y="56" text-anchor="middle" class="b">payment_events</text>
-        <text x="280" y="74" text-anchor="middle" class="m">payment_id · order_id</text>
-        <text x="280" y="90" text-anchor="middle" class="s">시도 → 성공 / 실패</text>
-        <line class="ln" x1="350" y1="68" x2="398" y2="68" marker-end="url(#arr)"></line>
-        <text x="374" y="60" text-anchor="middle" class="s">1 : n</text>
-        <rect class="node" x="400" y="36" width="140" height="64" rx="6"></rect>
-        <text x="470" y="56" text-anchor="middle" class="b">refund_events</text>
-        <text x="470" y="74" text-anchor="middle" class="m">refund_id · payment_id</text>
-        <text x="470" y="90" text-anchor="middle" class="s">부분 환불 반복 가능</text>
+        <rect class="node" x="20" y="36" width="230" height="64" rx="6"></rect>
+        <text x="135" y="56" text-anchor="middle" class="b">member_events</text>
+        <text x="135" y="74" text-anchor="middle" class="m">customer_id · type · version</text>
+        <text x="135" y="90" text-anchor="middle" class="s">JOINED → TYPE_CHANGED → WITHDRAWN</text>
+        <line class="ln" x1="250" y1="68" x2="308" y2="68" marker-end="url(#arr)"></line>
+        <text x="279" y="60" text-anchor="middle" class="s">1 : n</text>
+        <rect class="node" x="310" y="36" width="230" height="64" rx="6"></rect>
+        <text x="425" y="56" text-anchor="middle" class="b">order_events</text>
+        <text x="425" y="74" text-anchor="middle" class="m">order_id · customer_id · amount</text>
+        <text x="425" y="90" text-anchor="middle" class="s">CREATED → PAID → CANCELLED</text>
 
-        <path class="ln hi" d="M90,100 L90,150 L150,150" marker-end="url(#arrA)"></path>
-        <path class="ln hi" d="M280,100 L280,150 L150,150"></path>
-        <path class="ln hi" d="M470,100 L470,150 L280,150"></path>
-        <text x="300" y="142" class="s">Trino SQL로 조인·가공</text>
+        <path class="ln hi" d="M135,100 L135,150 L200,150" marker-end="url(#arrA)"></path>
+        <path class="ln hi" d="M425,100 L425,150 L360,150" marker-end="url(#arrA)"></path>
+        <text x="280" y="142" text-anchor="middle" class="s">customer_id 로 조인 · 주문 시각 기준으로 당시 유형 붙이기</text>
 
-        <text x="20" y="200" class="z">② 정제 → 통합 조회 모델</text>
-        <rect class="node hi" x="20" y="210" width="230" height="64" rx="6"></rect>
-        <text x="135" y="232" text-anchor="middle" class="b">unified_transaction</text>
-        <text x="135" y="250" text-anchor="middle" class="s">마이페이지 거래 목록용 조회 모델</text>
-        <text x="135" y="266" text-anchor="middle" class="s">통화·정밀도·고객 ID 매핑 포함</text>
-        <path class="ln hi" d="M150,150 L150,208" marker-end="url(#arrA)"></path>
-
-        <text x="290" y="200" class="z">③ 분석 테이블</text>
-        <rect class="node hi" x="290" y="210" width="250" height="64" rx="6"></rect>
-        <text x="415" y="232" text-anchor="middle" class="b">결제 성공률 · 취소/환불 · 불일치 후보</text>
-        <text x="415" y="250" text-anchor="middle" class="s">성공률 = 성공 / 시도 (PG·수단·시간대별)</text>
-        <text x="415" y="266" text-anchor="middle" class="s">불일치 = 주문 PAID ∧ 결제 성공 없음</text>
-        <path class="ln hi" d="M280,150 L415,150 L415,208" marker-end="url(#arrA)"></path>
-        <text x="280" y="304" text-anchor="middle" class="s">같은 고객·같은 거래를 어떻게 식별하는가가 공통 필드 이름보다 중요합니다</text>
+        <text x="20" y="200" class="z">② 정제 → ③ 분석 테이블</text>
+        <rect class="node hi" x="20" y="210" width="250" height="70" rx="6"></rect>
+        <text x="145" y="232" text-anchor="middle" class="b">daily_orders_by_member_type</text>
+        <text x="145" y="250" text-anchor="middle" class="s">일자 · 회원 유형 · 주문 수 · 금액 · 취소율</text>
+        <text x="145" y="266" text-anchor="middle" class="s">유형 = 주문 당시 유형 (이력 기준)</text>
+        <rect class="node hi" x="290" y="210" width="250" height="70" rx="6"></rect>
+        <text x="415" y="232" text-anchor="middle" class="b">member_reorder_summary</text>
+        <text x="415" y="250" text-anchor="middle" class="s">회원 · 첫 주문일 · 재주문 횟수 · 평균 간격</text>
+        <text x="415" y="266" text-anchor="middle" class="s">가입 → 첫 주문 소요일</text>
+        <path class="ln hi" d="M200,150 L145,150 L145,208" marker-end="url(#arrA)"></path>
+        <path class="ln hi" d="M360,150 L415,150 L415,208" marker-end="url(#arrA)"></path>
+        <text x="280" y="306" text-anchor="middle" class="s">회원 식별자가 시스템마다 다르면 customer_id 매핑 테이블을 먼저 만듭니다 (12장 이벤트 규약)</text>
       </svg>
-      <figcaption>주문·결제·환불은 1:n:n 관계입니다. 원본을 보존해야 부분 환불과 재결제를 정확히 셀 수 있습니다.</figcaption>
+      <figcaption>회원 한 명에 주문이 여러 건입니다. 주문마다 "그 시점의 회원 유형"을 붙여야 유형별 집계가 맞습니다.</figcaption>
     </figure>
   </div>
 </section>
@@ -1102,7 +1093,7 @@ GROUP BY customer_id;</pre>
 <section class="slide" data-ch="9">
   <header class="sh"><span>09 · 활용 사례 ②</span><span class="num"></span></header>
   <h2>회원·채팅 데이터 분석</h2>
-  <p class="lead">"채팅 상담을 받은 고객이 재구매를 더 하는가"처럼 회원·주문·채팅 세 시스템에 걸친 질문을 SQL 하나로 답합니다. 지금은 DB 세 곳에서 따로 뽑아 수작업으로 합쳐야 합니다.</p>
+  <p class="lead">"채팅 상담을 받은 고객이 재주문을 더 하는가"처럼 회원·주문·채팅 세 시스템에 걸친 질문을 SQL 하나로 답합니다. ①의 회원·주문 연결에 채팅 이벤트를 하나 더 붙인 것입니다. 지금은 DB 세 곳에서 따로 뽑아 수작업으로 합쳐야 합니다.</p>
   <div class="cols">
     <div>
       <h3>예시 질문 — 상담 받은 고객은 재구매를 더 하는가</h3>
@@ -1851,7 +1842,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
 <section class="slide" data-ch="14">
   <header class="sh"><span>14 · 추진 계획</span><span class="num"></span></header>
   <h2>단계별 추진 계획 및 PoC</h2>
-  <p class="lead">제품 도입 순서가 아니라 활용 사례 단위의 완성을 기준으로 단계를 구분합니다. 주문·결제 영역부터 착수합니다.</p>
+  <p class="lead">제품 도입 순서가 아니라 활용 사례 단위의 완성을 기준으로 단계를 구분합니다. 회원·주문 영역부터 착수합니다.</p>
   <div class="cols single">
     <figure>
       <svg class="d" viewBox="0 0 1100 250" role="img" aria-label="요구사항 확정부터 도메인 확장까지 다섯 단계 로드맵과 각 단계의 완료 기준">
@@ -1859,7 +1850,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
         <g>
           <circle cx="110" cy="60" r="9" class="bar"></circle><text x="110" y="34" text-anchor="middle" class="b">1 요구사항 확정</text>
           <rect class="node hi" x="30" y="84" width="180" height="120" rx="6"></rect>
-          <text x="42" y="106" class="s">범위: 주문·결제 통합 분석</text>
+          <text x="42" y="106" class="s">범위: 회원·주문 통합 분석</text>
           <text x="42" y="124" class="s">조회 패턴 · 응답 시간</text>
           <text x="42" y="142" class="s">반영 지연 · 보관 정책</text>
           <text x="42" y="176" class="z">완료: 측정 가능한 목표</text>
@@ -1876,7 +1867,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
           <circle cx="550" cy="60" r="9" class="bar"></circle><text x="550" y="34" text-anchor="middle" class="b">3 활용 사례 ① 구현</text>
           <rect class="node" x="460" y="84" width="180" height="120" rx="6"></rect>
           <text x="472" y="106" class="s">원본·통합·분석 테이블</text>
-          <text x="472" y="124" class="s">결제 성공률 · 불일치 후보</text>
+          <text x="472" y="124" class="s">유형별 주문 · 재주문 집계</text>
           <text x="472" y="142" class="s">Query API 연결 (필요 시)</text>
           <text x="472" y="176" class="z">완료: 목표 부하에서 응답</text>
         </g>
@@ -1891,7 +1882,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
         <g>
           <circle cx="990" cy="60" r="9" class="bar"></circle><text x="990" y="34" text-anchor="middle" class="b">5 도메인 확장</text>
           <rect class="node" x="900" y="84" width="180" height="120" rx="6"></rect>
-          <text x="912" y="106" class="s">회원·채팅 연결 (9장)</text>
+          <text x="912" y="106" class="s">결제·채팅 연결 (8·9장)</text>
           <text x="912" y="124" class="s">공통 규약으로 새 시스템 추가</text>
           <text x="912" y="142" class="s">Search 계층 검토</text>
           <text x="912" y="176" class="z">완료: 기존 기능 영향 없음</text>
@@ -1932,15 +1923,15 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
         <li><strong>통합 조회 개발 감소.</strong> 새 지표 요구가 API 개발이 아니라 SQL 작성으로 끝나는가.</li>
         <li><strong>운영 DB 부담 완화.</strong> 분석·추출 쿼리를 Trino로 옮긴 뒤 DB 부하와 야간 배치 시간이 줄어드는가.</li>
         <li><strong>이력 보관 비용.</strong> 콜드 데이터를 옮긴 뒤 DB 용량·백업 시간이 줄고, 객체 저장소 비용이 그보다 낮은가(부록 F).</li>
-        <li><strong>지표 일관성.</strong> 결제 성공률 같은 숫자를 팀마다 다르게 내지 않게 되는가.</li>
+        <li><strong>지표 일관성.</strong> 회원 유형별 주문 수, 재주문율 같은 숫자를 팀마다 다르게 내지 않게 되는가.</li>
       </ul>
-      <h3>첫 구축 결과물과 성공 기준 (주문·결제·환불 + 최소 회원 식별)</h3>
+      <h3>첫 구축 결과물과 성공 기준 (회원 + 주문)</h3>
       <div class="tablewrap">
       <table>
         <thead><tr><th>결과물</th><th>성공 기준</th></tr></thead>
         <tbody>
-          <tr><td class="k">일별 주문·결제·환불 현황</td><td>같은 기준 시점의 원본 집계와 일치</td></tr>
-          <tr><td class="k">주문·결제 불일치 후보</td><td>반영 지연과 실제 오류를 구분</td></tr>
+          <tr><td class="k">회원 유형별 일 주문 수·금액</td><td>같은 기준 시점의 원본 집계와 일치. 유형은 주문 당시 기준</td></tr>
+          <tr><td class="k">회원별 재주문 횟수·간격</td><td>회원 DB와 주문 DB를 수작업으로 합친 표본과 일치</td></tr>
           <tr><td class="k">과거 거래 조회·다운로드</td><td>업무에서 요구하는 시간 안에 완료 (예: 1년치 조인 집계 p95 30초)</td></tr>
           <tr><td class="k">장애 후 재처리</td><td>누락과 잘못된 중복 집계 없이 복구</td></tr>
           <tr><td class="k">콜드 데이터 이관</td><td>검증한 범위만 DB에서 정리</td></tr>
@@ -1955,7 +1946,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       <table>
         <thead><tr><th>항목</th><th>제안</th><th>결정자</th></tr></thead>
         <tbody>
-          <tr><td class="k">초기 대상</td><td>주문·결제 이벤트 한 종류(이벤트 이력 테이블)</td><td>데이터 플랫폼 · 커머스</td></tr>
+          <tr><td class="k">초기 대상</td><td>회원 이벤트 + 주문 이벤트 (이벤트 이력 테이블 2개)</td><td>데이터 플랫폼 · 회원 · 주문</td></tr>
           <tr><td class="k">담당 조직</td><td>플랫폼(Kafka·MinIO·Trino·Catalog), 도메인팀(이벤트 발행·테이블 의미)</td><td>조직장</td></tr>
           <tr><td class="k">성능 목표</td><td>대표 쿼리 3개와 p95 응답 시간</td><td>분석 소비 부서</td></tr>
           <tr><td class="k">반영 지연</td><td>허용 지연(예: 5분)과 "방금 쓴 데이터가 아직 없을 때"의 화면 동작</td><td>서비스 기획</td></tr>
@@ -2328,7 +2319,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['7', '데이터 적재 및 조회 흐름']
     ]},
     { no: 'Part 3', title: '활용 방안', range: '8~11장', color: '#2E7D4F', items: [
-      ['8', '활용 사례 ① 주문·결제 통합 분석'],
+      ['8', '활용 사례 ① 회원·주문 통합 분석'],
       ['9', '활용 사례 ② 회원·채팅 데이터 분석'],
       ['10', '활용 사례 ③ 콜드 데이터 이관'],
       ['10b', '이관 기준·방식·삭제 전 확인', '10'],
