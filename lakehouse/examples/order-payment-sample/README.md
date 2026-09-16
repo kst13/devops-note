@@ -133,6 +133,7 @@ lag이 0이 되고 스냅샷이 늘어난 뒤에야 Trino 행 수가 바뀝니�
 | 결제 Sink 태스크 `GroupAuthorizationException: connect-payment-events-sink-app` | 초기 PoC의 ACL이 `connect-order-events-sink` 접두사만 허용 | `kafka-setup.sh`가 `connect-` 접두사 그룹 ACL을 추가 |
 | `CREATE TABLE IF NOT EXISTS`가 지나가고 컬럼이 `orderid`처럼 보임 | 초기 PoC가 auto-create로 만든 카멜케이스 스키마 테이블이 남아 있었음 | `lakehouse-setup.sh --reset`이 옛 커넥터·그룹·테이블을 지운다 |
 | 카탈로그 뷰 대신 CTE | REST fixture(sqlite) 카탈로그의 뷰 지원에 기대지 않기 위해 | `AnalyticsController.DEDUP_CTE` |
+| 백엔드 재시작 후 H2 건수가 Lakehouse 보다 적음 | H2 가 메모리 모드라 재시작마다 비워짐. Lakehouse 는 이벤트를 전부 보존해 두 화면 숫자가 어긋남 | H2 를 파일 모드(`backend/data/`)로 변경. 의도치 않게 "운영 DB 는 최근 범위, Lakehouse 는 전체 이력"을 재현한 사례 |
 
 ## 디렉터리
 
