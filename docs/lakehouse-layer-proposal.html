@@ -320,6 +320,8 @@
   .bn-d { font-size: 13px; color: var(--muted); line-height: 1.5; }
 
   .scenario { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; font-size: 13.5px; margin: 4px 0 2px; }
+  .steps-table td { vertical-align: top; padding: 10px 10px 10px 0; font-size: 13.5px; line-height: 1.5; }
+  .steps-table td.mono { font-size: 12px; color: var(--muted); }
   .bn-ex { font-size: 12.5px; color: var(--ink); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); line-height: 1.5; }
 
   /* small components */
@@ -2056,32 +2058,41 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
 <section class="slide" data-ch="14d">
   <header class="sh"><span>14 · 추진 계획 (커밋 상세)</span><span class="num"></span></header>
   <h2>커밋 한 번이 실제로 하는 일 — 10:24:12의 4단계</h2>
-  <p class="lead">앞 장의 ④를 풀어 쓴 것입니다. 파일 3개를 올리는 동안은 아무것도 바뀌지 않고, 마지막에 Catalog의 포인터 한 줄이 바뀌는 순간 테이블이 12건에서 13건이 됩니다.</p>
-  <div class="cols wide">
-    <div class="bottlenecks" style="grid-template-columns: 1fr 1fr">
-      <div class="bn"><div class="bn-no">①</div><div><div class="bn-t">낱장 올리기 — Parquet</div><div class="bn-d">10:24:03부터 태스크 메모리에서 쓰던 파일을 닫고, 끝(footer)에 컬럼별 최소·최대를 기록한 뒤 MinIO에 PUT.</div><div class="bn-ex"><code>data/00001-1789521843267-….parquet</code> 3.5KB · 행 1개<br>footer: amount min=max 1,200,000</div></div></div>
-      <div class="bn"><div class="bn-no">②</div><div><div class="bn-t">표지 올리기 — 매니페스트</div><div class="bn-d">①의 파일 하나를 설명하는 목록. 경로·건수·크기·컬럼별 최소·최대를 담아 Trino가 파일을 열기 전에 건너뛸 수 있게 함.</div><div class="bn-ex"><code>metadata/32ceb37a-…-m0.avro</code> 7.7KB<br>status ADDED · record_count 1 · amount 1,200,000~1,200,000</div></div></div>
-      <div class="bn"><div class="bn-no">③</div><div><div class="bn-t">쪽지 올리기 — 매니페스트 목록</div><div class="bn-d">"지금 테이블에 속한 표지 전부". 이번 표지 하나에 이전 커밋의 표지 7개 경로를 다시 적음. 이전 표지는 새로 쓰지 않고 참조만 함.</div><div class="bn-ex"><code>metadata/snap-8949463521143883915-….avro</code> 4.8KB<br>표지 8개 = 1+1+1+1+1+1+2+5 = 13건</div></div></div>
-      <div class="bn hint"><div class="bn-no">④</div><div><div class="bn-t">Catalog에 등록 — 이 순간이 커밋</div><div class="bn-d">Connect가 요청: "현재 스냅샷이 4353…이 맞으면, 스냅샷 8949…를 추가하고 현재를 그것으로 바꿔 달라". Catalog가 새 목차 <code>00008</code>을 MinIO에 쓰고 자기 DB의 포인터 한 줄을 바꿈.</div><div class="bn-ex">iceberg_tables 행: metadata_location<br><code>…/00007-….json</code> → <code>…/00008-….json</code> (트랜잭션 1건)</div></div></div>
-    </div>
-    <div>
-      <h3>④ 전과 후 — 조회하는 쪽에서 보이는 것</h3>
-      <div class="tablewrap">
-      <table>
-        <thead><tr><th></th><th>포인터 교체 전</th><th>포인터 교체 후</th></tr></thead>
-        <tbody>
-          <tr><td class="k">현재 목차</td><td><code>00007</code></td><td><code>00008</code></td></tr>
-          <tr><td class="k">현재 스냅샷</td><td>4353… (10:09 커밋)</td><td>8949… (10:24 커밋)</td></tr>
-          <tr><td class="k">Trino count(*)</td><td>12</td><td>13</td></tr>
-          <tr><td class="k">MinIO 의 파일 ①②③</td><td>있지만 아무도 참조 안 함</td><td>쪽지 → 표지 → 낱장으로 연결됨</td></tr>
-          <tr><td class="k">중간 상태</td><td colspan="2">없음. ①②③ 업로드에 몇 초가 걸려도 조회하는 쪽은 12 아니면 13 만 봄</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <h3 style="margin-top: 12px">"현재가 4353…이 맞으면" 조건이 있는 이유</h3>
-      <p style="font-size: 13.5px; margin: 0 0 8px">Connect가 커밋을 준비하는 30초 사이에 병합 작업 같은 다른 쓰기가 먼저 커밋해 현재가 바뀌었을 수 있습니다. 조건이 틀리면 Catalog가 거절하고, Connect는 최신 목차를 다시 읽어 그 위에 자기 스냅샷을 얹어 재시도합니다. 올려 둔 파일 ①②③은 그대로 재사용합니다. 두 작업이 서로 덮어쓰지 않게 하는 장치이고, 이 조건부 교체를 트랜잭션으로 보장하는 것이 Catalog가 DB 위에 있는 이유입니다(6장).</p>
-      <div class="note">DB 커밋에 비유하면 ①②③은 WAL에 쓰는 것, ④는 커밋 레코드 한 줄을 남기는 것입니다. 크고 느린 것은 객체 저장소에, 원자성이 필요한 작은 것은 트랜잭션이 되는 곳에 둡니다.</div>
-    </div>
+  <p class="lead">파일 3개를 올리는 동안은 테이블이 그대로(12건)이고, 마지막에 Catalog의 포인터 한 줄이 바뀌는 순간 13건이 됩니다.</p>
+  <div class="tablewrap">
+    <table class="steps-table">
+      <thead><tr><th style="width:5%"></th><th style="width:16%">단계</th><th style="width:38%">하는 일</th><th style="width:29%">실제 파일 · 값</th><th style="width:12%">조회에 보이나</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">①</td><td><strong>낱장 올리기</strong><br><span class="muted">Parquet</span></td>
+          <td>10:24:03부터 메모리에 쓰던 파일을 닫고, 끝(footer)에 컬럼별 최소·최대를 적은 뒤 MinIO에 올립니다.</td>
+          <td class="mono">data/00001-1789521843267-….parquet<br>3.5KB · 행 1개 · amount 1,200,000</td>
+          <td><span class="pill CREATED">아직 12건</span></td>
+        </tr>
+        <tr>
+          <td class="k">②</td><td><strong>표지 올리기</strong><br><span class="muted">매니페스트</span></td>
+          <td>①의 파일을 설명하는 목록. 경로·건수·크기·컬럼별 최소·최대. Trino가 파일을 열기 전에 건너뛸 때 씁니다.</td>
+          <td class="mono">metadata/32ceb37a-…-m0.avro<br>7.7KB · ADDED · amount min=max 1,200,000</td>
+          <td><span class="pill CREATED">아직 12건</span></td>
+        </tr>
+        <tr>
+          <td class="k">③</td><td><strong>쪽지 올리기</strong><br><span class="muted">매니페스트 목록</span></td>
+          <td>"지금 테이블에 속한 표지 전부". 이번 표지 1개에 이전 커밋의 표지 7개 경로를 다시 적습니다. 이전 표지는 새로 쓰지 않고 참조만 합니다.</td>
+          <td class="mono">metadata/snap-8949463521143883915-….avro<br>4.8KB · 표지 8개 · 합계 13건</td>
+          <td><span class="pill CREATED">아직 12건</span></td>
+        </tr>
+        <tr class="selected">
+          <td class="k">④</td><td><strong>Catalog에 등록</strong><br><span class="muted">이 순간이 커밋</span></td>
+          <td>Connect가 요청: "현재 스냅샷이 4353…이 맞으면, 8949…를 추가하고 현재를 그것으로". Catalog가 새 목차 <code>00008</code>을 MinIO에 쓰고 자기 DB의 포인터 한 줄을 바꿉니다.</td>
+          <td class="mono">iceberg_tables.metadata_location<br>00007-….json → 00008-….json</td>
+          <td><span class="pill COMPLETED">13건</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="grid2" style="margin-top: 4px">
+    <div class="note"><strong>왜 ④에 "현재가 4353…이 맞으면" 조건이 붙나.</strong> 30초 사이에 병합 작업 같은 다른 쓰기가 먼저 커밋했을 수 있습니다. 조건이 틀리면 Catalog가 거절하고 Connect는 최신 목차 위에 다시 시도합니다. 올려 둔 ①②③은 그대로 씁니다. 두 작업이 서로 덮어쓰지 않게 하는 장치입니다(6장 Catalog).</div>
+    <div class="note warm"><strong>DB 커밋과 비교하면</strong> ①②③은 WAL에 쓰는 것, ④는 커밋 레코드 한 줄을 남기는 것입니다. 크고 느린 것은 객체 저장소에, 원자성이 필요한 작은 것은 트랜잭션이 되는 Catalog에 둡니다. 그래서 ①②③에 몇 초가 걸려도 조회하는 쪽은 12 아니면 13만 봅니다.</div>
   </div>
 </section>
 
