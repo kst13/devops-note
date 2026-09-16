@@ -2096,6 +2096,69 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
   </div>
 </section>
 
+<section class="slide" data-ch="14e">
+  <header class="sh"><span>14 · 추진 계획 (테이블 구조)</span><span class="num"></span></header>
+  <h2>테이블은 언제 만들고, 구조는 누가 정하나</h2>
+  <p class="lead">테이블 생성은 적재 전에 한 번 하는 별도 작업입니다. 커넥터가 자동으로 만들게 할 수도 있지만(auto-create), 그러면 첫 이벤트의 JSON이 테이블 구조를 결정합니다. 샘플은 DDL로 먼저 만들고 이벤트가 그 구조를 따르게 했습니다.</p>
+  <div class="cols">
+    <div>
+      <h3>순서</h3>
+      <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">① 테이블 생성 (1회)</td><td>Trino <code>CREATE TABLE</code>. Catalog가 목차 <code>00000</code>만 있는 빈 장부를 만듦. 낱장·표지·쪽지 없음, count 0</td></tr>
+          <tr><td class="k">② 커넥터 등록</td><td><code>auto-create-enabled=false</code>라 테이블이 없으면 태스크가 실패</td></tr>
+          <tr><td class="k">③ 커밋 반복</td><td>30초마다 앞 장의 4단계. 목차 세대가 00001, 00002 … 로 늘어남</td></tr>
+          <tr><td class="k">컬럼 추가</td><td><code>ALTER TABLE … ADD COLUMN</code>. 새 목차 한 세대만 생기고 기존 Parquet는 그대로</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3 style="margin-top: 12px">구조를 정하는 쪽 — 설정 하나로 방향이 바뀜</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:26%"></th><th>auto-create = true <span class="pill">초기 PoC</span></th><th>auto-create = false <span class="pill hi">샘플 · 운영</span></th></tr></thead>
+        <tbody>
+          <tr><td class="k">구조를 정하는 것</td><td>첫 이벤트의 JSON 키·값 형태</td><td>DDL (운영자)</td></tr>
+          <tr><td class="k">컬럼 이름</td><td>JSON 키 그대로. <code>orderId</code> → Trino에서 <code>orderid</code></td><td>DDL의 이름. 이벤트 키와 대조</td></tr>
+          <tr><td class="k">타입</td><td>추론. 문자열 → string, 정수 → long. 나중에 못 바꿈</td><td>DDL의 타입. 이벤트가 맞춰야 함</td></tr>
+          <tr><td class="k">파티션</td><td>없음 (별도 설정 없으면)</td><td>DDL에서 <code>day(occurred_at)</code> 지정</td></tr>
+          <tr><td class="k">새 필드</td><td><code>evolve-schema=true</code>면 자동 추가</td><td>운영자가 ALTER 후 규약 버전 올림</td></tr>
+          <tr><td class="k">어울리는 때</td><td>실험, 모양 빨리 보기</td><td>운영. 컬럼·타입·파티션 통제</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+    <div>
+      <h3>auto-create = false 일 때 이벤트와 테이블의 대조 규칙</h3>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>상황</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr><td>이벤트에도 테이블에도 있음</td><td>그대로 적재</td></tr>
+          <tr><td>테이블에 있는데 이벤트에 없음 (성공 결제의 <code>failure_reason</code>)</td><td>null</td></tr>
+          <tr><td>이벤트에 있는데 테이블에 없음 (새 필드)</td><td><code>evolve-schema=false</code>면 <strong>버려짐</strong></td></tr>
+          <tr><td>이름은 같은데 타입이 다름 (<code>amount</code>가 문자열)</td><td>태스크 실패</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <figure style="margin-top: 12px">
+        <svg class="d" viewBox="0 0 560 120" role="img" aria-label="프로듀서 코드, 이벤트 JSON, 커넥터 대조, 테이블 DDL 네 가지가 같은 이름과 타입으로 맞아야 하는 구조">
+          <rect class="node" x="10" y="30" width="120" height="50" rx="6"></rect><text x="70" y="50" text-anchor="middle" class="b">프로듀서 코드</text><text x="70" y="68" text-anchor="middle" class="m">@JsonProperty("order_id")</text>
+          <line class="ln" x1="130" y1="55" x2="158" y2="55" marker-end="url(#arr)"></line>
+          <rect class="node warm" x="160" y="30" width="110" height="50" rx="6"></rect><text x="215" y="50" text-anchor="middle" class="b">이벤트 JSON</text><text x="215" y="68" text-anchor="middle" class="m">"order_id": "…"</text>
+          <line class="ln" x1="270" y1="55" x2="298" y2="55" marker-end="url(#arr)"></line>
+          <rect class="node hi" x="300" y="30" width="120" height="50" rx="6"></rect><text x="360" y="50" text-anchor="middle" class="b">커넥터 대조</text><text x="360" y="68" text-anchor="middle" class="s">이름·타입 맞춤</text>
+          <line class="ln" x1="420" y1="55" x2="448" y2="55" marker-end="url(#arr)"></line>
+          <rect class="node hi" x="450" y="30" width="100" height="50" rx="6"></rect><text x="500" y="50" text-anchor="middle" class="b">테이블 DDL</text><text x="500" y="68" text-anchor="middle" class="m">order_id varchar</text>
+          <text x="280" y="108" text-anchor="middle" class="s">넷이 같은 이름·호환 타입이어야 함. 하나라도 어긋나면 null 이거나 태스크 실패</text>
+        </svg>
+      </figure>
+      <div class="note warm"><strong>운영 관점의 결론.</strong> 구조의 진짜 소유자는 프로듀서 코드도 DDL도 아닌 <strong>이벤트 규약 문서</strong>(12장)입니다. 프로듀서와 DDL 둘 다 규약을 따르고, 규약이 바뀌면 <code>schema_version</code>을 올린 뒤 양쪽을 함께 고칩니다. 프로듀서를 고치는 사람과 테이블을 관리하는 사람이 달라도 어긋나지 않게 하기 위해서입니다.</div>
+      <p class="muted" style="font-size: 12.5px; margin: 8px 0 0">실제 사고: 초기 PoC(auto-create)가 만든 카멜케이스 테이블이 남아 있어 나중의 DDL <code>IF NOT EXISTS</code>가 조용히 지나갔고, 프로듀서 직렬화가 규약(ISO 문자열)과 어긋나 <code>occurred_at</code>이 숫자로 들어갔습니다. 둘 다 "셋이 안 맞은" 경우입니다.</p>
+    </div>
+  </div>
+</section>
+
 <!-- 16. ch15 -->
 <section class="slide" data-ch="15">
   <header class="sh"><span>15 · 기대 효과</span><span class="num"></span></header>
@@ -2525,6 +2588,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['14b', '로컬 PoC 환경 구성', '14'],
       ['14c', '샘플 프로젝트에서 주문 하나가 지나간 실제 경로', '14'],
       ['14d', '커밋 한 번이 실제로 하는 일', '14'],
+      ['14e', '테이블은 언제 만들고, 구조는 누가 정하나', '14'],
       ['15', '기대 효과와 의사결정 사항']
     ]},
     { no: 'Appendix', title: '부록', range: 'A~G', appx: true, items: [
