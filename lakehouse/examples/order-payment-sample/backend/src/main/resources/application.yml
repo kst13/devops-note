@@ -14,6 +14,10 @@ app:
     enabled: ${ANALYTICS_ENABLED:true}
     trino-url: ${TRINO_JDBC_URL:jdbc:trino://localhost:8080/lakehouse/commerce}
     trino-user: ${TRINO_USER:poc}
+  # 파이프라인 화면: Kafka Connect REST 와 커넥터 이름 (scripts/lakehouse-setup.sh 가 등록한 것)
+  pipeline:
+    connect-url: ${CONNECT_URL:http://localhost:8083}
+    connectors: order-events-sink-app,payment-events-sink-app
 
 spring:
   datasource:

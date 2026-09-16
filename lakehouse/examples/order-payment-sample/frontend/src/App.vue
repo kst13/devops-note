@@ -4,6 +4,7 @@
     <nav class="row">
       <router-link to="/order">주문·결제</router-link>
       <router-link to="/analytics">Lakehouse 조회</router-link>
+      <router-link to="/pipeline">파이프라인</router-link>
     </nav>
   </header>
   <router-view />

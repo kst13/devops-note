@@ -30,6 +30,8 @@ export const api = {
   mismatches: (graceSeconds) => request(`/api/analytics/mismatches?graceSeconds=${graceSeconds}`),
   freshness: (limit) => request(`/api/analytics/freshness?limit=${limit}`),
   timeline: (orderId) => request(`/api/analytics/order-timeline?orderId=${encodeURIComponent(orderId)}`),
+
+  pipelineStatus: () => request('/api/pipeline/status'),
 }
 
 export const won = (n) => (n == null ? '' : Number(n).toLocaleString('ko-KR') + '원')

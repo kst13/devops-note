@@ -57,6 +57,8 @@ done
 $KCMD/kafka-acls.sh $A --add --allow-principal User:order-service --operation IdempotentWrite --cluster >/dev/null
 # Sink 커넥터의 컨슈머 그룹은 connect-<커넥터명>(+ -coord). 커넥터가 늘어나도 되게 connect- 접두사로 허용한다
 $KCMD/kafka-acls.sh $A --add --allow-principal User:connect --operation Read --group connect- --resource-pattern-type prefixed >/dev/null
+# 파이프라인 화면: 앱이 토픽 끝 오프셋과 커넥터 그룹의 커밋 오프셋(lag)을 읽는다
+$KCMD/kafka-acls.sh $A --add --allow-principal User:order-service --operation Describe --group connect- --resource-pattern-type prefixed >/dev/null
 $KCMD/kafka-acls.sh $A --list --topic order.events 2>/dev/null | grep -E 'principal' | sed 's/^/  /'
 
 cat <<EOF

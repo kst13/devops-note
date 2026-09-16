@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import OrderPage from './pages/OrderPage.vue'
 import AnalyticsPage from './pages/AnalyticsPage.vue'
+import PipelinePage from './pages/PipelinePage.vue'
 import './style.css'
 
 const router = createRouter({
@@ -11,6 +12,7 @@ const router = createRouter({
     { path: '/', redirect: '/order' },
     { path: '/order', component: OrderPage },
     { path: '/analytics', component: AnalyticsPage },
+    { path: '/pipeline', component: PipelinePage },
   ],
 })
 

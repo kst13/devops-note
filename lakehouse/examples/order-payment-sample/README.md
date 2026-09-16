@@ -4,6 +4,7 @@
 
 ```text
 Vue 3 (Vite :5173)
+  ├─ 파이프라인 화면 ── GET /api/pipeline/status ──▶ Spring Boot ── Kafka Admin · Connect REST · Trino ──▶ 각 단계 상태
   ├─ 주문·결제 화면 ── POST /api/orders, /api/payments ──▶ Spring Boot (:8090)
   │                                                          ├─ H2 (주문·결제 상태의 기준 = 운영 DB 역할)
   │                                                          └─ KafkaTemplate ──▶ 홈랩 Kafka (SASL_SSL :9094)
@@ -96,6 +97,34 @@ curl -s 'localhost:8090/api/analytics/payment-success-rate?days=7' | jq
 curl -s 'localhost:8090/api/analytics/mismatches?graceSeconds=60' | jq
 ```
 
+## 파이프라인 화면 — 이벤트가 단계를 옮겨 가는 것을 보기
+
+http://localhost:5173/pipeline 은 다섯 단계의 현재 상태를 5초마다 읽어 한 줄로 보여 줍니다.
+
+```text
+① 앱·H2        ② Kafka              ③ Kafka Connect     ④ Iceberg / MinIO            ⑤ Trino
+주문·결제 수  →  토픽별 메시지 수   →  커넥터·태스크 상태  →  테이블별 레코드·파일·스냅샷  →  테이블별 행 수
+                파티션 끝 오프셋                            마지막 커밋 시각
+                커넥터 그룹 lag                             MinIO 경로
+```
+
+| 단계 | 어디서 읽나 | 보여 주는 것 |
+| --- | --- | --- |
+| ① 앱 | H2 | 주문·결제 건수, 발행 토픽 |
+| ② Kafka | AdminClient (`order-service` 계정) | 토픽별 파티션 끝 오프셋 합계, 커넥터 컨슈머 그룹(`connect-<커넥터>`)의 커밋 오프셋과 **lag** |
+| ③ Kafka Connect | Connect REST `/connectors/<name>/status` | 커넥터·태스크 RUNNING 여부 |
+| ④ Iceberg / MinIO | Trino 메타데이터 테이블 `$snapshots`·`$files` | 스냅샷 수, 마지막 커밋 시각, 파일 수·크기·레코드 수, MinIO 경로 |
+| ⑤ Trino | `count(*)` | 조회 화면이 보는 행 수 |
+
+"테스트 결제 1건 발행" 버튼은 주문 생성 + 결제를 한 번에 실행해 이벤트 3건을 보냅니다. 아래 "변화 로그"에 이전 조회와 달라진 숫자가 순서대로 찍힙니다. 실측 순서는 다음과 같습니다.
+
+```text
++0초   ① 앱 주문·결제 +1  →  ② Kafka 메시지 +3, lag 1·2      (Trino 행 수 그대로)
++13초  ② lag 0  →  ④ 스냅샷 +1, 파일 +1, 마지막 커밋 갱신  →  ⑤ Trino 행 +3
+```
+
+lag이 0이 되고 스냅샷이 늘어난 뒤에야 Trino 행 수가 바뀝니다. 이것이 4장 "반영 지연의 원인과 규모"를 눈으로 보는 방법입니다. 단계 하나가 죽어 있으면 그 카드만 빨갛게 표시되고 나머지는 계속 보입니다.
+
 ## 구축하면서 확인한 것 (2026-09-15)
 
 | 현상 | 원인 | 반영 |
@@ -115,11 +144,12 @@ order-payment-sample/
 │   │   ├── payment/     결제 엔티티·가짜 PG·서비스·API
 │   │   ├── event/       OrderEvent · PaymentEvent · EventPublisher
 │   │   ├── analytics/   Trino JDBC 조회 API
+│   │   ├── pipeline/    단계별 상태 API (Kafka Admin · Connect REST · Trino 메타데이터)
 │   │   └── config/      설정 바인딩, CORS, 예외
 │   ├── src/main/resources/application.yml
 │   └── .env             kafka-setup.sh 가 생성 (커밋 금지)
 ├── frontend/       Vue 3 · Vite · vue-router
-│   └── src/pages/   OrderPage.vue · AnalyticsPage.vue
+│   └── src/pages/   OrderPage.vue · AnalyticsPage.vue · PipelinePage.vue
 └── scripts/
     ├── kafka-setup.sh               1단계: 계정·토픽·ACL
     ├── lakehouse-setup.sh           2단계: 테이블 DDL + 커넥터 등록 (--reset)
