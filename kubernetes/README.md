@@ -32,12 +32,14 @@ commands/          kubectl 조회, 디버깅, 리소스 조작 명령
 9. [스토리지와 로그](concepts/08-storage-and-logging.md)
 10. [외부 트래픽 진입점](concepts/09-external-traffic-entrypoint.md)
 11. [web/WAS 워크로드 설계](concepts/10-web-was-workload-design.md)
+12. [RKE2: 운영 배포판의 구성과 설치](concepts/14-rke2-distribution.md)
+13. [RKE2 3대 클러스터 구축 절차](concepts/15-rke2-three-node-build.md)
 
 ### 심화
 
-12. [Job, CronJob과 멀티 컨테이너 Pod](concepts/11-job-cronjob-and-multi-container.md)
-13. [접근 제어와 Pod 보안](concepts/12-access-control-and-pod-security.md)
-14. [NetworkPolicy로 Pod 트래픽 제한](concepts/13-network-policy.md)
+14. [Job, CronJob과 멀티 컨테이너 Pod](concepts/11-job-cronjob-and-multi-container.md)
+15. [접근 제어와 Pod 보안](concepts/12-access-control-and-pod-security.md)
+16. [NetworkPolicy로 Pod 트래픽 제한](concepts/13-network-policy.md)
 
 ### 예제
 
@@ -59,16 +61,16 @@ CKAD(Certified Kubernetes Application Developer) 준비에 활용할 수 있도�
 | Application Environment, Configuration and Security (25%) | [설정과 볼륨](concepts/04-config-and-volume.md), [접근 제어와 Pod 보안](concepts/12-access-control-and-pod-security.md) |
 | Services and Networking (20%) | [Pod, Deployment, Service](concepts/03-pod-deployment-service.md), [NetworkPolicy](concepts/13-network-policy.md), [Ingress 라우팅 예제](examples/ingress-routing/README.md) |
 
-아직 다루지 않는 시험 범위: Helm·Kustomize, blue/green·canary 전략, ResourceQuota·LimitRange, CRD·Operator, API deprecation. 이 항목들은 별도 학습이 필요합니다. 반대로 클러스터 설치·토폴로지 문서(05, 07, 09)는 운영에는 필요하지만 CKAD 범위 밖입니다(CKA 영역).
+아직 다루지 않는 시험 범위: Helm·Kustomize, blue/green·canary 전략, ResourceQuota·LimitRange, CRD·Operator, API deprecation. 이 항목들은 별도 학습이 필요합니다. 반대로 클러스터 설치·토폴로지 문서(05, 07, 09, 14, 15)는 운영에는 필요하지만 CKAD 범위 밖입니다(CKA 영역).
 
 ## 학습 기준
 
 - 예제는 k3d(k3s in Docker)로 검증하며, 실서버 절차는 k3s 기준으로 작성합니다.
 - YAML 매니페스트는 특정 배포판의 기본값에 기대지 않고 어느 환경에서도 동일하게 동작하도록 명시적으로 작성합니다.
-- 도구 버전은 k3d v5, k3s v1.31 이상을 기준으로 하되, 사용 중인 버전의 명령과 옵션 지원 여부를 확인합니다.
+- 도구 버전은 k3d v5, k3s v1.36(2026-08 릴리스), RKE2 v1.36을 기준으로 하되, 사용 중인 버전의 명령과 옵션 지원 여부를 확인합니다.
 - 컨테이너와 이미지 기초는 [docker 토픽](../docker/README.md)을 먼저 학습합니다.
 - 조회와 디버깅은 kubectl로 익힌 뒤 k9s 같은 보조 도구로 넘어갑니다.
 
 ## 참고 기준
 
-이 디렉터리는 2026-08-24 기준 쿠버네티스와 k3s 공식 문서를 우선 참고합니다. 관리형 서비스(EKS, GKE, AKS)는 지원 버전, 네트워크·스토리지 구현, 업그레이드 정책이 제품별로 다르므로 제공자 문서를 함께 확인합니다.
+이 디렉터리는 2026-09-21 기준 쿠버네티스, k3s, RKE2 공식 문서를 우선 참고합니다. 관리형 서비스(EKS, GKE, AKS)는 지원 버전, 네트워크·스토리지 구현, 업그레이드 정책이 제품별로 다르므로 제공자 문서를 함께 확인합니다.

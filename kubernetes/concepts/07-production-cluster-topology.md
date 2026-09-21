@@ -48,7 +48,7 @@ agent 수는 워크로드가 결정합니다. 시작은 2~3대로 하고 부족�
 server가 3대가 되면 새 문제가 생깁니다. agent들과 운영자 kubectl이 바라볼 "Control Plane 주소"가 하나여야 하는데 server가 3대라는 것. 그래서 server들 앞에 고정 접점을 둡니다.
 
 - 사내 L4 로드밸런서가 있으면 그것으로 6443 포트를 server 3대에 분산
-- 없으면 kube-vip 같은 도구로 가상 IP(VIP)를 server들이 나눠 갖게 구성
+- 없으면 kube-vip 같은 도구로 가상 IP(VIP)를 server들이 나눠 갖게 구성. 3대 겸임 구성에서 kube-vip로 실제 구축하는 절차는 [15 RKE2 3대 클러스터 구축](15-rke2-three-node-build.md)에 있습니다
 
 kubeconfig의 `server:` 주소에는 이 고정 접점(예: `https://k8s-api.example.internal:6443`)을 적습니다. 로컬 k3d에서 serverlb 컨테이너가 하던 역할을 실서버에서는 LB/VIP가 하는 것으로, [요청 경로](06-k3d-architecture-and-request-path.md)의 구조 자체는 동일합니다. 온프레미스 구축에서 처음 마주치는 설계 결정이 보통 이것입니다.
 

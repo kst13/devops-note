@@ -4,7 +4,8 @@
 
 ## 준비물
 
-- 리눅스 서버 1대 이상 (2 CPU, 2GB 메모리 이상 권장 — k3s 자체는 512MB에서도 돌지만 워크로드 여유분이 필요합니다)
+- 리눅스 서버 1대 이상. 공식 최소 사양은 server 2 CPU·2GB, agent 1 CPU·512MB입니다. 워크로드 여유분을 더해 잡습니다.
+- 디스크는 SSD를 권장합니다. 데이터 저장소(SQLite·etcd)의 쓰기 성능이 클러스터 응답성을 좌우합니다.
 - 노드 간 통신을 위한 방화벽 허용
 
 | 포트 | 프로토콜 | 용도 |
@@ -12,6 +13,9 @@
 | 6443 | TCP | 쿠버네티스 API 서버 (agent → server, kubectl → server) |
 | 8472 | UDP | Flannel VXLAN (노드 간 Pod 네트워크) |
 | 10250 | TCP | kubelet (로그·exec 등 노드 간 통신) |
+| 2379-2380 | TCP | 내장 etcd 클라이언트·피어 (server 3대 HA 구성일 때만, server 간) |
+| 51820-51821 | UDP | Flannel WireGuard 백엔드를 쓸 때만 |
+| 5001 | TCP | 내장 레지스트리 미러(Spegel)를 켤 때만, 노드 간 |
 
 ## 단일 노드 설치
 
@@ -52,7 +56,15 @@ curl -sfL https://get.k3s.io | K3S_URL=https://server-1.example.internal:6443 \
 sudo k3s kubectl get nodes         # 새 노드가 Ready로 추가됨
 ```
 
-역할 구분은 단순합니다. server는 Control Plane(API 서버, 스케줄러, 저장소)을 실행하면서 워크로드도 받고, agent는 워크로드만 실행합니다. server가 1대면 그 서버 장애 시 클러스터 제어가 멈추므로, 고가용성이 필요하면 server를 3대로 늘리고 내장 etcd를 씁니다(첫 server를 `--cluster-init` 옵션으로 시작). HA 구성의 상세 절차는 이 문서 범위 밖이며, k3s 공식 문서의 High Availability 절을 참고합니다. server를 왜 3대로 두는지, 머신을 몇 대 확보해야 하는지는 [실서버 클러스터 토폴로지](07-production-cluster-topology.md)에서 다룹니다.
+환경 변수 대신 설정 파일로 같은 일을 할 수 있습니다. [RKE2](14-rke2-distribution.md)는 이 방식만 쓰므로, 두 배포판을 같은 형태로 관리하려면 처음부터 파일로 두는 편이 낫습니다.
+
+```yaml
+# /etc/rancher/k3s/config.yaml (agent)
+server: https://server-1.example.internal:6443
+token: ${K3S_TOKEN}
+```
+
+역할 구분은 단순합니다. server는 Control Plane(API 서버, 스케줄러, 저장소)을 실행하면서 워크로드도 받고, agent는 워크로드만 실행합니다. server가 1대면 그 서버 장애 시 클러스터 제어가 멈추므로, 고가용성이 필요하면 server를 3대로 늘리고 내장 etcd를 씁니다(첫 server를 `--cluster-init` 옵션으로 시작). 기본 SQLite는 server가 여러 대인 구성에서는 쓸 수 없습니다. 이미 운영 중인 MySQL·PostgreSQL을 저장소로 쓰는 외부 DB 방식(`--datastore-endpoint`)도 있지만, 소규모에서는 내장 etcd가 관리 대상이 하나 적어 단순합니다. HA 구성의 상세 절차는 이 문서 범위 밖이며, k3s 공식 문서의 High Availability 절을 참고합니다. server를 왜 3대로 두는지, 머신을 몇 대 확보해야 하는지는 [실서버 클러스터 토폴로지](07-production-cluster-topology.md)에서 다룹니다.
 
 ## 기본 내장 컴포넌트
 
@@ -60,12 +72,15 @@ k3s는 설치 직후 바로 쓸 수 있도록 필수 컴포넌트를 내장합�
 
 | 컴포넌트 | 역할 | 표준 구성과의 차이 | 비활성화 |
 | --- | --- | --- | --- |
-| Traefik | Ingress 컨트롤러 | RKE2 등 표준 구성은 ingress-nginx가 일반적 | `--disable traefik` |
+| Traefik | Ingress 컨트롤러 | RKE2도 v1.36부터 Traefik이 기본. kubeadm은 별도 설치 | `--disable traefik` |
 | ServiceLB | LoadBalancer 타입 Service 구현 | 클라우드는 실제 LB, kubeadm은 별도 설치 필요 | `--disable servicelb` |
 | local-path-provisioner | 기본 StorageClass (노드 로컬 디스크) | 데이터가 노드에 묶임 — 멀티 노드에서 제약 | `--disable local-storage` |
 | Flannel | CNI (Pod 네트워크) | 다른 CNI를 쓰려면 `--flannel-backend=none` | 위 옵션으로 교체 |
+| 네트워크 정책 컨트롤러 | NetworkPolicy 집행 (kube-router 기반) | 표준 Flannel 단독 구성은 정책을 무시하지만 k3s는 이 컨트롤러 덕에 집행됨 ([13](13-network-policy.md)) | `--disable-network-policy` (다른 CNI로 교체 시 함께) |
+| CoreDNS | 클러스터 DNS | 표준과 동일 | `--disable coredns` |
+| helm-controller | `manifests/`의 HelmChart 리소스 자동 배포 | 표준에는 없음. Traefik도 이 경로로 설치됨 | `--disable-helm-controller` |
 
-비활성화 옵션은 설치 시 `INSTALL_K3S_EXEC` 환경 변수나 `/etc/rancher/k3s/config.yaml`로 지정합니다. 예를 들어 ingress-nginx를 쓰기로 팀 표준을 정했다면 Traefik을 끄고 시작하는 편이 명확합니다. 이 "기본 내장" 목록이 곧 [환경의 가장자리](02-ways-to-run-kubernetes.md)이며, 스테이지·운영을 다른 배포판으로 가져갈 계획이라면 여기 의존한 부분을 미리 파악해 둡니다.
+비활성화 옵션은 설치 시 `INSTALL_K3S_EXEC` 환경 변수나 `/etc/rancher/k3s/config.yaml`로 지정합니다. 예를 들어 Cilium 같은 다른 CNI를 쓰기로 했다면 `--flannel-backend=none`과 `--disable-network-policy`(내장 정책 컨트롤러와의 충돌 방지)로 시작하는 편이 명확합니다. 이 "기본 내장" 목록이 곧 [환경의 가장자리](02-ways-to-run-kubernetes.md)이며, 스테이지·운영을 다른 배포판으로 가져갈 계획이라면 여기 의존한 부분을 미리 파악해 둡니다.
 
 ## 외부에서 kubectl 접속
 
