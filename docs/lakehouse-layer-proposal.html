@@ -378,7 +378,7 @@
   <div class="cols">
     <div>
       <ul>
-        <li><strong>서비스별 데이터 분산.</strong> 회원·주문·채팅·결제가 각자의 DB를 가집니다. 한 고객의 전체 모습은 어느 DB에도 없습니다.</li>
+        <li><strong>서비스별 데이터 분산.</strong> 서로다른 어플리케이션이 각자의 DB를 가집니다. 한 고객의 전체 모습은 어느 DB에도 없습니다.</li>
         <li><strong>반복되는 통합 조회 개발.</strong> 마이페이지, 고객센터, 경영 지표가 요구될 때마다 여러 DB를 잇는 API나 배치를 새로 만듭니다. 같은 조인을 팀마다 다시 구현합니다.</li>
         <li><strong>과거 데이터 증가.</strong> 수년치 이력이 운영 DB에 남아 용량과 조회 성능을 압박합니다. 지우자니 감사·분석에 필요하고, 두자니 서비스가 느려집니다.</li>
       </ul>
@@ -427,7 +427,7 @@
         <tbody>
           <tr><td class="k">장기 이력 보관</td><td>수년치 거래·메시지가 운영 DB에 남아 있습니다. 삭제하면 감사·분석이 막히고, 두면 용량과 백업 시간이 늘어납니다.</td><td>전체 이력을 Lakehouse에 저장합니다. 운영 DB는 서비스에 필요한 최근 범위만 유지합니다.</td></tr>
           <tr><td class="k">운영 DB 부담 완화</td><td>통계·추출·감사 쿼리가 서비스 DB에서 실행돼 실서비스 응답에 영향을 줍니다. 대량 조회는 야간 배치로 미룹니다.</td><td>분석·추출 쿼리는 Trino에서 실행합니다. 운영 DB는 업무 처리와 빠른 조회에 집중합니다.</td></tr>
-          <tr><td class="k">서비스 간 분석</td><td>DB마다 따로 뽑아 스프레드시트에서 결합합니다. 기준이 팀마다 달라 숫자가 맞지 않습니다.</td><td>회원·주문·채팅·결제를 한 SQL에서 조인합니다. 지표 정의를 테이블 하나로 통일합니다.</td></tr>
+          <tr><td class="k">서비스 간 분석</td><td>서로다른 스키마간의 조인.API를 통해 데이터를 송수신 합니다. 통계 데이터를 만드는데 많은 시간이 걸리고, 기준이 팀마다 달라 숫자가 맞지 않습니다.</td><td>한 SQL에서 조인합니다. 지표 정의를 테이블 하나로 통일합니다.</td></tr>
         </tbody>
       </table>
     </div>
@@ -783,7 +783,7 @@
         <rect class="node" x="300" y="200" width="242" height="80" rx="6"></rect>
         <text x="312" y="220" class="b">파일 헤더(footer)에 기록되는 통계</text>
         <text x="312" y="240" class="m">amount: min 12000, max 45000</text>
-        <text x="312" y="256" class="m">method: CARD, POINT, BANK</text>
+        <text x="312" y="256" class="m">method: min BANK, max POINT</text>
         <text x="312" y="272" class="s">WHERE amount &gt; 50000 이면 이 파일은 열지 않음</text>
       </svg>
       <figcaption>같은 데이터도 컬럼 단위로 놓으면 필요한 컬럼만 읽고, 파일 통계로 파일 자체를 건너뛸 수 있습니다.</figcaption>
@@ -799,7 +799,7 @@
     <div>
       <h3>조건 검색 <code>WHERE method = 'POINT'</code> 의 처리 순서</h3>
       <ol class="steps">
-        <li><span class="i">1</span><span><strong>파일 건너뛰기.</strong> 파일 footer 의 method 최소·최대값으로 POINT 가 있을 수 없는 파일은 열지 않습니다. Iceberg 매니페스트의 통계가 이 판단을 파일을 열기 전에 해 줍니다.</span></li>
+        <li><span class="i">1</span><span><strong>파일 건너뛰기.</strong> 파일 footer 에는 컬럼마다 최소값과 최대값이 적혀 있습니다. 문자열은 사전순으로 비교합니다. method 의 범위가 BANK~CARD 인 파일에는 POINT 가 있을 수 없으므로 열지 않습니다. 범위가 BANK~POINT 인 파일은 POINT 가 실제로 없어도 열어서 확인합니다. Iceberg 매니페스트에도 같은 통계가 복사돼 있어, 파일을 열기 전에 이 판단을 끝냅니다.</span></li>
         <li><span class="i">2</span><span><strong>행 그룹 건너뛰기.</strong> 파일 안은 행 그룹(수만~수십만 행) 단위로 나뉘고 그룹마다 통계가 따로 있습니다. 조건에 안 맞는 그룹은 읽지 않습니다.</span></li>
         <li><span class="i">3</span><span><strong>조건 컬럼만 읽어 위치를 찾습니다.</strong> 남은 그룹에서 method 덩어리만 읽어 POINT 인 위치(3번째, 17번째 …)를 얻습니다.</span></li>
         <li><span class="i">4</span><span><strong>그 위치의 값만 다른 컬럼에서 꺼내 행을 조립합니다.</strong> SELECT 에 없는 컬럼은 끝까지 읽지 않습니다.</span></li>
@@ -861,7 +861,7 @@
 
 <section class="slide" data-ch="6c">
   <header class="sh"><span>06 · 구성 기술 (Iceberg 메타데이터)</span><span class="num"></span></header>
-  <h2>Iceberg 메타데이터 — 커밋이 MinIO에 남기는 것</h2>
+  <h2>Iceberg 메타데이터 </h2>
   <p class="lead">테이블을 장부라고 보면 Parquet 는 낱장, 매니페스트는 낱장 묶음의 표지, 스냅샷은 "지금 장부에 속한 묶음" 쪽지, metadata.json 은 맨 앞 목차입니다. 커밋할 때마다 낱장·표지·쪽지가 하나씩 늘고 목차가 새 세대로 바뀝니다.</p>
   <div class="cols wide">
     <div>
@@ -909,7 +909,7 @@
 
 <section class="slide" data-ch="6d">
   <header class="sh"><span>06 · 구성 기술 (Catalog)</span><span class="num"></span></header>
-  <h2>Iceberg Catalog — 장부의 현재 목차를 아는 사서</h2>
+  <h2>Iceberg Catalog </h2>
   <p class="lead">MinIO 에는 장부의 목차(metadata.json)가 세대별로 여러 권 남아 있습니다. "지금 유효한 목차가 어느 것인가"를 아는 사서가 필요하고, 그 사서가 Catalog 입니다. 사서는 목차의 위치만 알고, 장부 내용은 들고 있지 않습니다.</p>
   <div class="cols">
     <div>
@@ -1034,7 +1034,7 @@ GROUP BY customer_id;</pre>
 <section class="slide" data-ch="8">
   <header class="sh"><span>08 · 활용 사례 ①</span><span class="num"></span></header>
   <h2>회원·주문 통합 분석</h2>
-  <p class="lead">1순위 활용 사례이자 PoC 대상입니다. 회원 DB와 주문 DB에 나뉘어 있는 데이터를 <code>customer_id</code>로 연결해, 회원 유형별 주문 현황과 회원별 재주문을 봅니다.</p>
+  <p class="lead">회원 DB와 주문 DB에 나뉘어 있는 데이터를 <code>customer_id</code>로 연결해, 회원 유형별 주문 현황과 회원별 재주문을 봅니다.</p>
   <div class="cols">
     <div>
       <h3>답하려는 질문</h3>
@@ -1057,37 +1057,42 @@ GROUP BY customer_id;</pre>
       <div class="note">결제 이벤트(<code>payment_events</code>)를 같은 방식으로 붙이면 결제 성공률, 취소·환불 현황, 주문·결제 불일치 후보까지 같은 테이블 구조에서 확장됩니다. 로컬 PoC 샘플이 이 확장 형태를 먼저 구현해 두었습니다.</div>
     </div>
     <figure>
-      <svg class="d" viewBox="0 0 560 320" role="img" aria-label="회원 이벤트와 주문 이벤트가 customer_id로 연결되고, 유형 변경 이력을 거쳐 회원 유형별 주문 집계와 회원별 재주문 집계로 가공되는 연결도">
-        <text x="20" y="24" class="z">① 수집 이력 (이벤트)</text>
-        <rect class="node" x="20" y="36" width="230" height="64" rx="6"></rect>
-        <text x="135" y="56" text-anchor="middle" class="b">member_events</text>
-        <text x="135" y="74" text-anchor="middle" class="m">customer_id · type · version</text>
-        <text x="135" y="90" text-anchor="middle" class="s">JOINED → TYPE_CHANGED → WITHDRAWN</text>
-        <line class="ln" x1="250" y1="68" x2="308" y2="68" marker-end="url(#arr)"></line>
-        <text x="279" y="60" text-anchor="middle" class="s">1 : n</text>
-        <rect class="node" x="310" y="36" width="230" height="64" rx="6"></rect>
-        <text x="425" y="56" text-anchor="middle" class="b">order_events</text>
-        <text x="425" y="74" text-anchor="middle" class="m">order_id · customer_id · amount</text>
-        <text x="425" y="90" text-anchor="middle" class="s">CREATED → PAID → CANCELLED</text>
+      <svg class="d" viewBox="0 0 560 320" role="img" aria-label="회원 이벤트와 주문 이벤트가 하나의 정제 단계에서 customer_id로 조인되어 주문마다 당시 회원 유형이 붙고, 그 결과에서 회원 유형별 주문 집계와 회원별 재주문 집계 두 테이블이 만들어지는 흐름">
+        <text x="20" y="18" class="z">① 수집 이력 (이벤트)</text>
+        <rect class="node" x="20" y="28" width="230" height="58" rx="6"></rect>
+        <text x="135" y="48" text-anchor="middle" class="b">member_events</text>
+        <text x="135" y="64" text-anchor="middle" class="m">customer_id · type · version</text>
+        <text x="135" y="79" text-anchor="middle" class="s">JOINED → TYPE_CHANGED → WITHDRAWN</text>
+        <rect class="node" x="310" y="28" width="230" height="58" rx="6"></rect>
+        <text x="425" y="48" text-anchor="middle" class="b">order_events</text>
+        <text x="425" y="64" text-anchor="middle" class="m">order_id · customer_id · amount</text>
+        <text x="425" y="79" text-anchor="middle" class="s">CREATED → PAID → CANCELLED</text>
 
-        <path class="ln hi" d="M135,100 L135,150 L200,150" marker-end="url(#arrA)"></path>
-        <path class="ln hi" d="M425,100 L425,150 L360,150" marker-end="url(#arrA)"></path>
-        <text x="280" y="142" text-anchor="middle" class="s">customer_id 로 조인 · 주문 시각 기준으로 당시 유형 붙이기</text>
+        <path class="ln hi" d="M135,86 L135,104 L425,104 L425,86"></path>
+        <path class="ln hi" d="M280,104 L280,124" marker-end="url(#arrA)"></path>
 
-        <text x="20" y="200" class="z">② 정제 → ③ 분석 테이블</text>
-        <rect class="node hi" x="20" y="210" width="250" height="70" rx="6"></rect>
-        <text x="145" y="232" text-anchor="middle" class="b">daily_orders_by_member_type</text>
-        <text x="145" y="250" text-anchor="middle" class="s">일자 · 회원 유형 · 주문 수 · 금액 · 취소율</text>
-        <text x="145" y="266" text-anchor="middle" class="s">유형 = 주문 당시 유형 (이력 기준)</text>
-        <rect class="node hi" x="290" y="210" width="250" height="70" rx="6"></rect>
-        <text x="415" y="232" text-anchor="middle" class="b">member_reorder_summary</text>
-        <text x="415" y="250" text-anchor="middle" class="s">회원 · 첫 주문일 · 재주문 횟수 · 평균 간격</text>
-        <text x="415" y="266" text-anchor="middle" class="s">가입 → 첫 주문 소요일</text>
-        <path class="ln hi" d="M200,150 L145,150 L145,208" marker-end="url(#arrA)"></path>
-        <path class="ln hi" d="M360,150 L415,150 L415,208" marker-end="url(#arrA)"></path>
-        <text x="280" y="306" text-anchor="middle" class="s">회원 식별자가 시스템마다 다르면 customer_id 매핑 테이블을 먼저 만듭니다 (12장 이벤트 규약)</text>
+        <text x="20" y="159" class="z">② 정제</text>
+        <rect class="node hi" x="110" y="126" width="340" height="58" rx="6"></rect>
+        <text x="280" y="146" text-anchor="middle" class="b">주문마다 "주문 당시" 회원 유형 붙이기</text>
+        <text x="280" y="162" text-anchor="middle" class="m">orders ⋈ member_type_history</text>
+        <text x="280" y="177" text-anchor="middle" class="s">customer_id 로 조인 · 회원 1 : 주문 n · 주문 시각이 속한 유형 이력 사용</text>
+
+        <path class="ln hi" d="M280,184 L280,204 L145,204 L145,226" marker-end="url(#arrA)"></path>
+        <path class="ln hi" d="M280,184 L280,204 L415,204 L415,226" marker-end="url(#arrA)"></path>
+
+        <text x="20" y="220" class="z">③ 분석 테이블</text>
+        <rect class="node hi" x="20" y="228" width="250" height="62" rx="6"></rect>
+        <text x="145" y="248" text-anchor="middle" class="b">daily_orders_by_member_type</text>
+        <text x="145" y="264" text-anchor="middle" class="s">일자 · 회원 유형 · 주문 수 · 금액 · 취소율</text>
+        <text x="145" y="279" text-anchor="middle" class="s">유형 = 주문 당시 유형 (이력 기준)</text>
+        <rect class="node hi" x="290" y="228" width="250" height="62" rx="6"></rect>
+        <text x="415" y="248" text-anchor="middle" class="b">member_reorder_summary</text>
+        <text x="415" y="264" text-anchor="middle" class="s">회원 · 첫 주문일 · 재주문 횟수 · 평균 간격</text>
+        <text x="415" y="279" text-anchor="middle" class="s">가입 → 첫 주문 소요일</text>
+
+        <text x="280" y="310" text-anchor="middle" class="s">회원 식별자가 시스템마다 다르면 customer_id 매핑 테이블을 먼저 만듭니다 (12장 이벤트 규약)</text>
       </svg>
-      <figcaption>회원 한 명에 주문이 여러 건입니다. 주문마다 "그 시점의 회원 유형"을 붙여야 유형별 집계가 맞습니다.</figcaption>
+      <figcaption>두 이벤트는 ② 정제 단계에서 한 번 조인됩니다. 주문마다 "그 시점의 회원 유형"을 붙인 뒤, 그 결과에서 두 분석 테이블을 만듭니다.</figcaption>
     </figure>
   </div>
 </section>
@@ -1792,7 +1797,7 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       <table>
         <thead><tr><th style="width:22%"></th><th>SK텔레콤</th><th>Netflix</th></tr></thead>
         <tbody>
-          <tr><td class="k">아팠던 병목</td><td>①②③ — <strong>읽기.</strong> 쿼리 계획 단계에서 LIST와 메타스토어 호출에 시간이 감</td><td>①④⑤ — <strong>쓰기·운영.</strong> 여러 엔진이 동시에 쓸 때 정합성이 깨지고, 스키마·파티션 변경마다 재작성</td></tr>
+          <tr><td class="k">주로 겪은 병목<br><span class="muted" style="font-weight: 400; font-size: 11.5px">(번호는 앞 장 Hive 병목 ①~⑤)</span></td><td><strong>읽기</strong> — ① 파일 목록 조회, ② 메타스토어 호출, ③ 파일 열어 조건 판단. 쿼리 계획 단계에서 시간이 감</td><td><strong>쓰기·운영</strong> — ① 파일 목록 조회, ④ 원자적 커밋 없음, ⑤ 스키마·파티션이 물리 구조에 묶임. 여러 엔진이 동시에 쓸 때 정합성이 깨지고, 변경마다 재작성</td></tr>
           <tr><td class="k">④ 동시 쓰기</td><td>발표에 없음</td><td>Spark 배치·스트리밍 적재·정리 작업이 같은 테이블에 동시에 씀. 원자적 커밋이 없어 반쪽 결과와 덮어쓰기가 일상. 스냅샷 + 카탈로그 포인터 교체가 여기서 나옴</td></tr>
           <tr><td class="k">한 일</td><td>Hive 위에 Iceberg를 <strong>도입</strong></td><td>풀 포맷이 없어 Iceberg를 <strong>만듦</strong></td></tr>
         </tbody>
@@ -2562,8 +2567,8 @@ diff src.md5 dst.md5                     # 출력 없어야 통과</pre>
       ['6', '구성 기술 스택'],
       ['6b', 'Parquet — 데이터 파일의 내부 구조', '6'],
       ['6b2', 'Parquet 조회 방식 — 컬럼에서 행을 조립하는 원리', '6'],
-      ['6c', 'Iceberg 메타데이터 — 커밋이 MinIO에 남기는 것', '6'],
-      ['6d', 'Iceberg Catalog — 장부의 현재 목차를 아는 사서', '6'],
+      ['6c', 'Iceberg 메타데이터', '6'],
+      ['6d', 'Iceberg Catalog', '6'],
       ['7', '데이터 적재 및 조회 흐름']
     ]},
     { no: 'Part 3', title: '활용 방안', range: '8~11장', color: '#2E7D4F', items: [
