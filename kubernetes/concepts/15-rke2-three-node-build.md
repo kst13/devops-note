@@ -398,7 +398,7 @@ kubectl get pods -A | grep -v Running        # 거부·재시작된 것 확인
 ## 9. 그 다음
 
 - Prometheus + Grafana. `etcd-expose-metrics`로 etcd 지표가 2381에서 노출됩니다. kube-state-metrics, node-exporter를 함께 올립니다.
-- Rancher를 이 클러스터에 설치하면 이후 클러스터·업그레이드·RBAC을 UI로 관리합니다([k3d 매뉴얼](../commands/k3d-manual.md) 7장의 Helm 절차와 같음).
+- Rancher를 이 클러스터에 설치하면 이후 클러스터·업그레이드·RBAC을 UI로 관리합니다. 관리 클러스터 분리, Custom 등록, 에이전트 동작은 [16 Rancher로 여러 클러스터 중앙 관리](16-rancher-multi-cluster-management.md)에, Helm 설치 절차는 [Lima 실습 매뉴얼](../commands/lima-rancher-rke2-lab.md) 3장에 있습니다.
 - Kafka 브로커는 클러스터 밖에 그대로 두고, Connect·Schema Registry·kafka-exporter·관리 UI를 이 클러스터로 옮기는 것이 자연스럽습니다([Kafka 배치 방안](../../kafka/concepts/15-deployment-layout-options.md)).
 
 ## 관련 문서
