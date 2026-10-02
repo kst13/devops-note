@@ -22,6 +22,7 @@ aws/               AWS CLI 개념, 인증·설정, 서비스별 명령어
 kubernetes/        Kubernetes 개념, k3d·k3s 실습, 워크로드 설계
 minio/             MinIO 오브젝트 스토리지 도입 검토·구성안
 lakehouse/         Kafka·MinIO·Iceberg·Trino 레이크하우스 계층 설계와 PoC
+study/             AI 에이전트 시대의 엔지니어링 트렌드와 개발자 공부 목록
 ```
 
 각 주제 디렉터리는 필요에 따라 아래 구조를 따릅니다.
@@ -54,6 +55,7 @@ examples/          직접 실행해볼 수 있는 최소 예제
 - [Kubernetes](kubernetes/README.md)
 - [MinIO](minio/README.md)
 - [Lakehouse](lakehouse/README.md)
+- [Study](study/README.md)
 
 ## 학습 사이트
 
