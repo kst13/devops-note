@@ -26,7 +26,7 @@ Rancher hostname: rancher.192-168-64-1.sslip.io:8443
 | Lima | 2.2.0 | `brew install lima`. sudo 불필요 |
 | VM 이미지 | Ubuntu 24.04 arm64 | |
 | mgmt VM | 3 vCPU, 6GB, 30GB | 4GB로는 며칠 뒤 API 서버가 느려져 Rancher와 webhook이 재시작을 반복했다 |
-| dev1 VM | 2 vCPU, 3GB, 30GB | RKE2 server 최소 2GB |
+| dev1 VM | 2 vCPU, 5GB, 30GB | RKE2 + Calico + Rancher 에이전트만으로 2.4GB를 쓴다. 3GB면 실습 Pod를 올릴 여유가 없다 |
 | RKE2 | v1.36.4+rke2r1 | Ingress는 Traefik (v1.36 기본) |
 | Rancher | v2.15.2, `replicas=1` | 실제 구축은 3노드에 `replicas=3` |
 | hostname | sslip.io | IP를 이름에 넣으면 공개 DNS가 그 IP로 풀어주는 서비스. 사내 DNS 대용 |
@@ -185,7 +185,7 @@ netplan 수정을 `provision`에 넣어 VM이 뜰 때 자동 적용되게 합니
 # ~/lima-rancher/dev1.yaml
 vmType: vz
 cpus: 2
-memory: "3GiB"
+memory: "5GiB"
 disk: "30GiB"
 images:
   - location: https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img
