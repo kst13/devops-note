@@ -25,7 +25,7 @@ Rancher hostname: rancher.192-168-64-1.sslip.io:8443
 | --- | --- | --- |
 | Lima | 2.2.0 | `brew install lima`. sudo 불필요 |
 | VM 이미지 | Ubuntu 24.04 arm64 | |
-| mgmt VM | 2 vCPU, 4GB, 30GB | RKE2 약 1.5GB + Rancher 약 1GB |
+| mgmt VM | 3 vCPU, 6GB, 30GB | 4GB로는 며칠 뒤 API 서버가 느려져 Rancher와 webhook이 재시작을 반복했다 |
 | dev1 VM | 2 vCPU, 3GB, 30GB | RKE2 server 최소 2GB |
 | RKE2 | v1.36.4+rke2r1 | Ingress는 Traefik (v1.36 기본) |
 | Rancher | v2.15.2, `replicas=1` | 실제 구축은 3노드에 `replicas=3` |
@@ -42,8 +42,8 @@ mkdir -p ~/lima-rancher && cd ~/lima-rancher
 ```yaml
 # ~/lima-rancher/mgmt.yaml
 vmType: vz
-cpus: 2
-memory: "4GiB"
+cpus: 3
+memory: "6GiB"
 disk: "30GiB"
 images:
   - location: https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img
@@ -343,6 +343,7 @@ Rancher가 없어도 서비스는 되고, Rancher 경유 kubectl만 안 됩니�
 | Mac에서 8443 LISTEN 없음. 로그에 `Found non-static port forward` | Traefik은 443을 소켓이 아닌 iptables로 받아 Lima가 리스닝을 감지하지 못함 | `portForwards`에 `static: true` |
 | `~/.lima/mgmt/lima.yaml`에 `unknown field "hostIp"` 경고 | 키 대소문자와 들여쓰기 오류 | `hostIP`, `- guestPort` 아래 4칸 들여쓰기 |
 | `kubectl -n kube-system get pods \| grep ingress` 결과 없음 | RKE2 v1.36은 ingress-nginx가 아니라 Traefik | `grep traefik`, IngressClass `traefik` |
+| `rancher-webhook` CrashLoopBackOff, 로그에 `Failed to renew lease ... context deadline exceeded` | VM 자원 부족으로 API 서버 응답 지연. webhook은 리더 자격을 잃으면 종료 | mgmt VM을 3 vCPU, 6GB로 증설 |
 | 재시작 후 `rke2.yaml: permission denied` | RKE2가 kubeconfig 권한을 600으로 재설정 | `config.yaml`에 `write-kubeconfig-mode: "0644"` |
 | `limactl shell mgmt -- kubectl` → `command not found` | 비로그인 셸은 `~/.bashrc`를 읽지 않음 | 셸에 들어가서 실행, 또는 `/var/lib/rancher/rke2/bin/kubectl` 전체 경로 |
 | `helm install` 재시도 시 `invalid ownership metadata` | 오타 난 네임스페이스로 설치가 시작돼 CRD에 소유 정보가 남음 | 잘못된 release와 CRD, 네임스페이스 삭제 후 재설치 |
