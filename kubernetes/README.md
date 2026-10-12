@@ -7,7 +7,7 @@
 ## 문서 구조
 
 ```text
-concepts/          핵심 개념과 실행 환경 비교, 실습, 실서버 설치, Rancher 중앙 관리
+concepts/          핵심 개념과 실행 환경 비교, 실습, 실서버 설치, Rancher 중앙 관리, 실서버 구축 준비
 commands/          kubectl 명령과 k3d·Lima 실습 매뉴얼
 examples/          도메인 기반 Ingress 라우팅 예제
 ```
@@ -36,12 +36,13 @@ examples/          도메인 기반 Ingress 라우팅 예제
 12. [RKE2: 운영 배포판의 구성과 설치](concepts/14-rke2-distribution.md)
 13. [RKE2 3대 클러스터 구축 절차](concepts/15-rke2-three-node-build.md)
 14. [Rancher로 여러 클러스터 중앙 관리](concepts/16-rancher-multi-cluster-management.md)
+15. [실서버 Rancher + RKE2 구축 준비](concepts/17-onprem-rancher-rke2-preparation.md)
 
 ### 심화
 
-15. [Job, CronJob과 멀티 컨테이너 Pod](concepts/11-job-cronjob-and-multi-container.md)
-16. [접근 제어와 Pod 보안](concepts/12-access-control-and-pod-security.md)
-17. [NetworkPolicy로 Pod 트래픽 제한](concepts/13-network-policy.md)
+16. [Job, CronJob과 멀티 컨테이너 Pod](concepts/11-job-cronjob-and-multi-container.md)
+17. [접근 제어와 Pod 보안](concepts/12-access-control-and-pod-security.md)
+18. [NetworkPolicy로 Pod 트래픽 제한](concepts/13-network-policy.md)
 
 ### 예제
 
@@ -64,7 +65,7 @@ CKAD(Certified Kubernetes Application Developer) 준비에 활용할 수 있도�
 | Application Environment, Configuration and Security (25%) | [설정과 볼륨](concepts/04-config-and-volume.md), [접근 제어와 Pod 보안](concepts/12-access-control-and-pod-security.md) |
 | Services and Networking (20%) | [Pod, Deployment, Service](concepts/03-pod-deployment-service.md), [NetworkPolicy](concepts/13-network-policy.md), [Ingress 라우팅 예제](examples/ingress-routing/README.md) |
 
-아직 다루지 않는 시험 범위: Helm·Kustomize, blue/green·canary 전략, ResourceQuota·LimitRange, CRD·Operator, API deprecation. 이 항목들은 별도 학습이 필요합니다. 반대로 클러스터 설치·토폴로지 문서(05, 07, 09, 14, 15, 16)는 운영에는 필요하지만 CKAD 범위 밖입니다(CKA 영역).
+아직 다루지 않는 시험 범위: Helm·Kustomize, blue/green·canary 전략, ResourceQuota·LimitRange, CRD·Operator, API deprecation. 이 항목들은 별도 학습이 필요합니다. 반대로 클러스터 설치·토폴로지 문서(05, 07, 09, 14, 15, 16, 17)는 운영에는 필요하지만 CKAD 범위 밖입니다(CKA 영역).
 
 ## 학습 기준
 

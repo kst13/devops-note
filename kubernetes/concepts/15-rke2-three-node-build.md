@@ -408,6 +408,7 @@ kubectl get pods -A | grep -v Running        # 거부·재시작된 것 확인
 - 같은 절차의 k3s 버전: [05 k3s 클러스터 설치](05-k3s-cluster-installation.md)
 - Ingress·LB 구조: [09 외부 트래픽 진입점](09-external-traffic-entrypoint.md)
 - 스토리지 선택 배경: [08 스토리지와 로그](08-storage-and-logging.md)
+- 인프라팀이 OS를 관리하는 실서버에서의 준비(점검, 방화벽, /app 바인드 마운트, dev 노드): [17 실서버 Rancher + RKE2 구축 준비](17-onprem-rancher-rke2-preparation.md)
 
 ## 참고한 공식 문서
 

@@ -205,6 +205,7 @@ Jenkins, Nexus, Harbor는 관리 클러스터에 넣지 않습니다. 별도 VM�
 - 로컬에서 같은 구조를 재현하는 절차: [Lima + Rancher + RKE2 실습 매뉴얼](../commands/lima-rancher-rke2-lab.md)
 - RKE2 설정 키와 부품: [14 RKE2](14-rke2-distribution.md)
 - 관리 클러스터를 3대로 올리는 절차: [15 RKE2 3대 클러스터 구축](15-rke2-three-node-build.md)
+- 실서버에서의 사전 점검, 방화벽 허용 리스트, dev 노드 준비: [17 실서버 Rancher + RKE2 구축 준비](17-onprem-rancher-rke2-preparation.md)
 - 클러스터를 몇 개로 나누는가: [07 실서버 클러스터 토폴로지](07-production-cluster-topology.md)
 - Ingress와 L4의 역할 분담: [09 외부 트래픽 진입점](09-external-traffic-entrypoint.md)
 - 네임스페이스 권한과 Pod 보안: [12 접근 제어와 Pod 보안](12-access-control-and-pod-security.md)
