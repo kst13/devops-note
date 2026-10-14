@@ -1,0 +1,16 @@
+image:
+  registry: 192.168.64.3:5050
+  name: was-order
+  tag: ""               # 비우면 Chart.appVersion
+
+replicas: 2
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi       # limits 보다 작게 → Burstable. dev 노드 swap(LimitedSwap) 대상
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+env: {}                 # 예: SPRING_PROFILES_ACTIVE: dev

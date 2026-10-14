@@ -9,7 +9,7 @@
 ```text
 concepts/          핵심 개념과 실행 환경 비교, 실습, 실서버 설치, Rancher 중앙 관리, 실서버 구축 준비
 commands/          kubectl 명령과 k3d·Lima 실습 매뉴얼
-examples/          도메인 기반 Ingress 라우팅 예제
+examples/          도메인 기반 Ingress 라우팅, web/WAS 릴리즈(빌드·push → Rancher 배포) 예제
 ```
 
 ## 추천 학습 순서
@@ -47,6 +47,7 @@ examples/          도메인 기반 Ingress 라우팅 예제
 ### 예제
 
 - [도메인 기반 Ingress 라우팅](examples/ingress-routing/README.md)
+- [web/WAS 릴리즈 실습: 빌드·push는 스크립트, 배포는 Rancher](examples/web-was-release/README.md)
 
 ### 명령 매뉴얼
 

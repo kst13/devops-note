@@ -1,0 +1,49 @@
+# mgmt 클러스터에 올리는 Helm 차트 저장소 (실서버의 Nexus helm hosted 8081 역할).
+# Rancher Apps 저장소로 등록하는 쪽은 Rancher Pod(mgmt) 라서 mgmt 안에 둔다.
+# Mac 에서 http://192.168.64.2:8085/api/charts 로 업로드, Rancher 는 같은 주소로 읽는다.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tools
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chartmuseum
+  namespace: tools
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: chartmuseum
+  template:
+    metadata:
+      labels:
+        app: chartmuseum
+    spec:
+      containers:
+        - name: chartmuseum
+          image: ghcr.io/helm/chartmuseum:v0.16.3
+          args: ["--port=8080", "--storage=local", "--storage-local-rootdir=/charts"]
+          ports:
+            - containerPort: 8080
+              hostPort: 8085
+          env:
+            - name: DISABLE_API
+              value: "false"       # 업로드 API 허용 (Nexus 의 helm hosted PUT 에 해당)
+            - name: ALLOW_OVERWRITE
+              value: "false"       # 같은 버전 덮어쓰기 금지 = Nexus "Disable redeploy"
+          volumeMounts:
+            - name: charts
+              mountPath: /charts
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+      volumes:
+        - name: charts
+          hostPath:
+            path: /var/lib/chartmuseum
+            type: DirectoryOrCreate

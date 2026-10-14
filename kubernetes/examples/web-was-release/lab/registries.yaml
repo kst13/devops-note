@@ -1,0 +1,8 @@
+# dev1 노드의 containerd 가 HTTP 레지스트리를 쓰게 하는 설정.
+# 방법 1 (권장): Rancher UI → Cluster Management → dev → Edit Config → Registries → Mirrors 에 아래 내용 입력
+# 방법 2: dev1 VM 에서 /etc/rancher/rke2/registries.yaml 로 저장 후 sudo systemctl restart rke2-server
+# 실서버에서는 hostname·endpoint 를 Nexus 주소(예: nexus.example.internal:5000) 로 바꾼다.
+mirrors:
+  "192.168.64.3:5050":
+    endpoint:
+      - "http://192.168.64.3:5050"

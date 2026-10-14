@@ -1,0 +1,50 @@
+// was-order Job. 실서버에서는 was 저장소 루트에 둔다.
+// 하는 일: jar 빌드 → 이미지 빌드·push → 같은 버전으로 차트 패키지·push. 배포는 하지 않는다.
+pipeline {
+  agent any
+  tools { jdk 'temurin-21' }                              // Jenkins Global Tool Configuration 에 등록한 JDK 이름
+  environment {
+    NEXUS_DOCKER = 'nexus.example.internal:5000'
+    NEXUS_HELM   = 'http://nexus.example.internal:8081/repository/helm-hosted/'
+    IMAGE        = "${NEXUS_DOCKER}/was-order"
+    VER          = "1.0.${env.BUILD_NUMBER}"
+  }
+  stages {
+    stage('Build jar') {
+      steps {
+        dir('was') { sh './gradlew -q clean bootJar -PappVersion=$VER' }
+      }
+    }
+    stage('Build & push image') {
+      steps {
+        dir('was') {
+          withCredentials([usernamePassword(credentialsId: 'nexus', usernameVariable: 'U', passwordVariable: 'P')]) {
+            sh '''
+              docker build --build-arg APP_VERSION=$VER -t $IMAGE:$VER .
+              echo "$P" | docker login $NEXUS_DOCKER -u "$U" --password-stdin
+              docker push $IMAGE:$VER
+              docker logout $NEXUS_DOCKER
+            '''
+          }
+        }
+      }
+    }
+    stage('Package & push chart') {
+      steps {
+        dir('was') {
+          withCredentials([usernamePassword(credentialsId: 'nexus', usernameVariable: 'U', passwordVariable: 'P')]) {
+            sh '''
+              helm lint chart
+              helm package chart --version $VER --app-version $VER -d dist
+              curl -fsS -u "$U:$P" --upload-file dist/was-order-$VER.tgz $NEXUS_HELM
+            '''
+          }
+        }
+      }
+    }
+  }
+  post {
+    success { echo "was-order ${VER} 준비 완료. Rancher → Apps → was-order 에서 ${VER} 을 선택해 배포하세요." }
+    always  { sh 'rm -rf was/dist; docker image rm -f $IMAGE:$VER || true' }
+  }
+}

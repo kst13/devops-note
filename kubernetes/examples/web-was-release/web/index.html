@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>web-portal</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin: 12px 0; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>web-portal <small>v__WEB_VERSION__</small></h1>
+  <div class="card">
+    <h2>WAS 응답 (/api/hello)</h2>
+    <pre id="hello">불러오는 중...</pre>
+  </div>
+  <div class="card">
+    <h2>주문 목록 (/api/orders)</h2>
+    <ul id="orders"></ul>
+  </div>
+  <p>새로고침할 때마다 <code>hostname</code>이 바뀌면 WAS Pod 여러 개로 분산되고 있는 것입니다.</p>
+  <script>
+    fetch('/api/hello').then(r => r.json())
+      .then(d => { document.getElementById('hello').textContent = JSON.stringify(d, null, 2); })
+      .catch(e => { document.getElementById('hello').textContent = 'WAS 연결 실패: ' + e; });
+    fetch('/api/orders').then(r => r.json())
+      .then(list => { document.getElementById('orders').innerHTML = list.map(o => `<li>#${o.id} ${o.item} × ${o.qty}</li>`).join(''); });
+  </script>
+</body>
+</html>

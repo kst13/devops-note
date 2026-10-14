@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+app:
+  name: was-order
+  version: ${APP_VERSION:dev}      # Dockerfile 의 ENV APP_VERSION 으로 주입
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true              # /actuator/health/readiness, /actuator/health/liveness

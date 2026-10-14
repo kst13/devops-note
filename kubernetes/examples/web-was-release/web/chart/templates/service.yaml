@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-portal
+  labels:
+    {{- include "web-portal.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: web-portal
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

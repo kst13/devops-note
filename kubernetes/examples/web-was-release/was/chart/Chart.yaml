@@ -1,0 +1,6 @@
+apiVersion: v2
+name: was-order
+description: was-order (Spring Boot, DB 없음). 차트 버전 = 이미지 태그 = 빌드 버전.
+type: application
+version: 0.0.0
+appVersion: "0.0.0"

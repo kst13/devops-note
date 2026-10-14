@@ -1,0 +1,6 @@
+apiVersion: v2
+name: web-portal
+description: web-portal (nginx). 차트 버전 = 이미지 태그 = 빌드 버전.
+type: application
+version: 0.0.0          # 빌드 스크립트가 --version 으로 덮어씀
+appVersion: "0.0.0"     # 빌드 스크립트가 --app-version 으로 덮어씀. 이미지 태그 기본값

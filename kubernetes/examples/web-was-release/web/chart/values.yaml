@@ -1,0 +1,20 @@
+# 기본값은 Lima dev1 기준. 실서버에서는 Rancher 설치 화면에서 registry·host 만 바꾼다.
+image:
+  registry: 192.168.64.3:5050
+  name: web-portal
+  tag: ""               # 비우면 Chart.appVersion
+
+replicas: 2
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
+ingress:
+  enabled: true
+  className: traefik
+  host: app.dev.192-168-64-3.sslip.io

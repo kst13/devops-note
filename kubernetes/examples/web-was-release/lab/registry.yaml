@@ -1,0 +1,46 @@
+# dev1 클러스터에 올리는 사설 이미지 레지스트리 (실서버의 Nexus docker hosted 5000 역할).
+# dev1 노드의 5050 포트로 노출한다 → Mac 에서 192.168.64.3:5050 으로 push, 노드가 같은 주소로 pull.
+# mgmt → dev1 통신이 막힌 로컬 환경이라 dev1 안에 둔다. 데이터는 노드 디스크(hostPath)에 남는다.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tools
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: tools
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate                 # hostPath + hostPort 라 동시에 두 개 못 뜬다
+  selector:
+    matchLabels:
+      app: registry
+  template:
+    metadata:
+      labels:
+        app: registry
+    spec:
+      containers:
+        - name: registry
+          image: registry:2
+          ports:
+            - containerPort: 5000
+              hostPort: 5050
+          env:
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/registry
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
+      volumes:
+        - name: data
+          hostPath:
+            path: /var/lib/registry-data
+            type: DirectoryOrCreate
