@@ -145,7 +145,7 @@ A로 흐름을 익히고 B로 가는 순서를 권합니다.
 
 | 실습 | 실서버 |
 | --- | --- |
-| `build.sh` | `web/Jenkinsfile`, `was/Jenkinsfile` (각 저장소 루트로 옮기고 `dir('web')`·`dir('was')` 제거) |
+| `build.sh` | `web/Jenkinsfile`, `was/Jenkinsfile`. 각 앱 디렉터리를 별도 저장소로 올리면 그대로 저장소 루트의 Jenkinsfile이 됨 |
 | `192.168.64.3:5050` registry Pod | Nexus docker hosted `nexus:5000`. Rancher Registries에 주소·계정 |
 | `192.168.64.2:8085` ChartMuseum | Nexus helm hosted `http://nexus:8081/repository/helm-hosted/`. 업로드는 `curl -u user:pw --upload-file` |
 | Rancher Apps 저장소 URL | 같은 Nexus 주소. **Rancher 관리 서버 → Nexus 8081** 방화벽 필요 |
