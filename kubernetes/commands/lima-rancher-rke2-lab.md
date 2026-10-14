@@ -349,10 +349,85 @@ Rancher가 없어도 서비스는 되고, Rancher 경유 kubectl만 안 됩니�
 | `helm install` 재시도 시 `invalid ownership metadata` | 오타 난 네임스페이스로 설치가 시작돼 CRD에 소유 정보가 남음 | 잘못된 release와 CRD, 네임스페이스 삭제 후 재설치 |
 | `curl -sfL https://getrke2.io` 반응 없음 | URL 오타. `-sf`가 오류를 숨김 | `get.rke2.io`. 진단할 때는 `-s` 제거 |
 | Chrome `ERR_ADDRESS_UNREACHABLE`, Safari는 됨 | Chrome 보안 DNS나 회사 정책이 사설 IP 응답 차단 | 보안 DNS 끄기 또는 Safari |
+| Pod `CrashLoopBackOff`, 로그 `exec format error` | x86 Jenkins가 만든 amd64 이미지를 arm64 VM이 실행 | dev1에 Rosetta(11장) 또는 멀티아키 빌드 |
+| nginx Pod `CrashLoopBackOff`, 로그 `host not found in upstream` | 정적 `proxy_pass`가 기동 시 DNS를 요구하는데 대상 Service가 없음 | 변수 `proxy_pass` + `resolver`로 요청 시점 해석 (예제 `web/default.conf.template`) |
+| dev1에서 사내 Nexus 5000 timeout, 8081은 401 | PC 대역에서 Docker 포트만 방화벽 차단 | Nexus에 닿는 서버를 경유하는 SSH 터널 + Registries mirror(11장) |
+| `crictl` → `connect: no such file or directory` | 기본 소켓 경로가 RKE2와 다름 | `--runtime-endpoint unix:///run/k3s/containerd/containerd.sock` |
 
 이 중 처음 세 줄은 로컬 보안 도구 때문에 생긴 실습 한정 우회입니다. 실제 온프레미스에서는 노드 간 통신이 당연히 되므로 LB 주소 하나로 끝나고 포워딩이 필요 없습니다.
 
-## 11. 정리
+## 11. 사내 Jenkins·Nexus 이미지로 배포하기
+
+9장까지는 공개 이미지였습니다. 실제 흐름(Jenkins가 빌드·push, Rancher에서 릴리즈 선택)을 로컬에서 끝까지 보려면 dev1이 사내 Nexus의 이미지를, Rancher가 사내 Nexus의 차트를 읽어야 합니다. 샘플은 [web/WAS 릴리즈 예제](../examples/web-was-release/README.md)를 씁니다. 아래 주소는 예시입니다.
+
+### 통신 확인
+
+```bash
+limactl shell mgmt -- curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://nexus.example.internal:8081/repository/helm-hosted/index.yaml
+limactl shell dev1 -- curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://nexus.example.internal:5000/v2/
+```
+
+`401`은 통신이 되고 인증만 필요하다는 뜻입니다. `000`(timeout)은 막힌 것입니다. 사내 방화벽은 보통 PC 대역에 Nexus UI 포트(8081)만 열고 Docker 포트(5000)는 서버 대역에만 열어 둡니다. VM은 Mac을 거쳐 나가므로 PC와 같은 결과를 받습니다.
+
+### 이미지: SSH 터널로 우회하고 mirror로 연결
+
+Nexus 5000이 통하는 서버(예: Jenkins 서버)를 경유합니다. Mac 5000은 AirPlay가 점유하므로 15000을 씁니다. `0.0.0.0`으로 열어야 dev1이 Mac(192.168.64.1)으로 들어올 수 있습니다.
+
+```bash
+ssh -N -L 0.0.0.0:15000:nexus.example.internal:5000 <user>@<jenkins-server>     # 별도 탭에서 켜 둠
+limactl shell dev1 -- curl -s -o /dev/null -w '%{http_code}\n' http://192.168.64.1:15000/v2/   # 401
+```
+
+Rancher → Cluster Management → `dev` ⋮ → Edit Config → **Registries**:
+
+| 항목 | 값 |
+| --- | --- |
+| Mirrors → Registry Hostname | `nexus.example.internal:5000` |
+| Mirrors → Mirror Endpoints | `http://192.168.64.1:15000` |
+| Registry Authentication → Registry Hostname | `192.168.64.1:15000` |
+| Registry Authentication → Authentication | *Create an HTTP Basic Auth Secret* → Nexus 계정 |
+
+Save 후 Rancher가 노드의 `/etc/rancher/rke2/registries.yaml`을 갱신하고 RKE2를 재시작합니다. 이 mirror 덕에 차트와 매니페스트의 이미지 이름은 `nexus.example.internal:5000/...` 그대로 두고 노드만 터널로 우회합니다. 방화벽이 열리면 Endpoint를 실제 주소로 바꾸고 터널을 끄면 끝입니다.
+
+```bash
+# 노드에서 직접 pull 테스트. RKE2 containerd 소켓을 지정해야 crictl 이 동작한다
+limactl shell dev1 -- sudo /var/lib/rancher/rke2/bin/crictl \
+  --runtime-endpoint unix:///run/k3s/containerd/containerd.sock pull nexus.example.internal:5000/web-portal:1.0.9
+```
+
+### 차트: Apps 저장소 등록
+
+`dev` → Apps → Repositories → Add Repository: Target **Helm Repository**, Index URL `http://nexus.example.internal:8081/repository/helm-hosted/`, Authentication *Create a HTTP Basic Auth Secret*. Active가 되면 Charts에 Jenkins가 올린 차트가 보입니다. 새 버전을 올린 뒤에는 ⋮ → Refresh.
+
+### amd64 이미지를 arm64 VM에서: Rosetta
+
+x86 Jenkins가 만든 이미지는 amd64입니다. dev1(arm64)에서 그대로 실행하면 `exec format error`로 Pod가 CrashLoopBackOff에 빠집니다. Jenkins 서버 커널이 오래되면 QEMU 멀티아키 빌드도 등록이 안 됩니다(`binfmt_misc/register: invalid argument`). 로컬에서는 Lima의 Rosetta를 켜는 것이 간단합니다.
+
+```yaml
+# ~/.lima/dev1/lima.yaml 에 추가
+rosetta:
+  enabled: true
+  binfmt: true
+```
+
+```bash
+limactl stop dev1 && limactl start dev1
+limactl shell dev1 -- cat /proc/sys/fs/binfmt_misc/rosetta | head -2     # enabled
+```
+
+재시작 직후 1~2분은 `rancher-webhook`이 아직 없어 네임스페이스 생성이 거부됩니다. 기존 네임스페이스는 바로 쓸 수 있습니다. 실서버 dev 노드는 x86이라 이 우회가 필요 없습니다.
+
+### 설치와 확인
+
+Apps → Charts → `web-portal` → Install → Namespace `webwas`, values의 `image.registry`를 Nexus 주소로 → Install. `helm install --wait`가 Pod Ready까지 기다리므로 로그가 멈춘 듯 보여도 1분 안에 `SUCCESS`가 나와야 합니다. 10분을 넘기면 Pod가 안 뜨는 것이니 Workloads에서 Pod 상태와 로그를 봅니다.
+
+```bash
+curl -s http://app.dev.192-168-64-3.sslip.io/ | grep -o 'web-portal <small>v[^<]*'     # web-portal v1.0.9
+```
+
+실패한 Helm 릴리즈 위에 Upgrade는 거부될 수 있습니다. Installed Apps에서 Delete하고 다시 Install하는 것이 깔끔합니다.
+
+## 12. 정리
 
 ```bash
 limactl stop dev1 mgmt            # 멈추기만. 다음에 start 로 이어서
