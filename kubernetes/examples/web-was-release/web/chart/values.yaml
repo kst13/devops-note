@@ -6,6 +6,9 @@ image:
 
 replicas: 2
 
+# /api/ 를 넘길 WAS Service 의 FQDN. 비우면 같은 네임스페이스의 was-order
+wasHost: ""
+
 resources:
   requests:
     cpu: 50m

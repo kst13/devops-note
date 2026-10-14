@@ -14,7 +14,7 @@ Mac (Docker Desktop)                         dev1 VM 192.168.64.3               
 
 | 경로 | 내용 | 실서버 대응 |
 | --- | --- | --- |
-| `web/` | nginx + index.html. `/api/`를 was-order Service로 프록시 | web 저장소 |
+| `web/` | nginx + index.html. `/api/`를 was-order Service로 프록시 (요청 시점 DNS 해석이라 WAS 가 없어도 기동) | web 저장소 |
 | `web/chart/` | web-portal 차트 (Deployment, Service, Ingress) | 같은 저장소 안 |
 | `web/Jenkinsfile` | 이미지 build·push → 같은 버전으로 차트 package·push | web Job |
 | `was/` | Spring Boot 3.5, `/api/hello`, `/api/orders`, actuator health | was 저장소 |
@@ -173,7 +173,9 @@ was 저장소 push ──▶ was Job ──▶ Nexus  was-order:1.0.58  이미�
 | `docker push` → `http: server gave HTTP response to HTTPS client` | Docker Desktop에 insecure-registries 미설정 | 0장 JSON 추가 후 Apply |
 | Pod `ImagePullBackOff`, 이벤트에 같은 HTTPS 메시지 | dev1 containerd에 mirror 미설정 | 1장 Registries 설정. `registries.yaml`이 노드에 있는지 확인 |
 | Pod `ImagePullBackOff`, `manifest unknown` | 태그 오타 또는 push 전 | `curl .../v2/<이미지>/tags/list`로 태그 확인 |
-| web 화면에 `WAS 연결 실패` | `was-order` Service가 다른 네임스페이스 또는 미설치 | 두 앱을 같은 네임스페이스에. was 먼저 설치 |
+| web 화면에 `WAS 연결 실패` (502) | `was-order` Service가 없거나 `WAS_HOST`가 다른 네임스페이스를 가리킴 | was 설치. 네임스페이스가 다르면 values `wasHost`에 FQDN 지정 |
+| web Pod `CrashLoopBackOff`, 로그 `host not found in upstream` | 옛 nginx.conf(정적 proxy_pass)가 기동 시 DNS 를 요구 | 현재 템플릿(`default.conf.template`)으로 다시 빌드 |
+| web Pod `CrashLoopBackOff`, 로그 `exec format error` | 이미지 CPU 아키텍처가 노드와 다름 (x86 Jenkins 이미지 → arm64 Lima) | Lima에 Rosetta(`rosetta: {enabled: true, binfmt: true}`) 또는 멀티아키 빌드 |
 | 레지스트리 Pod가 `Pending` | hostPort 5050 점유 | `limactl shell dev1 -- sudo ss -lntp \| grep 5050` |
 | Rancher Repositories가 `Active`가 안 됨 | mgmt에서 8085 접근 불가 또는 ChartMuseum 미기동 | `limactl shell mgmt -- curl -s http://192.168.64.2:8085/index.yaml` |
 | Upgrade 드롭다운에 새 버전이 없음 | index 캐시 | Repositories → Refresh |
