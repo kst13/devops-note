@@ -1,0 +1,1286 @@
+<title>Rancher 배포 전환 2편</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F4F6F9;
+    --surface: #FFFFFF;
+    --surface-2: #EBEFF4;
+    --ink: #172033;
+    --muted: #5B6B7F;
+    --line: #D3DAE3;
+    --accent: #1D6E8C;
+    --accent-ink: #145268;
+    --accent-soft: #E1EFF4;
+    --warm: #B8741F;
+    --warm-soft: #FBF0DF;
+    --good: #2E7D4F;
+    --shadow: 0 10px 30px rgba(23, 32, 51, 0.08);
+    --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F161E;
+      --surface: #17212C;
+      --surface-2: #1F2B38;
+      --ink: #E6ECF2;
+      --muted: #9AABBD;
+      --line: #2C3B4A;
+      --accent: #5FB3D1;
+      --accent-ink: #8CCBE0;
+      --accent-soft: #16303C;
+      --warm: #E0A050;
+      --warm-soft: #3A2B14;
+      --good: #6CC493;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F161E;
+    --surface: #17212C;
+    --surface-2: #1F2B38;
+    --ink: #E6ECF2;
+    --muted: #9AABBD;
+    --line: #2C3B4A;
+    --accent: #5FB3D1;
+    --accent-ink: #8CCBE0;
+    --accent-soft: #16303C;
+    --warm: #E0A050;
+    --warm-soft: #3A2B14;
+    --good: #6CC493;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.55;
+    overflow: hidden;
+  }
+
+  .deck {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 24px 24px 0;
+  }
+  .slide {
+    display: none;
+    width: 100%;
+    max-width: 1280px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 40px 56px 44px;
+    overflow: auto;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .slide.active { display: flex; }
+
+  .sh {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    color: var(--muted);
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .sh .num { font-family: var(--mono); letter-spacing: 0; }
+  .slide h2 {
+    margin: 0;
+    font-size: clamp(24px, 2.6vw, 34px);
+    font-weight: 600;
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+  .lead {
+    margin: 0;
+    max-width: 68ch;
+    color: var(--muted);
+    font-size: 16px;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 36px;
+    align-items: start;
+    flex: 1;
+  }
+  .cols.even { grid-template-columns: 1fr 1fr; }
+  .cols.wide { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+  .cols.single { grid-template-columns: 1fr; }
+
+  .slide h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent-ink);
+    letter-spacing: 0.02em;
+  }
+  .slide p { margin: 0 0 10px; }
+  .slide ul, .slide ol { margin: 0; padding-left: 20px; }
+  .slide li { margin: 0 0 7px; }
+  .slide li strong { font-weight: 600; }
+  .slide li::marker { color: var(--muted); }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 14.5px;
+    margin-top: 6px;
+  }
+  .note.warm { border-left-color: var(--warm); background: var(--warm-soft); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 12.5px;
+    letter-spacing: 0.04em;
+    background: var(--surface-2);
+  }
+  td.k { font-weight: 600; white-space: nowrap; }
+  .tablewrap { overflow-x: auto; }
+
+  pre {
+    margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    overflow-x: auto;
+  }
+  code { font-family: var(--mono); font-size: 0.92em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+
+  figure { margin: 0; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figure.full { width: 100%; }
+  figcaption { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+
+  /* diagram vocabulary */
+  .d { color: var(--ink); font-family: var(--font); }
+  .d .node { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+  .d .node.hi { fill: var(--accent-soft); stroke: var(--accent); }
+  .d .node.warm { fill: var(--warm-soft); stroke: var(--warm); }
+  .d .node.dim { fill: var(--surface-2); stroke: var(--line); }
+  .d .zone { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  .d .zone.plain { stroke: var(--line); }
+  .d text { fill: currentColor; font-size: 12px; }
+  .d text.s { font-size: 10.5px; fill: var(--muted); }
+  .d text.b { font-weight: 600; }
+  .d text.z { font-size: 11px; fill: var(--accent); font-weight: 600; letter-spacing: 0.04em; }
+  .d text.m { font-family: var(--mono); font-size: 10.5px; }
+  .d .ln { stroke: currentColor; stroke-width: 1.3; fill: none; }
+  .d .ln.hi { stroke: var(--accent); }
+  .d .ln.warm { stroke: var(--warm); }
+  .d .ln.dash { stroke-dasharray: 4 4; }
+  .d .bar { fill: var(--accent); }
+  .d .bar.warm { fill: var(--warm); }
+  .d .bar.dim { fill: var(--line); }
+
+  /* title slide */
+  .slide.title { justify-content: center; gap: 22px; padding: 64px 72px; }
+  .slide.title .kicker { color: var(--accent); font-weight: 600; letter-spacing: 0.12em; font-size: 13px; text-transform: uppercase; }
+  .slide.title h1 { margin: 0; font-size: clamp(30px, 4vw, 52px); line-height: 1.15; font-weight: 700; text-wrap: balance; max-width: 22ch; }
+  .slide.title .sub { font-size: 20px; color: var(--muted); max-width: 40ch; }
+  .slide.title .meta { display: flex; gap: 28px; color: var(--muted); font-size: 14px; margin-top: 12px; font-family: var(--mono); }
+
+  /* toc */
+  .toc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; list-style: none; padding: 0; margin: 0; }
+  .toc .part {
+    margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .toc .part::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: var(--part-color, var(--accent));
+  }
+  .toc .part.appx { grid-column: 1 / -1; --part-color: var(--muted); }
+  .toc .part-head { display: flex; align-items: baseline; gap: 10px; padding-left: 6px; }
+  .toc .part-no {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--part-color, var(--accent)); font-weight: 600;
+  }
+  .toc .part-title { font-size: 15px; font-weight: 600; }
+  .toc .part-range { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .toc .items { list-style: none; padding: 0 0 0 6px; margin: 0; display: grid; gap: 2px; }
+  .toc .part.appx .items { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 18px; }
+  .toc .items li { margin: 0; }
+  .toc button {
+    all: unset;
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    gap: 8px;
+    align-items: baseline;
+    width: 100%;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13.5px;
+    line-height: 1.35;
+  }
+  .toc button:hover, .toc button:focus-visible { background: var(--surface); outline: 2px solid var(--part-color, var(--accent)); outline-offset: -2px; }
+  .toc .n { font-family: var(--mono); color: var(--part-color, var(--accent)); font-size: 12px; font-weight: 600; }
+  .toc .sub-n { color: var(--muted); font-weight: 400; }
+
+  /* nav */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1280px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 12px 24px 18px;
+    gap: 16px;
+  }
+  .nav .left { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+  .nav .left .deckname { font-weight: 600; color: var(--ink); }
+  .nav .right { display: flex; align-items: center; gap: 10px; }
+  .nav .counter { font-family: var(--mono); font-size: 13px; color: var(--muted); min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+  .btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px; height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    user-select: none;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn[disabled] { opacity: 0.35; cursor: default; }
+  .btn.text { width: auto; padding: 0 12px; font-size: 13px; border-radius: 8px; }
+  .progress { height: 3px; background: var(--line); }
+  .progress > div { height: 100%; background: var(--accent); width: 0; transition: width 0.25s ease; }
+  @media (prefers-reduced-motion: reduce) { .progress > div { transition: none; } }
+  .kbd { font-family: var(--mono); font-size: 11.5px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--muted); }
+
+  /* bottleneck cards (13장) */
+  .bottlenecks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .bn { display: grid; grid-template-columns: 28px 1fr; gap: 8px; background: var(--surface-2); border-radius: 8px; padding: 12px 14px; }
+  .bn.hint { background: var(--accent-soft); }
+  .bn-no { font-family: var(--mono); font-weight: 700; color: var(--accent); font-size: 16px; line-height: 1.2; }
+  .bn-t { font-weight: 600; margin-bottom: 4px; }
+  .bn-d { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  .scenario { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; font-size: 13.5px; margin: 4px 0 2px; }
+  .steps-table td { vertical-align: top; padding: 10px 10px 10px 0; font-size: 13.5px; line-height: 1.5; }
+  .steps-table td.mono { font-size: 12px; color: var(--muted); }
+  .bn-ex { font-size: 12.5px; color: var(--ink); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); line-height: 1.5; }
+
+  /* small components */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; margin: 0; }
+  .steps .i { width: 26px; height: 26px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono); }
+  .pill { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); margin-left: 6px; vertical-align: middle; }
+  .pill.hi { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+  .pill.warm { background: var(--warm-soft); color: var(--warm); border-color: var(--warm); }
+  a { color: var(--accent-ink); }
+  /* 16:9 고정 캔버스: 1280×720 기준으로 그리고, 화면 크기에 맞춰 통째로 확대·축소 */
+  .stage { padding: 16px 16px 0; align-items: center; overflow: hidden; }
+  .slide {
+    flex: none;
+    width: 1280px;
+    height: 720px;
+    max-width: none;
+    padding: 44px 64px 40px;
+    overflow: hidden;
+    gap: 16px;
+    font-size: 19px;
+    transform: scale(var(--fit, 1));
+    transform-origin: center center;
+  }
+  .slide h2 { font-size: 38px; }
+  .lead { font-size: 20px; max-width: 62em; }
+  .sh { font-size: 13px; }
+  .slide h3 { font-size: 17.5px; }
+  .slide li { margin-bottom: 9px; }
+  .slide li .lb { font-weight: 600; color: var(--accent-ink); margin-right: 10px; }
+  table { font-size: 16.5px; }
+  th { font-size: 14.5px; }
+  th, td { padding: 9px 12px; }
+  pre { font-size: 14.5px; }
+  .note { font-size: 17px; padding: 12px 16px; }
+  figcaption { font-size: 14.5px; }
+  .slide.title { padding: 80px 96px; gap: 26px; }
+  .slide.title h1 { font-size: 56px; max-width: 20ch; }
+  .slide.title .sub { font-size: 24px; max-width: none; }
+  .slide.title .meta { font-size: 15px; }
+  .bn { padding: 16px 18px; }
+  .bn-t { font-size: 19px; }
+  .bn-d { font-size: 16.5px; }
+  .bn-ex { font-size: 16px; }
+  .toc .part-title { font-size: 16px; }
+  .toc button { font-size: 16px; padding: 6px 8px; }
+  .nav { max-width: none; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+    <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" style="color: var(--accent)">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+    <marker id="arrW" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" style="color: var(--warm)">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+  </defs>
+</svg>
+
+<div class="deck">
+  <div class="progress"><div id="bar"></div></div>
+  <div class="stage">
+
+<!-- 0. 표지 -->
+<section class="slide title active">
+  <div class="kicker">배포 체계 전환 · 2편</div>
+  <h1>실서버 Rancher + RKE2 구축기</h1>
+  <div class="sub">MGMT·DEV 클러스터 구축과 웹·WAS 이전 결과</div>
+  <div class="meta"><span>Rocky Linux 9 · RKE2 1.36 · Rancher 2.15 · MetalLB · Traefik</span><span>2026-10</span></div>
+  <p class="lead" style="margin-top: 18px"><span class="kbd">←</span> <span class="kbd">→</span> 키로 이동, 목차에서 장 단위 이동</p>
+</section>
+
+<!-- 1. 목차 -->
+<section class="slide">
+  <header class="sh"><span>목차</span><span class="num"></span></header>
+  <h2>자료 구성</h2>
+  <p class="lead">1편(설계와 로컬 검증)에 이어 실서버 구축 과정, 막힌 지점, 앱 이전 표준을 정리</p>
+  <div class="toc" id="toc"></div>
+</section>
+
+<!-- ch1 -->
+<section class="slide" data-ch="1">
+  <header class="sh"><span>01 · 구축 결과</span><span class="num"></span></header>
+  <h2>구축 결과 요약</h2>
+  <p class="lead">준비부터 첫 앱 배포까지 약 2주. 아웃바운드가 기본 차단된 사내망이 일정의 대부분을 결정</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:24%">날짜</th><th>작업</th></tr></thead>
+        <tbody>
+          <tr><td class="k">10-02 ~ 10-12</td><td>서버 점검, 인프라 요청, 방화벽 1차 신청</td></tr>
+          <tr><td class="k">10-16 ~ 10-18</td><td>설치 절차 작성, Lima VM으로 리허설</td></tr>
+          <tr><td class="k">10-19 ~ 10-20</td><td>MGMT 3대 RKE2, Rancher 설치. 방화벽 2차 신청</td></tr>
+          <tr><td class="k">10-21</td><td>DEV 3대 Custom 등록, MetalLB·Traefik·인증서</td></tr>
+          <tr><td class="k">10-23</td><td>웹·WAS 1세트 배포, 앱 배포 표준 확정</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:30%">구성</th><th>값</th></tr></thead>
+        <tbody>
+          <tr><td class="k">MGMT</td><td>3대, RKE2 v1.36.4, canal, Traefik hostPort</td></tr>
+          <tr><td class="k">Rancher</td><td>v2.15.2, Pod 3개, 공인 와일드카드 인증서</td></tr>
+          <tr><td class="k">DEV</td><td>3대, RKE2 v1.36.5, Rancher Custom 등록</td></tr>
+          <tr><td class="k">DEV 진입점</td><td>MetalLB L2 VIP 1개 + Traefik</td></tr>
+          <tr><td class="k">저장소</td><td>Nexus docker hosted, helm hosted</td></tr>
+          <tr><td class="k">OS</td><td>Rocky Linux 9.8, <code>/app</code> 바인드 마운트</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="note">MGMT와 DEV의 RKE2 버전은 독립. DEV는 Rancher 화면이 제시한 최저 버전(1.36.5)으로 생성</div>
+</section>
+
+<!-- ch2 -->
+<section class="slide" data-ch="2">
+  <header class="sh"><span>02 · 최종 구성</span><span class="num"></span></header>
+  <h2>최종 구성도</h2>
+  <p class="lead">MGMT 앞에는 인프라팀 L4, DEV 앞에는 MetalLB VIP. 모든 노드 에이전트는 Rancher 443으로만 접속</p>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b class="lb">MGMT</b>L4가 443을 노드 3대로 분산. Traefik이 TLS를 처리하고 Rancher로 전달</li>
+        <li><b class="lb">DEV</b>MetalLB가 VIP를 노드 한 대에 붙이고, Traefik이 도메인별로 앱에 분배</li>
+        <li><b class="lb">Nexus</b>DEV 노드는 5000에서 이미지를, MGMT의 Rancher는 8081에서 차트 목록을 받음</li>
+        <li><b class="lb">Jenkins</b>Nexus push까지만 수행. 클러스터 접근 없음</li>
+      </ul>
+      <div class="note">Rancher → 노드 방향 접속 경로 없음. 방화벽은 노드 → Rancher 443 단방향</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="L4 뒤 MGMT 3대, MetalLB VIP 뒤 DEV 3대, Jenkins와 Nexus의 연결을 보인 최종 구성">
+        <rect class="node" x="10" y="10" width="120" height="36" rx="6"></rect><text x="70" y="33" text-anchor="middle" class="b">관리자 PC</text>
+        <rect class="node hi" x="170" y="10" width="110" height="36" rx="6"></rect><text x="225" y="33" text-anchor="middle" class="b">L4 VIP :443</text>
+        <path class="ln" d="M130,28 L168,28" marker-end="url(#arr)"></path>
+        <rect class="zone" x="160" y="58" width="130" height="150" rx="8"></rect><text x="170" y="76" class="z">MGMT</text>
+        <rect class="node hi" x="172" y="86" width="106" height="30" rx="5"></rect><text x="225" y="106" text-anchor="middle" class="s">mgmt-1 · Rancher</text>
+        <rect class="node hi" x="172" y="124" width="106" height="30" rx="5"></rect><text x="225" y="144" text-anchor="middle" class="s">mgmt-2 · Rancher</text>
+        <rect class="node hi" x="172" y="162" width="106" height="30" rx="5"></rect><text x="225" y="182" text-anchor="middle" class="s">mgmt-3 · Rancher</text>
+        <path class="ln" d="M225,46 L225,84" marker-end="url(#arr)"></path>
+        <rect class="node" x="10" y="110" width="120" height="44" rx="6"></rect><text x="70" y="129" text-anchor="middle" class="b">Jenkins</text><text x="70" y="145" text-anchor="middle" class="s">빌드 · push</text>
+        <rect class="node" x="10" y="214" width="120" height="56" rx="6"></rect><text x="70" y="235" text-anchor="middle" class="b">Nexus</text><text x="70" y="252" text-anchor="middle" class="s m">:5000 이미지</text><text x="70" y="265" text-anchor="middle" class="s m">:8081 차트</text>
+        <path class="ln" d="M70,154 L70,212" marker-end="url(#arr)"></path>
+        <path class="ln hi" d="M130,230 L225,230 L225,210" marker-end="url(#arrA)"></path>
+        <text x="150" y="224" class="s">8081 차트</text>
+        <rect class="node" x="380" y="10" width="110" height="36" rx="6"></rect><text x="435" y="33" text-anchor="middle" class="b">앱 사용자</text>
+        <rect class="zone" x="320" y="58" width="230" height="234" rx="8"></rect><text x="330" y="76" class="z">DEV</text>
+        <rect class="node warm" x="335" y="84" width="200" height="32" rx="6"></rect><text x="435" y="105" text-anchor="middle" class="b">MetalLB VIP :443</text>
+        <path class="ln" d="M435,46 L435,82" marker-end="url(#arr)"></path>
+        <rect class="node hi" x="335" y="136" width="62" height="40" rx="5"></rect><text x="366" y="153" text-anchor="middle" class="s">dev-1</text><text x="366" y="168" text-anchor="middle" class="s">Traefik</text>
+        <rect class="node hi" x="404" y="136" width="62" height="40" rx="5"></rect><text x="435" y="153" text-anchor="middle" class="s">dev-2</text><text x="435" y="168" text-anchor="middle" class="s">Traefik</text>
+        <rect class="node hi" x="473" y="136" width="62" height="40" rx="5"></rect><text x="504" y="153" text-anchor="middle" class="s">dev-3</text><text x="504" y="168" text-anchor="middle" class="s">Traefik</text>
+        <path class="ln" d="M435,116 L435,134" marker-end="url(#arr)"></path>
+        <rect class="node" x="335" y="196" width="200" height="36" rx="6"></rect><text x="435" y="219" text-anchor="middle" class="b">웹 Pod · WAS Pod</text>
+        <path class="ln" d="M435,176 L435,194" marker-end="url(#arr)"></path>
+        <path class="ln hi" d="M320,150 L292,150" marker-end="url(#arrA)"></path>
+        <text x="294" y="168" class="s m">443</text>
+        <path class="ln" d="M320,262 L132,262" marker-end="url(#arr)"></path>
+        <text x="190" y="282" class="s">5000 이미지 pull</text>
+      </svg>
+      <figcaption>파란 선은 Rancher와 차트 관련 경로, 검은 선은 사용자 요청과 이미지 경로</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ch3 -->
+<section class="slide" data-ch="3">
+  <header class="sh"><span>03 · 서버 준비</span><span class="num"></span></header>
+  <h2>서버 준비</h2>
+  <p class="lead">OS 설정은 인프라팀 영역. 설치 계정은 제한된 sudo와 <code>/app</code> 디렉터리만 보유</p>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:24%">항목</th><th style="width:40%">조치</th><th>이유</th></tr></thead>
+        <tbody>
+          <tr><td class="k">firewalld</td><td>비활성화</td><td>Canal이 만드는 iptables 규칙과 충돌</td></tr>
+          <tr><td class="k">NetworkManager</td><td><code>flannel*</code>, <code>cali*</code> 등 관리 제외, nm-cloud-setup 비활성화</td><td>CNI 인터페이스와 라우팅에 간섭</td></tr>
+          <tr><td class="k">swap</td><td>MGMT는 끔, DEV는 <code>LimitedSwap</code>으로 유지</td><td>etcd가 swap으로 밀리면 지연 급증</td></tr>
+          <tr><td class="k">Docker</td><td>서비스 중지 후 재부팅</td><td>꺼도 <code>docker0</code>, <code>FORWARD DROP</code>이 남아 노드 간 Pod 통신 차단</td></tr>
+          <tr><td class="k">디스크</td><td><code>/app/rke2/*</code> → <code>/var/lib/rancher</code> 등 바인드 마운트</td><td>기본 경로를 유지하면서 데이터만 <code>/app</code> 디스크에 저장</td></tr>
+          <tr><td class="k">EPEL</td><td>저장소 비활성화</td><td>차단된 EPEL 때문에 <code>dnf</code> 전체가 실패</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="note warm">실제 사례: MGMT-1이 Docker를 켠 채 설치됨. Docker 중지와 재부팅 후 나머지 노드를 조인</div>
+</section>
+
+<!-- ch4 -->
+<section class="slide" data-ch="4">
+  <header class="sh"><span>04 · 방화벽</span><span class="num"></span></header>
+  <h2>방화벽 2차 신청과 CDN 함정</h2>
+  <p class="lead">1차 신청 목록에서 4건 누락. 그중 Docker Hub CDN은 작은 이미지가 받아져 열린 것으로 오판</p>
+  <div class="cols">
+    <div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>누락 주소</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td class="k"><code>rpm.rancher.io</code></td><td>RKE2·<code>rke2-selinux</code> RPM</td></tr>
+            <tr><td class="k"><code>get.helm.sh</code></td><td>Helm 바이너리</td></tr>
+            <tr><td class="k"><code>release-assets.githubusercontent.com</code></td><td>GitHub 릴리스 다운로드</td></tr>
+            <tr><td class="k"><code>production.cloudfront.docker.com</code></td><td>Docker Hub 이미지 데이터 CDN</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin-top: 12px">CDN은 IP가 수시로 바뀜. FQDN 기반 허용과 TLS 검사 예외를 함께 요청</div>
+    </div>
+    <div>
+      <h3>큰 이미지만 실패</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>이미지</th><th>크기</th><th>결과</th></tr></thead>
+          <tbody>
+            <tr><td class="k"><code>rancher/shell</code></td><td>114MB</td><td><span class="pill hi">성공</span></td></tr>
+            <tr><td class="k"><code>rancher/rancher</code></td><td>973MB</td><td><span class="pill warm">실패</span> connection reset</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul style="margin-top: 14px">
+        <li>목록은 레지스트리에서, 레이어는 CDN에서 받는 구조</li>
+        <li>열림 확인은 큰 이미지로 수행</li>
+        <li>허용 전까지는 받은 노드에서 <code>ctr images export/import</code>로 복사</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ch5 -->
+<section class="slide" data-ch="5">
+  <header class="sh"><span>05 · RKE2 설치</span><span class="num"></span></header>
+  <h2>MGMT RKE2 설치: tar 반입</h2>
+  <p class="lead">온라인 설치가 <code>rpm.rancher.io</code> 차단으로 실패. PC에서 받은 tar 묶음을 SSH로 옮겨 3대 설치</p>
+  <div class="cols even">
+    <div>
+      <h3>설치 순서</h3>
+      <ol class="steps">
+        <li><span class="i">1</span><span>PC에서 바이너리·이미지 묶음·체크섬·설치 스크립트 다운로드 후 <code>scp</code></span></li>
+        <li><span class="i">2</span><span>체크섬 확인, 이미지 묶음을 <code>agent/images/</code>에 배치</span></li>
+        <li><span class="i">3</span><span>토큰을 root 전용 파일로 생성, config에는 <code>token-file</code>만 기재</span></li>
+        <li><span class="i">4</span><span><code>sudo env INSTALL_RKE2_METHOD=tar ... sh install.sh</code></span></li>
+        <li><span class="i">5</span><span>MGMT-1 Ready 확인 후 MGMT-2, 3 순서로 조인</span></li>
+      </ol>
+    </div>
+    <div>
+      <h3>설치 중 막힌 지점</h3>
+      <ul>
+        <li><b class="lb">SSH 끊김</b>차단된 EPEL로 <code>dnf</code> 실패, <code>|| exit 1</code>이 셸 종료</li>
+        <li><b class="lb">환경변수 유실</b><code>VAR=값 sudo sh</code> 형태는 sudo 정책에 따라 변수 누락. <code>sudo env</code>로 변경</li>
+        <li><b class="lb">YAML 깨짐</b>붙여 넣기 시 들여쓰기 추가로 Traefik 설정 <code>ParseManifestFailed</code>. <code>cat -A</code>로 확인</li>
+        <li><b class="lb">kubeconfig</b><code>0640</code>으로는 일반 계정 접근 불가. <code>0600</code> 원본 + 계정별 복사본</li>
+      </ul>
+      <div class="note warm">L4 443만으로는 조인 불가. 9345 listener가 없어 MGMT-1 IP로 직접 조인</div>
+    </div>
+  </div>
+</section>
+
+<!-- ch5b -->
+<section class="slide" data-ch="5b">
+  <header class="sh"><span>05 · RKE2 설치</span><span class="num"></span></header>
+  <h2>노드 이름 사고와 재조인</h2>
+  <p class="lead">MGMT-1 config를 복사하며 <code>node-name</code>, <code>node-ip</code> 누락. MGMT-2가 OS hostname으로 조인</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <tbody>
+          <tr><td class="k">증상</td><td><code>kubectl get nodes</code>에 <code>mgmt-2</code> 대신 OS hostname 표시</td></tr>
+          <tr><td class="k">원인</td><td>노드 이름이 etcd 멤버 이름과 kubelet 인증서에 기록. config 수정과 재시작으로 변경 불가</td></tr>
+          <tr><td class="k">조건</td><td>etcd 3개일 때만 한 대씩 처리. 2개에서 제거하면 과반 상실로 API 정지</td></tr>
+          <tr><td class="k">보존</td><td>이미지 묶음, config, 토큰 파일은 삭제하지 않음</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="margin-top: 12px">config 복사 시 <code>token:</code> 줄을 주석으로 남기면 화면 공유 때 토큰 노출. 노출 시 <code>rke2 token rotate</code></div>
+    </div>
+    <div>
+      <pre># MGMT-1: 잘못된 노드 삭제 (etcd 멤버도 제거)
+kubectl delete node &lt;잘못된 이름&gt;
+
+# 해당 노드: server 데이터와 노드 인증서만 삭제
+sudo systemctl stop rke2-server
+sudo /usr/local/bin/rke2-killall.sh
+sudo rm -rf /var/lib/rancher/rke2/server \
+            /etc/rancher/node
+
+# config.yaml에 node-name, node-ip 추가 후
+sudo systemctl start rke2-server</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ch6 -->
+<section class="slide" data-ch="6">
+  <header class="sh"><span>06 · Rancher 설치</span><span class="num"></span></header>
+  <h2>Rancher 설치와 이중화</h2>
+  <p class="lead">기존 서비스의 공인 와일드카드 인증서를 그대로 사용. MGMT-1 한 대로 먼저 설치하고 3대 조인 후 확장</p>
+  <div class="cols even">
+    <div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>values</th><th>1대 설치</th><th>3대 전환</th></tr></thead>
+          <tbody>
+            <tr><td class="k">replicas</td><td>1</td><td>3</td></tr>
+            <tr><td class="k">antiAffinity</td><td>preferred</td><td>required</td></tr>
+            <tr><td class="k">agentTLSMode</td><td colspan="2">system-store (공인 인증서)</td></tr>
+            <tr><td class="k">privateCA</td><td colspan="2">줄 삭제, cert-manager 미설치</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul style="margin-top: 14px">
+        <li><code>replicas: 3</code>만으로는 노드별 분산 미보장. <code>required</code> 필요</li>
+        <li><code>bootstrapPassword</code> 미지정. 차트가 생성한 값 사용</li>
+      </ul>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:40%">Helm 실패</th><th>조치</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><code>helm template</code> kubeVersion 오류</td><td><code>--kube-version 1.36.4</code> 지정 (기본 1.37로 검사)</td></tr>
+          <tr><td class="k">Ingress host <code>""</code></td><td>새 셸에서 변수 누락. values에 값 직접 기재</td></tr>
+          <tr><td class="k">pre-upgrade hook timeout</td><td>이미지 확보 후 hook Job 삭제, 같은 upgrade 재실행</td></tr>
+          <tr><td class="k">Pod 정상, release <code>failed</code></td><td>uninstall 금지. 같은 values로 upgrade해 기록 정상화</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ch7 -->
+<section class="slide" data-ch="7">
+  <header class="sh"><span>07 · DEV 클러스터</span><span class="num"></span></header>
+  <h2>DEV 클러스터 Custom 등록</h2>
+  <p class="lead">DEV에는 RKE2를 직접 설치하지 않음. Rancher 화면에서 정의하고 노드에서 등록 명령만 실행</p>
+  <div class="cols even">
+    <div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th style="width:34%">화면 항목</th><th>설정</th></tr></thead>
+          <tbody>
+            <tr><td class="k">Kubernetes Version</td><td><code>v1.36.5+rke2r1</code> (화면 최저 버전)</td></tr>
+            <tr><td class="k">Container Network</td><td>기본값 Calico → canal</td></tr>
+            <tr><td class="k">Kubelet Args</td><td><code>fail-swap-on=false</code> (swap 유지 노드)</td></tr>
+            <tr><td class="k">Node Role</td><td>etcd, Control Plane, Worker 모두</td></tr>
+            <tr><td class="k">Node Name</td><td><code>dev-1</code> ~ <code>dev-3</code> 직접 지정</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin-top: 12px">등록 전 1.36.5 이미지 묶음을 노드에 미리 배치. CDN 불안정과 무관하게 구성요소 16개를 로컬에서 로드</div>
+    </div>
+    <div>
+      <h3>첫 노드 진행 (약 15분)</h3>
+      <div class="tablewrap">
+        <table>
+          <tbody>
+            <tr><td class="k">16:41</td><td>등록, etcd 매니페스트 생성, 이미지 묶음 로드</td></tr>
+            <tr><td class="k">16:42</td><td>kube-apiserver 생성</td></tr>
+            <tr><td class="k">16:42~51</td><td><code>runtime core not ready</code> 반복 (정상 대기)</td></tr>
+            <tr><td class="k">16:51</td><td>controller-manager, scheduler 생성</td></tr>
+            <tr><td class="k">16:52</td><td>canal, CoreDNS, Traefik 기동</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top: 12px">등록 직후 <code>401 received ... trying again</code> 몇 회는 정상. Rancher가 노드 객체와 plan을 만드는 동안 발생</p>
+    </div>
+  </div>
+</section>
+
+<!-- ch7b -->
+<section class="slide" data-ch="7b">
+  <header class="sh"><span>07 · DEV 클러스터</span><span class="num"></span></header>
+  <h2>Nexus 연결과 이미지 우회</h2>
+  <p class="lead">DEV 노드가 사내 앱 이미지를 Nexus에서 받도록 Rancher Registries 탭에 등록</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:40%">Registries 항목</th><th>값</th></tr></thead>
+        <tbody>
+          <tr><td class="k">시스템 이미지용 레지스트리 체크박스</td><td><span class="pill warm">끔</span> 켜면 업그레이드·노드 추가 실패</td></tr>
+          <tr><td class="k">Mirror Hostname</td><td><code>&lt;NEXUS&gt;:5000</code></td></tr>
+          <tr><td class="k">Mirror Endpoint</td><td><code>http://&lt;NEXUS&gt;:5000</code></td></tr>
+          <tr><td class="k">docker.io mirror</td><td>미등록 (Docker Hub proxy 없음)</td></tr>
+          <tr><td class="k">인증</td><td>Nexus 읽기 전용 계정</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>quay.io·GitHub 차단 우회</h3>
+      <ul>
+        <li>MetalLB 이미지(quay.io)는 CDN 단계에서 차단</li>
+        <li>Jenkins 서버에서 받아 Nexus에 push, 매니페스트의 이미지 주소 교체</li>
+        <li>매니페스트 파일은 PC에서 받아 <code>scp</code></li>
+      </ul>
+      <h3 style="margin-top: 14px">Nexus 5000·5001</h3>
+      <ul>
+        <li>같은 docker hosted 저장소의 HTTP·HTTPS connector</li>
+        <li>5001은 keystore 설정 전까지 미개방. 방화벽 문제로 오인 주의</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ch8 -->
+<section class="slide" data-ch="8">
+  <header class="sh"><span>08 · DEV 외부 접속</span><span class="num"></span></header>
+  <h2>MetalLB VIP, Traefik, 와일드카드 인증서</h2>
+  <p class="lead">L4가 없는 DEV에 VIP 1개를 만들어 Traefik에만 할당. 모든 앱 도메인이 같은 VIP 사용</p>
+  <div class="cols even">
+    <div>
+      <ul>
+        <li><b class="lb">MetalLB L2</b>노드 한 대가 ARP로 VIP에 응답, 장애 시 다른 노드가 인계. <code>autoAssign: false</code>로 Traefik 전용</li>
+        <li><b class="lb">Traefik</b>Rancher Edit Config → Additional Manifest에 HelmChartConfig 등록</li>
+        <li><b class="lb">인증서</b><code>kube-system</code> TLS Secret을 TLSStore 기본 인증서로 지정. 두 번째 도메인은 <code>certificates</code> 목록 추가, SNI로 선택</li>
+      </ul>
+      <div class="note warm">RKE2 Traefik 차트의 Service 키는 <code>service.spec.type</code>. <code>service.type</code>은 무시되어 설치 Job 반복 실패, 그동안 Traefik 소멸</div>
+    </div>
+    <div>
+      <pre>apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    service:
+      annotations:
+        metallb.io/loadBalancerIPs: &lt;DEV VIP&gt;
+      spec:
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+    tlsStore:
+      default:
+        defaultCertificate:
+          secretName: wildcard-tls</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ch9 -->
+<section class="slide" data-ch="9">
+  <header class="sh"><span>09 · 앱 이전</span><span class="num"></span></header>
+  <h2>Docker 운영 구조와의 비교</h2>
+  <p class="lead">서버 한 대의 proxy·web·WAS 컨테이너 구조를 Traefik + 앱별 Pod 구조로 전환</p>
+  <div class="cols even">
+    <div>
+      <pre>기존: Docker 서버 한 대
+사용자 ─https─▶ proxy 컨테이너 (443)
+                  인증서, 80→443, 경로 분기
+                  └─▶ :81 web 컨테이너
+                        화면 파일 + API 전달
+                WAS 컨테이너
+                  docker run --add-host</pre>
+      <pre style="margin-top: 12px">변경: DEV 클러스터
+사용자 ─https─▶ VIP ─▶ Traefik (3대)
+                  인증서, 도메인 분기
+                  ▼
+                웹 Pod: nginx 하나로 통합
+                  ├─▶ WAS Service (클러스터 안)
+                  └─▶ 레거시 서버 (클러스터 밖)</pre>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:42%">기존</th><th>변경</th></tr></thead>
+        <tbody>
+          <tr><td class="k">proxy 컨테이너</td><td>Traefik(TLS, 도메인) + 앱 nginx(경로)</td></tr>
+          <tr><td class="k">이미지 안의 인증서 파일</td><td><code>kube-system</code> TLS Secret 한 곳</td></tr>
+          <tr><td class="k">미리 빌드한 dist·jar 복사</td><td>Dockerfile 안에서 빌드</td></tr>
+          <tr><td class="k"><code>docker run -e</code>, <code>--add-host</code></td><td>차트 values의 env, <code>hostAliases</code></td></tr>
+          <tr><td class="k"><code>docker run</code></td><td>Rancher Apps 설치·업그레이드</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="margin-top: 12px">공용 proxy에 모든 앱 규칙을 모으지 않음. 앱별 nginx가 자기 경로 규칙을 소유</div>
+    </div>
+  </div>
+</section>
+
+<!-- ch10 -->
+<section class="slide" data-ch="10">
+  <header class="sh"><span>10 · 배포 표준</span><span class="num"></span></header>
+  <h2>저장소 표준과 환경 분리</h2>
+  <p class="lead">기존 stage·운영 배포에 영향이 없도록 쿠버네티스용 파일은 모두 <code>deploy/k8s/</code> 아래에 신규 작성</p>
+  <div class="cols even">
+    <div>
+      <pre>&lt;저장소&gt;/
+└── deploy/k8s/
+    ├── Dockerfile              # 컨텍스트 = 저장소 루트
+    ├── Dockerfile.dockerignore # 이 빌드에만 적용
+    ├── Jenkinsfile
+    ├── nginx/                  # (웹) 템플릿
+    └── chart/
+        ├── Chart.yaml
+        ├── values.yaml         # profiles, overrides
+        └── templates/</pre>
+      <ul style="margin-top: 14px">
+        <li>루트 Dockerfile, nginx.conf, <code>.dockerignore</code>는 수정하지 않음</li>
+        <li>Jenkins가 values의 <code>environment</code>, <code>builtFor</code>를 채움. 다른 환경으로 설치하면 템플릿 <code>fail</code>로 차단</li>
+        <li>dev 차트 저장소명 <code>helm-hosted</code>는 기존 저장소를 그대로 사용한 결과</li>
+      </ul>
+    </div>
+    <div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>브랜치</th><th>이미지 경로 (같은 docker-hosted)</th><th>차트 저장소</th></tr></thead>
+          <tbody>
+            <tr><td class="k">develop</td><td><code>:5000/<b>dev</b>/&lt;그룹&gt;/&lt;앱&gt;</code></td><td><code>helm-hosted</code></td></tr>
+            <tr><td class="k">stage</td><td><code>:5000/<b>stage</b>/&lt;그룹&gt;/&lt;앱&gt;</code></td><td><code>helm-stage</code></td></tr>
+            <tr><td class="k">production</td><td><code>:5000/<b>prod</b>/&lt;그룹&gt;/&lt;앱&gt;</code></td><td><code>helm-prod</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul style="margin-top: 14px">
+        <li><b class="lb">이미지</b>저장소 하나에서 경로(폴더)로 환경 구분</li>
+        <li><b class="lb">차트</b>helm hosted는 폴더 없이 <code>index.yaml</code> 하나. 환경별 저장소로 분리, DEV Rancher에는 <code>helm-hosted</code>만 등록</li>
+        <li><b class="lb">분리 이유</b>빌드 번호가 Job마다 별도라 dev 1.0.5와 stage 1.0.5가 다른 결과물. 같은 저장소면 덮어쓰기 금지로 업로드 실패</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ch10b -->
+<section class="slide" data-ch="10b">
+  <header class="sh"><span>10 · 배포 표준</span><span class="num"></span></header>
+  <h2>웹 nginx 통합</h2>
+  <p class="lead">기존 proxy와 web 두 nginx의 규칙을 하나로 합치고, 쿠버네티스 환경에 맞게 일부 설정 변경</p>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:20%">항목</th><th style="width:28%">기존</th><th style="width:28%">변경</th><th>이유</th></tr></thead>
+        <tbody>
+          <tr><td class="k">백엔드 주소</td><td><code>upstream</code> 블록</td><td><code>set $api ${API}; proxy_pass $api;</code></td><td>upstream은 기동 시 DNS 조회. 하나만 실패해도 기동 불가</td></tr>
+          <tr><td class="k">DNS</td><td>공용 DNS</td><td><code>resolver ${DNS_SERVER}</code></td><td>CoreDNS로 Service 이름 해석</td></tr>
+          <tr><td class="k">클러스터 내 백엔드</td><td>서버 IP</td><td><code>&lt;svc&gt;.&lt;ns&gt;.svc.cluster.local</code></td><td>변수 proxy_pass는 search 도메인 미적용</td></tr>
+          <tr><td class="k">TLS</td><td><code>listen 443 ssl</code></td><td><code>listen 80</code></td><td>Traefik이 TLS 처리</td></tr>
+          <tr><td class="k">사용자 IP</td><td>직접 확인</td><td><code>set_real_ip_from</code> + X-Forwarded-For</td><td>Traefik 경유 시 Pod IP로 표시</td></tr>
+          <tr><td class="k">외부 HTTPS 백엔드</td><td><code>proxy_pass https://</code></td><td><code>proxy_ssl_server_name on</code> 추가</td><td>SNI 없으면 CDN·클라우드 API가 거절</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="note">location 우선순위(<code>=</code> → <code>^~</code> → 정규식 → 일반 접두사)를 기존 proxy → web 처리 순서와 동일하게 배치</div>
+</section>
+
+<!-- ch10c -->
+<section class="slide" data-ch="10c">
+  <header class="sh"><span>10 · 배포 표준</span><span class="num"></span></header>
+  <h2>WAS 이미지와 차트</h2>
+  <p class="lead">Spring Boot jar를 Dockerfile 안에서 빌드하고, <code>docker run</code> 옵션을 차트 values로 이전</p>
+  <div class="cols even">
+    <div>
+      <h3>JVM과 컨테이너 설정</h3>
+      <ul>
+        <li><b class="lb">MaxRAMPercentage=75</b>힙을 메모리 limit의 75%로 제한, OOMKilled 여유 확보</li>
+        <li><b class="lb">ExitOnOutOfMemoryError</b>힙 부족 시 즉시 종료, 쿠버네티스가 재기동</li>
+        <li><b class="lb">exec java</b>java가 PID 1로 SIGTERM 직접 수신, 교체 시 요청 마무리</li>
+        <li><b class="lb">USER 1000</b>root 미사용, <code>/app</code>만 소유권 부여</li>
+      </ul>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:44%">기존 docker run</th><th>차트</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><code>--add-host db:&lt;IP&gt;</code></td><td><code>hostAliases</code> (Pod <code>/etc/hosts</code>)</td></tr>
+          <tr><td class="k"><code>-e SPRING_PROFILES_ACTIVE</code></td><td><code>profiles.&lt;env&gt;.springProfile</code></td></tr>
+          <tr><td class="k">application.yml 값 변경</td><td>env, relaxed binding (<code>a.b-c</code> → <code>A_BC</code>)</td></tr>
+          <tr><td class="k"><code>-p 9060:9060</code></td><td>Service, Ingress 없음</td></tr>
+          <tr><td class="k">헬스체크</td><td>tcpSocket, startupProbe 최대 3분</td></tr>
+        </tbody>
+      </table>
+      <div class="note warm" style="margin-top: 12px">DB·Redis 등 클러스터 밖 호출의 출발지가 DEV 노드 3대로 변경. 첫 기동 CrashLoopBackOff는 방화벽부터 확인</div>
+    </div>
+  </div>
+</section>
+
+<!-- ch11 flow -->
+<section class="slide" data-ch="11">
+  <header class="sh"><span>11 · 배포 흐름</span><span class="num"></span></header>
+  <h2>차트와 이미지가 만나는 지점</h2>
+  <p class="lead">차트에는 이미지가 없고 주소만 존재. Rancher가 렌더링할 때 두 저장소가 연결되고, 실제 이미지는 DEV 노드가 받음</p>
+  <div class="cols">
+    <div>
+      <pre># templates/deployment.yaml
+image: "{{ registry }}/{{ builtFor }}/{{ name }}:
+        {{ tag | default .Chart.AppVersion }}"</pre>
+      <div class="tablewrap" style="margin-top: 12px">
+        <table>
+          <thead><tr><th>조각</th><th>값</th><th>결정 주체</th></tr></thead>
+          <tbody>
+            <tr><td class="k">registry</td><td><code>&lt;NEXUS&gt;:5000</code></td><td>values 기본값</td></tr>
+            <tr><td class="k">builtFor</td><td><code>dev</code></td><td>Jenkins가 기록</td></tr>
+            <tr><td class="k">tag</td><td>비움 → appVersion <code>1.0.41</code></td><td>Jenkins 빌드 번호</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin-top: 12px">차트 1.0.41 선택 = 이미지 1.0.41. Jenkins는 이미지 push 성공 후에만 차트를 push하므로 짝 없는 차트 미발생</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="Jenkins가 차트와 이미지를 Nexus 두 저장소에 올리고, Rancher가 차트를 렌더링해 DEV에 적용하면 DEV 노드가 이미지를 받아 Pod를 실행하는 흐름">
+        <rect class="node hi" x="10" y="26" width="110" height="52" rx="6"></rect><text x="65" y="48" text-anchor="middle" class="b">Jenkins</text><text x="65" y="66" text-anchor="middle" class="s m">VER=1.0.41</text>
+        <rect class="zone plain" x="146" y="8" width="186" height="132" rx="8"></rect><text x="156" y="24" class="z" style="fill: var(--muted)">NEXUS</text>
+        <rect class="node" x="158" y="32" width="162" height="42" rx="6"></rect><text x="239" y="50" text-anchor="middle" class="b">helm-hosted :8081</text><text x="239" y="66" text-anchor="middle" class="s m">web-1.0.41.tgz</text>
+        <rect class="node" x="158" y="86" width="162" height="42" rx="6"></rect><text x="239" y="104" text-anchor="middle" class="b">docker-hosted :5000</text><text x="239" y="120" text-anchor="middle" class="s m">web:1.0.41</text>
+        <path class="ln" d="M120,46 L156,50" marker-end="url(#arr)"></path>
+        <path class="ln" d="M120,62 L156,102" marker-end="url(#arr)"></path>
+        <text x="20" y="96" class="s">이미지 먼저,</text><text x="20" y="110" class="s">차트 나중</text>
+        <rect class="node hi" x="370" y="14" width="180" height="76" rx="8"></rect><text x="382" y="34" class="b">Rancher (MGMT)</text><text x="382" y="52" class="s">① 버전 목록 조회</text><text x="382" y="67" class="s">② 선택한 tgz 다운로드</text><text x="382" y="82" class="s">③ 템플릿 + values 렌더링</text>
+        <path class="ln hi" d="M320,52 L368,52" marker-end="url(#arrA)"></path>
+        <text x="330" y="44" class="s m">8081</text>
+        <rect class="node warm" x="370" y="108" width="180" height="44" rx="6"></rect><text x="380" y="126" class="s m">image: &lt;NEXUS&gt;:5000/</text><text x="380" y="142" class="s m">dev/&lt;그룹&gt;/web:1.0.41</text>
+        <path class="ln hi" d="M460,90 L460,106" marker-end="url(#arrA)"></path>
+        <rect class="zone" x="146" y="168" width="404" height="124" rx="8"></rect><text x="156" y="184" class="z">DEV 클러스터</text>
+        <rect class="node hi" x="380" y="192" width="160" height="40" rx="6"></rect><text x="460" y="216" text-anchor="middle" class="b">④ API에 적용</text>
+        <path class="ln hi" d="M460,152 L460,190" marker-end="url(#arrA)"></path>
+        <rect class="node" x="158" y="192" width="180" height="40" rx="6"></rect><text x="248" y="210" text-anchor="middle" class="b">⑥ 노드 containerd</text><text x="248" y="225" text-anchor="middle" class="s">registries.yaml 로 pull</text>
+        <path class="ln" d="M380,212 L340,212" marker-end="url(#arr)"></path>
+        <text x="344" y="204" class="s">⑤ 배치</text>
+        <path class="ln" d="M239,128 L239,190" marker-end="url(#arr)"></path>
+        <text x="246" y="152" class="s m">5000 pull</text>
+        <rect class="node hi" x="158" y="244" width="382" height="38" rx="6"></rect><text x="349" y="267" text-anchor="middle" class="b">⑦ web Pod 실행 · readiness 통과 후 기존 Pod 종료</text>
+        <path class="ln" d="M248,232 L248,242" marker-end="url(#arr)"></path>
+      </svg>
+      <figcaption>차트는 MGMT의 Rancher가 8081에서, 이미지는 DEV 각 노드가 5000에서 받음</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ch11b rolling -->
+<section class="slide" data-ch="11b">
+  <header class="sh"><span>11 · 배포 흐름</span><span class="num"></span></header>
+  <h2>롤링 업데이트 진행 순서</h2>
+  <p class="lead">Upgrade 시 Deployment가 새 ReplicaSet을 만들고, 새 Pod가 준비된 만큼만 기존 Pod를 줄이는 방식. 준비된 Pod 수가 replicas 아래로 내려가지 않음</p>
+  <div class="cols">
+    <div>
+      <ol class="steps">
+        <li><span class="i">1</span><span>Rancher Upgrade로 Deployment의 이미지 태그 변경</span></li>
+        <li><span class="i">2</span><span>새 ReplicaSet 생성, <code>maxSurge</code>만큼 새 Pod 추가</span></li>
+        <li><span class="i">3</span><span>readiness probe 통과 시 Service Endpoints에 등록, Traefik이 트래픽 전달 시작</span></li>
+        <li><span class="i">4</span><span><code>maxUnavailable</code> 범위 안에서 기존 Pod 종료</span></li>
+        <li><span class="i">5</span><span>반복 후 기존 ReplicaSet은 0개로 보관 (Rollback 대상)</span></li>
+      </ol>
+      <div class="tablewrap" style="margin-top: 10px">
+        <table>
+          <thead><tr><th>Deployment 기본값</th><th>replicas 1</th><th>replicas 2</th></tr></thead>
+          <tbody>
+            <tr><td class="k">maxSurge 25% (올림)</td><td>1</td><td>1</td></tr>
+            <tr><td class="k">maxUnavailable 25% (내림)</td><td>0</td><td>0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 290" role="img" aria-label="replicas 2에서 새 Pod를 하나 추가하고 준비되면 기존 Pod를 하나 줄이는 과정을 다섯 단계로 보인 그림">
+        <text x="10" y="43" class="b">① 시작</text>
+        <rect class="node" x="150" y="20" width="80" height="36" rx="6"></rect><text x="190" y="43" text-anchor="middle" class="b">v1</text>
+        <rect class="node" x="240" y="20" width="80" height="36" rx="6"></rect><text x="280" y="43" text-anchor="middle" class="b">v1</text>
+        <text x="428" y="43" class="s">트래픽: v1, v1</text>
+        <text x="10" y="95" class="b">② 새 Pod 추가</text>
+        <rect class="node" x="150" y="72" width="80" height="36" rx="6"></rect><text x="190" y="95" text-anchor="middle" class="b">v1</text>
+        <rect class="node" x="240" y="72" width="80" height="36" rx="6"></rect><text x="280" y="95" text-anchor="middle" class="b">v1</text>
+        <rect class="node warm" x="330" y="72" width="80" height="36" rx="6" style="stroke-dasharray: 4 3"></rect><text x="370" y="95" text-anchor="middle" class="s">v2 기동 중</text>
+        <text x="428" y="95" class="s">트래픽: v1, v1</text>
+        <text x="10" y="147" class="b">③ 준비 → 1개 축소</text>
+        <rect class="node dim" x="150" y="124" width="80" height="36" rx="6" style="stroke-dasharray: 4 3"></rect><text x="190" y="147" text-anchor="middle" class="s">v1 종료 중</text>
+        <rect class="node" x="240" y="124" width="80" height="36" rx="6"></rect><text x="280" y="147" text-anchor="middle" class="b">v1</text>
+        <rect class="node hi" x="330" y="124" width="80" height="36" rx="6"></rect><text x="370" y="147" text-anchor="middle" class="b">v2</text>
+        <text x="428" y="147" class="s">트래픽: v1, v2</text>
+        <text x="10" y="199" class="b">④ 새 Pod 추가</text>
+        <rect class="node" x="150" y="176" width="80" height="36" rx="6"></rect><text x="190" y="199" text-anchor="middle" class="b">v1</text>
+        <rect class="node hi" x="240" y="176" width="80" height="36" rx="6"></rect><text x="280" y="199" text-anchor="middle" class="b">v2</text>
+        <rect class="node warm" x="330" y="176" width="80" height="36" rx="6" style="stroke-dasharray: 4 3"></rect><text x="370" y="199" text-anchor="middle" class="s">v2 기동 중</text>
+        <text x="428" y="199" class="s">트래픽: v1, v2</text>
+        <text x="10" y="251" class="b">⑤ 완료</text>
+        <rect class="node hi" x="150" y="228" width="80" height="36" rx="6"></rect><text x="190" y="251" text-anchor="middle" class="b">v2</text>
+        <rect class="node hi" x="240" y="228" width="80" height="36" rx="6"></rect><text x="280" y="251" text-anchor="middle" class="b">v2</text>
+        <rect class="node dim" x="330" y="228" width="80" height="36" rx="6" style="stroke-dasharray: 4 3"></rect><text x="370" y="251" text-anchor="middle" class="s">v1 종료 중</text>
+        <text x="428" y="251" class="s">트래픽: v2, v2</text>
+        <rect class="node" x="10" y="272" width="14" height="12" rx="2"></rect><text x="30" y="282" class="s">기존 v1</text>
+        <rect class="node hi" x="90" y="272" width="14" height="12" rx="2"></rect><text x="110" y="282" class="s">새 v2 준비 완료</text>
+        <rect class="node warm" x="210" y="272" width="14" height="12" rx="2"></rect><text x="230" y="282" class="s">기동 중 (트래픽 없음)</text>
+        <rect class="node dim" x="360" y="272" width="14" height="12" rx="2"></rect><text x="380" y="282" class="s">종료 중 (트래픽 제외)</text>
+      </svg>
+      <figcaption>replicas 2 기준. 새 Pod가 준비되지 않으면 교체가 멈추고 기존 Pod가 계속 서비스</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ch11c graceful -->
+<section class="slide" data-ch="11c">
+  <header class="sh"><span>11 · 배포 흐름</span><span class="num"></span></header>
+  <h2>끊김이 생기는 지점과 대응</h2>
+  <p class="lead">교체 순서만으로는 무중단이 보장되지 않음. Pod 시작과 종료 두 지점에서 요청이 실패할 수 있음</p>
+  <div class="cols wide">
+    <div>
+      <h3>Pod 종료 시 동시에 일어나는 일</h3>
+      <pre>Pod 삭제 결정
+ ├─ (가) Endpoints에서 제거
+ │      → Traefik 목록 갱신
+ └─ (나) preStop → SIGTERM
+        → 유예 30초 후 SIGKILL
+
+(나)가 (가)보다 먼저 끝나면
+내려간 Pod로 요청 전달 → 502</pre>
+      <div class="note" style="margin-top: 12px">무중단 여부는 Upgrade 중 0.1초 간격 연속 요청으로 실패 응답 수를 세어 실측 예정</div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:18%">지점</th><th style="width:38%">문제</th><th>대응</th></tr></thead>
+        <tbody>
+          <tr><td class="k">시작</td><td>WAS readiness가 tcpSocket 기준. 포트가 열려도 초기화 미완료 가능</td><td>actuator readiness 같은 HTTP 헬스 체크로 전환 검토</td></tr>
+          <tr><td class="k">종료 경합</td><td>Endpoints 제거 전에 프로세스 종료</td><td><code>preStop</code>에 수 초 대기를 넣어 제거를 먼저 반영</td></tr>
+          <tr><td class="k">진행 중 요청</td><td>SIGTERM 즉시 종료 시 처리 중 요청 실패</td><td><code>exec java</code>로 SIGTERM 수신(적용). Spring graceful shutdown 확인 (Boot 3.4부터 기본)</td></tr>
+          <tr><td class="k">유예 시간</td><td>긴 요청이 30초 안에 미완료 시 강제 종료</td><td><code>terminationGracePeriodSeconds</code>를 preStop + 최장 요청보다 길게</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ch11 -->
+<section class="slide" data-ch="11d">
+  <header class="sh"><span>11 · 배포 흐름</span><span class="num"></span></header>
+  <h2>Rancher Apps 배포 규칙</h2>
+  <p class="lead">설정 변경은 모두 git과 Jenkins를 거쳐 새 차트 버전으로 반영. Rancher 화면은 버전 선택과 임시 덮어쓰기만 담당</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:44%">변경 대상</th><th>작업</th></tr></thead>
+        <tbody>
+          <tr><td class="k">소스, Dockerfile, nginx</td><td>커밋 → Jenkins → Upgrade</td></tr>
+          <tr><td class="k">백엔드 주소, 도메인, env</td><td>profiles 수정 커밋 → Jenkins → Upgrade</td></tr>
+          <tr><td class="k">긴급 임시 변경</td><td>Upgrade 화면의 <code>overrides</code>만, 이후 profiles 반영</td></tr>
+          <tr><td class="k">Pod 수, 일시 정지</td><td><code>overrides.replicas</code>로 Upgrade (0 가능)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Scale 버튼 사용 금지</h3>
+      <ul>
+        <li>워크로드 화면의 +/− 사용 시 <code>spec.replicas</code> 소유자가 Rancher로 기록</li>
+        <li>다음 Helm Upgrade가 <code>conflict with "agent" ... .spec.replicas</code>로 실패</li>
+        <li>복구: Deployment 삭제 후 같은 버전으로 Upgrade (앱 일시 중단)</li>
+      </ul>
+      <div class="note" style="margin-top: 12px">앱은 반드시 앱 네임스페이스에 설치. Helm release는 네임스페이스 이동 불가</div>
+    </div>
+  </div>
+</section>
+
+<!-- ch12 -->
+<section class="slide" data-ch="12">
+  <header class="sh"><span>12 · 운영</span><span class="num"></span></header>
+  <h2>로그와 노드 자원</h2>
+  <p class="lead">컨테이너 로그는 Pod가 있는 노드의 파일로 저장. 수집 서버 구성 전까지는 kubectl·stern으로 조회</p>
+  <div class="cols even">
+    <div>
+      <h3>로그</h3>
+      <ul>
+        <li><b class="lb">위치</b><code>/var/log/pods/&lt;ns&gt;_&lt;pod&gt;_&lt;uid&gt;/&lt;컨테이너&gt;/0.log</code></li>
+        <li><b class="lb">보관</b>파일당 10Mi, 5개. Pod 삭제 시 함께 삭제</li>
+        <li><b class="lb">조회</b>Rancher kubeconfig로 PC에서 <code>kubectl logs</code>, stern, k9s</li>
+        <li><b class="lb">수집 계획</b>Rancher Logging(Fluent Bit) → 클러스터 밖 VM의 Loki + Grafana</li>
+      </ul>
+      <div class="note" style="margin-top: 12px">Loki를 클러스터 밖에 두는 이유: DEV 노드 메모리 여유 부족, 클러스터 장애 시에도 로그 조회 가능</div>
+    </div>
+    <div>
+      <h3>한 노드만 사용률이 높을 때</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>원인</th><th>확인</th></tr></thead>
+          <tbody>
+            <tr><td class="k">VIP 보유 노드로 요청 집중</td><td>MetalLB speaker 로그</td></tr>
+            <tr><td class="k">etcd·controller 리더</td><td><code>kubectl -n kube-system get lease</code></td></tr>
+            <tr><td class="k">시스템 Pod 편중</td><td><code>--field-selector spec.nodeName=</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top: 12px">스케줄러는 실사용량이 아닌 <code>requests</code> 합계로 배치. 며칠 운영 후 <code>kubectl top</code> 기준으로 조정</p>
+    </div>
+  </div>
+</section>
+
+<!-- ch13 -->
+<section class="slide" data-ch="13">
+  <header class="sh"><span>13 · 정리</span><span class="num"></span></header>
+  <h2>1편 목표 대비 결과와 남은 과제</h2>
+  <p class="lead">구조 전환은 DEV에서 완료. 배포 중단 시간·롤백 시간 실측과 stage·prod 확장은 다음 단계</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:36%">1편 목표</th><th>현재</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Jenkins SSH 제거</td><td><span class="pill hi">달성</span> Nexus push까지만 수행</td></tr>
+          <tr><td class="k">화면 기반 배포</td><td><span class="pill hi">달성</span> Rancher Apps Install·Upgrade</td></tr>
+          <tr><td class="k">관리 클러스터 이중화</td><td><span class="pill hi">달성</span> MGMT 3대, Rancher Pod 3개</td></tr>
+          <tr><td class="k">무중단 배포</td><td><span class="pill warm">미측정</span> RollingUpdate 적용</td></tr>
+          <tr><td class="k">1분 롤백</td><td><span class="pill warm">미측정</span> Rollback 리허설 전</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>남은 과제</h3>
+      <ul>
+        <li>Rollback 리허설, 배포 중단 시간 실측</li>
+        <li>MetalLB VIP 인계 시험 (VIP 보유 노드 재부팅)</li>
+        <li>Docker Hub·quay CDN 방화벽 허용 완료</li>
+        <li>Loki 수집 구성, 나머지 앱 이전</li>
+        <li>stage·prod 클러스터 확장</li>
+      </ul>
+      <div class="note" style="margin-top: 12px">정리: 사내망 제약(아웃바운드 차단)이 구축 난이도의 대부분. 큰 이미지 기준 방화벽 확인과 tar 반입 경로가 핵심</div>
+    </div>
+  </div>
+</section>
+
+  </div>
+
+  <nav class="nav" aria-label="슬라이드 이동">
+    <div class="left">
+      <span class="deckname">Rancher 배포 전환 2편</span>
+      <span id="chlabel"></span>
+    </div>
+    <div class="right">
+      <button class="btn text" id="tocBtn" type="button" title="목차로">목차</button>
+      <button class="btn" id="prev" type="button" aria-label="이전 슬라이드">‹</button>
+      <span class="counter" id="counter">1 / 1</span>
+      <button class="btn" id="next" type="button" aria-label="다음 슬라이드">›</button>
+    </div>
+  </nav>
+</div>
+
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var total = slides.length;
+  var idx = 0;
+  var bar = document.getElementById('bar');
+  var counter = document.getElementById('counter');
+  var chlabel = document.getElementById('chlabel');
+  var prev = document.getElementById('prev');
+  var next = document.getElementById('next');
+
+  var tocParts = [
+    { no: 'Part 1', title: '구축 개요와 준비', range: '1~4장', color: '#B8741F', items: [
+      ['1', '구축 결과 요약'],
+      ['2', '최종 구성도'],
+      ['3', '서버 준비'],
+      ['4', '방화벽 2차 신청과 CDN 함정']
+    ]},
+    { no: 'Part 2', title: 'MGMT와 Rancher', range: '5~6장', color: '#1D6E8C', items: [
+      ['5', 'MGMT RKE2 설치: tar 반입'],
+      ['5b', '노드 이름 사고와 재조인', '5'],
+      ['6', 'Rancher 설치와 이중화']
+    ]},
+    { no: 'Part 3', title: 'DEV 클러스터', range: '7~8장', color: '#2E7D4F', items: [
+      ['7', 'DEV 클러스터 Custom 등록'],
+      ['7b', 'Nexus 연결과 이미지 우회', '7'],
+      ['8', 'MetalLB VIP, Traefik, 와일드카드 인증서']
+    ]},
+    { no: 'Part 4', title: '앱 이전과 운영', range: '9~13장', color: '#5B53C6', items: [
+      ['9', 'Docker 운영 구조와의 비교'],
+      ['10', '저장소 표준과 환경 분리'],
+      ['10b', '웹 nginx 통합', '10'],
+      ['10c', 'WAS 이미지와 차트', '10'],
+      ['11', '차트와 이미지가 만나는 지점'],
+      ['11b', '롤링 업데이트 진행 순서', '11'],
+      ['11c', '끊김이 생기는 지점과 대응', '11'],
+      ['11d', 'Rancher Apps 배포 규칙', '11'],
+      ['12', '로그와 노드 자원'],
+      ['13', '1편 목표 대비 결과와 남은 과제']
+    ]}
+  ];
+  var toc = document.getElementById('toc');
+  tocParts.forEach(function (part) {
+    var box = document.createElement('section');
+    box.className = 'part' + (part.appx ? ' appx' : '');
+    if (part.color) box.style.setProperty('--part-color', part.color);
+    var head = document.createElement('div');
+    head.className = 'part-head';
+    var no = document.createElement('span'); no.className = 'part-no'; no.textContent = part.no;
+    var title = document.createElement('span'); title.className = 'part-title'; title.textContent = part.title;
+    var range = document.createElement('span'); range.className = 'part-range'; range.textContent = part.range;
+    head.appendChild(no); head.appendChild(title); head.appendChild(range);
+    box.appendChild(head);
+    var ul = document.createElement('ul');
+    ul.className = 'items';
+    part.items.forEach(function (item) {
+      var id = item[0], label = item[1], parentNo = item[2];
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.type = 'button';
+      var n = document.createElement('span');
+      n.className = 'n' + (parentNo ? ' sub-n' : '');
+      if (part.appx) n.textContent = id;
+      else if (parentNo) n.textContent = '└';
+      else n.textContent = String(parseInt(id, 10)).padStart(2, '0');
+      var t = document.createElement('span');
+      t.textContent = label;
+      b.appendChild(n); b.appendChild(t);
+      b.addEventListener('click', function () {
+        var target = slides.findIndex(function (s) { return s.getAttribute('data-ch') === id; });
+        if (target >= 0) go(target);
+      });
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    toc.appendChild(box);
+  });
+
+  function labelFor(slide) {
+    var ch = slide.getAttribute('data-ch');
+    if (!ch) return '';
+    var n = parseInt(ch, 10);
+    return isNaN(n) ? '부록 ' + ch : n + '장';
+  }
+
+  function go(n) {
+    if (n < 0 || n >= total) return;
+    slides[idx].classList.remove('active');
+    idx = n;
+    slides[idx].classList.add('active');
+    slides[idx].scrollTop = 0;
+    counter.textContent = (idx + 1) + ' / ' + total;
+    bar.style.width = ((idx + 1) / total * 100) + '%';
+    chlabel.textContent = labelFor(slides[idx]);
+    prev.disabled = idx === 0;
+    next.disabled = idx === total - 1;
+    var numEl = slides[idx].querySelector('.num');
+    if (numEl) numEl.textContent = (idx + 1) + ' / ' + total;
+    try { history.replaceState(null, '', '#' + (idx + 1)); } catch (e) {}
+  }
+
+  prev.addEventListener('click', function () { go(idx - 1); });
+  next.addEventListener('click', function () { go(idx + 1); });
+  document.getElementById('tocBtn').addEventListener('click', function () { go(1); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(idx + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(idx - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); go(0); }
+    else if (e.key === 'End') { e.preventDefault(); go(total - 1); }
+  });
+
+  var touchX = null;
+  document.addEventListener('touchstart', function (e) { touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 60) go(dx < 0 ? idx + 1 : idx - 1);
+    touchX = null;
+  }, { passive: true });
+
+  function fit() {
+    var stage = document.querySelector('.stage');
+    var k = Math.min((stage.clientWidth - 32) / 1280, (stage.clientHeight - 16) / 720);
+    document.documentElement.style.setProperty('--fit', String(Math.max(k, 0.1)));
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  var start = parseInt((location.hash || '#1').slice(1), 10);
+  if (isNaN(start) || start < 1 || start > total) start = 1;
+  slides[0].classList.remove('active');
+  idx = 0;
+  slides[0].classList.add('active');
+  go(start - 1);
+})();
+</script>
