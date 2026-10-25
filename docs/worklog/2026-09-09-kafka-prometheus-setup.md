@@ -2,16 +2,16 @@
 - 날짜: 2026-09-09 / 브랜치: master @ dc664e2 / 관련: [kafka/concepts/14-monitoring-prometheus-grafana.md](../../kafka/concepts/14-monitoring-prometheus-grafana.md), [docs/kafka-port-map.md](../kafka-port-map.md)
 
 ## 결론
-브로커 3대(JMX Exporter 7071) + kafka_exporter(9308)를 Prometheus(9090)가 수집하는 구성을 모니터링 서버 app214에 올렸고, 타깃 5개 전부 `up` 확인.
+브로커 3대(JMX Exporter 7071) + kafka_exporter(9308)를 Prometheus(9090)가 수집하는 구성을 모니터링 서버 <모니터링 서버>에 올렸고, 타깃 5개 전부 `up` 확인.
 
 ```mermaid
 flowchart LR
   subgraph brokers["Kafka 브로커 3대"]
-    b1["10.10.10.17:7071<br/>JMX Exporter"]
-    b2["10.10.10.18:7071<br/>JMX Exporter"]
-    b3["10.10.10.19:7071<br/>JMX Exporter"]
+    b1["<BROKER1_IP>:7071<br/>JMX Exporter"]
+    b2["<BROKER2_IP>:7071<br/>JMX Exporter"]
+    b3["<BROKER3_IP>:7071<br/>JMX Exporter"]
   end
-  subgraph mon["모니터링 서버 app214 (docker compose)"]
+  subgraph mon["모니터링 서버 <모니터링 서버> (docker compose)"]
     ke["kafka-exporter:9308<br/>SASL_SSL로 브로커 9094 접속"]
     prom["prometheus:9090<br/>30s 간격 스크레이프"]
   end
@@ -25,7 +25,7 @@ flowchart LR
 ```
 
 ## 변경 파일
-이 저장소의 변경은 없음. 아래는 **모니터링 서버 app214**의 파일이다 (compose 디렉터리: `~/kafka-exporter/`).
+이 저장소의 변경은 없음. 아래는 **모니터링 서버 <모니터링 서버>**의 파일이다 (compose 디렉터리: `~/kafka-exporter/`).
 
 | 파일 (서버) | 변경 내용 | 이유 |
 |---|---|---|
@@ -50,9 +50,9 @@ flowchart LR
 
 | 타깃 | health | lastError | 수집 시간 |
 |---|---|---|---|
-| 10.10.10.17:7071 | up | 없음 | 1.30s |
-| 10.10.10.18:7071 | up | 없음 | 1.34s |
-| 10.10.10.19:7071 | up | 없음 | 1.32s |
+| <BROKER1_IP>:7071 | up | 없음 | 1.30s |
+| <BROKER2_IP>:7071 | up | 없음 | 1.34s |
+| <BROKER3_IP>:7071 | up | 없음 | 1.32s |
 | kafka-exporter:9308 | up | 없음 | 0.07s |
 | localhost:9090 | up | 없음 | 0.006s |
 

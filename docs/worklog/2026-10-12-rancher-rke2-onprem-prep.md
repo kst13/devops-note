@@ -6,12 +6,12 @@ Rocky 9.8 실서버 3대(관리 클러스터)와 3대(dev 클러스터)를 받�
 
 ```mermaid
 flowchart LR
-  pc["관리자 PC"] -- 443 / 22 / 6443 --> l4["L4 VIP 10.10.10.108<br/>rancher.(사내도메인)"]
-  l4 --> m1["app216 10.10.10.109"]
-  l4 --> m2["10.10.10.110"]
-  l4 --> m3["app218 10.10.10.111"]
+  pc["관리자 PC"] -- 443 / 22 / 6443 --> l4["L4 VIP <MGMT_VIP><br/>rancher.(사내도메인)"]
+  l4 --> m1["MGMT-1 <MGMT1_IP>"]
+  l4 --> m2["MGMT-2 <MGMT2_IP>"]
+  l4 --> m3["MGMT-3 <MGMT3_IP>"]
   subgraph dev["dev 클러스터 (RKE2, Rancher 가 설치)"]
-    d1["10.10.12.56"]; d2["10.10.12.57"]; d3["10.10.12.58"]
+    d1["DEV-1"]; d2["DEV-2"]; d3["DEV-3"]
   end
   dev -- "443 단방향 (에이전트)" --> l4
   jk["Jenkins 운영·개발"] -- 443 --> l4
@@ -34,7 +34,7 @@ flowchart LR
 | NetworkManager `rke2-canal.conf` | 없음 | 인프라팀 요청 |
 | 아웃바운드 | `get.rke2.io` SSL reset (차단) | 방화벽 요청 |
 | DNS | 공용 리졸버 동작, Rancher hostname 미등록 | L4 VIP 등록 요청 |
-| hostname | 인프라팀 설정 완료 (app216, app218 등) | |
+| hostname | 인프라팀 설정 완료 (노드별 고유 이름) | |
 
 ## 변경 (서버)
 
@@ -48,7 +48,7 @@ flowchart LR
 ## 산출물
 
 - `~/Downloads/방화벽_허용_요청_Rancher_dev.xlsx` — 컬럼 Src.IP / Src.IP 설명 / Dst.IP / Dst.IP 설명 / Application / Port / Action / 내용. 25행(관리자→Rancher·dev, dev→Rancher 443, 아웃바운드 레지스트리, dev→Nexus 8081·5000·5001, Jenkins 운영·개발→Rancher 443). 개인 정보가 있어 저장소에는 넣지 않음.
-- 인프라팀 요청 블록: NetworkManager conf, journald persistent, L4(443→3대, 헬스체크·6443/9345 여부), DNS, dev MetalLB VIP 1개(10.10.12.x), sudo 범위.
+- 인프라팀 요청 블록: NetworkManager conf, journald persistent, L4(443→3대, 헬스체크·6443/9345 여부), DNS, dev MetalLB VIP 1개(DEV 대역), sudo 범위.
 
 ## 결정과 근거
 

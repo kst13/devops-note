@@ -33,7 +33,7 @@ git -C web push -u origin master:init/web-portal   # master 가 protected 라 �
 |---|---|---|
 | `git fetch ... HTTP code = 404` | Job 에 Git credential 없음 (GitLab 은 비공개 저장소를 404 로 숨김) | Credential `gitlab-deployer` 지정 |
 | `Could not find credentials entry with ID 'nexus'` | Nexus 용 credential 미생성 | Username/password credential 생성, Jenkinsfile 의 `credentialsId` 를 그 ID 로 |
-| `docker login ows-nexus:5000` → `HTTP response to HTTPS client` | 호스트명이 daemon.json `insecure-registries` 와 불일치 | Jenkinsfile 의 `NEXUS_DOCKER` 를 기존에 허용된 IP:5000 으로 |
+| `docker login <NEXUS_HOSTNAME>:5000` → `HTTP response to HTTPS client` | 호스트명이 daemon.json `insecure-registries` 와 불일치 | Jenkinsfile 의 `NEXUS_DOCKER` 를 기존에 허용된 IP:5000 으로 |
 | `helm: command not found` | Jenkins 서버에 helm 없음 | helm 3 설치 |
 
 이후 `1.0.N` 이미지·차트 push 성공. 버전은 `1.0.${BUILD_NUMBER}` 라 실패 빌드도 번호를 소비한다.
