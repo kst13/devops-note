@@ -144,14 +144,20 @@ helm install cert-manager jetstack/cert-manager \
 helm install rancher rancher-stable/rancher \
   --namespace cattle-system --create-namespace \
   --set hostname=${RANCHER_HOST} \
-  --set replicas=1 \
-  --set bootstrapPassword=admin1234
+  --set replicas=1
 
 kubectl -n cattle-system rollout status deploy/rancher --timeout=10m
 kubectl -n cattle-system get ingress          # HOSTS 에 rancher.192-168-64-1.sslip.io
+
+# 첫 로그인 비밀번호. 차트가 임의 생성한 값
+kubectl -n cattle-system get secret bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{"\n"}}'
 ```
 
+`bootstrapPassword`는 명령줄에 넣지 않습니다. 셸 history와 프로세스 인수에 남습니다. 실서버에서도 같은 방식으로 차트가 만든 값을 씁니다.
+
 `--wait`와 `rollout status`는 이미지를 받는 동안 출력이 없습니다. 멈춘 것이 아니므로 `Ctrl+C`를 누르지 않습니다. 네임스페이스 이름을 잘못 쳐서 취소했다면 CRD에 잘못된 소유 정보가 남아 재설치가 거부됩니다. 아래로 정리합니다.
+
+아래 CRD 일괄 삭제는 **cert-manager를 처음 설치하는 빈 실습 클러스터에서만** 씁니다. CRD를 지우면 그 종류의 리소스(Certificate, Issuer)가 모두 함께 지워집니다. 이미 인증서를 운영하는 클러스터에서는 Helm release와 CRD의 소유 정보부터 확인합니다.
 
 ```bash
 helm uninstall cert-manager -n <잘못된 네임스페이스>
@@ -159,7 +165,7 @@ kubectl get crd -o name | grep cert-manager.io | xargs kubectl delete
 kubectl delete namespace <잘못된 네임스페이스>
 ```
 
-`replicas`나 `bootstrapPassword`를 빼고 설치했다면 `helm upgrade --reuse-values --set ...`로 덮어씁니다. 단, `bootstrapPassword`는 Rancher가 처음 뜰 때 한 번만 적용되므로 이미 떴다면 기본값 `admin`으로 로그인합니다.
+`replicas`를 바꾸려면 `helm upgrade --reuse-values --set replicas=N`으로 덮어씁니다.
 
 ## 4. Mac에서 접속
 
@@ -224,7 +230,7 @@ limactl shell dev1 -- curl -sk -m 5 https://rancher.192-168-64-1.sslip.io:8443/p
 Safari에서:
 
 1. ☰ → Cluster Management → Create → 하단 **Custom**
-2. Cluster Name `dev`, Kubernetes Version은 `+rke2r1`로 끝나는 기본 선택값, 나머지 기본값 → Create
+2. Cluster Name `dev`, Kubernetes Version은 `+rke2r1`로 끝나는 기본 선택값, 나머지 기본값 → Create. Container Network 기본값은 Calico입니다. 실서버에서는 MGMT와 맞춰 canal로 바꿨습니다
 3. Registration 탭 → Node Role에서 **etcd, Control Plane, Worker 모두 체크**
 4. **Insecure** 체크. 자체 서명 인증서이므로 `--insecure`와 `--ca-checksum`이 명령에 붙는다
 5. 명령 복사. `--server https://rancher.192-168-64-1.sslip.io:8443`인지 확인

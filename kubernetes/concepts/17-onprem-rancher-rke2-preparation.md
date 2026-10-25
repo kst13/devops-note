@@ -1,6 +1,8 @@
 # 실서버 Rancher + RKE2 구축 준비: 점검, 인프라 요청, 방화벽, dev 노드
 
-사내 인프라팀이 관리하는 실서버(Rocky Linux 9)에 Rancher 관리 클러스터와 dev 클러스터를 올리기 전에 해야 할 준비를 정리합니다. [15 RKE2 3대 클러스터 구축](15-rke2-three-node-build.md)이 "내가 모든 권한을 가진 서버"를 가정한 절차라면, 이 문서는 **OS 설정은 인프라팀이 하고, 나는 제한된 sudo와 `/app` 디렉터리만 받은** 상황을 다룹니다. 설계 배경은 [16 Rancher로 여러 클러스터 중앙 관리](16-rancher-multi-cluster-management.md)에 있습니다.
+사내 인프라팀이 관리하는 실서버(Rocky Linux 9)에 Rancher 관리 클러스터와 dev 클러스터를 올리기 전에 해야 할 준비를 정리합니다. [15 RKE2 3대 클러스터 구축](15-rke2-three-node-build.md)은 "내가 모든 권한을 가진 서버"를 가정합니다. 이 문서는 **OS 설정은 인프라팀이 하고, 나는 제한된 sudo와 `/app` 디렉터리만 받은** 상황을 다룹니다. 설계 배경은 [16 Rancher로 여러 클러스터 중앙 관리](16-rancher-multi-cluster-management.md)에 있습니다.
+
+2026-10-19~21에 실서버 MGMT 3대와 DEV 3대에 이 절차를 적용했습니다. 설치 중 막힌 사례는 [Rancher·RKE2 실서버 설치 실패 사례](../troubleshooting/rancher-rke2-onprem-install-failures.md)에 따로 모았습니다.
 
 ## 0. 전제와 예시 주소
 
@@ -9,17 +11,18 @@
                                                                   10.0.0.11 / .12 / .13
 dev 노드 DEV-1~3 (10.0.1.11 / .12 / .13) ──443──▶ 위 VIP        ← 에이전트 단방향
 Jenkins ──443──▶ 위 VIP                                            ← 배포
-DEV 노드 ──5000·5001──▶ Nexus                                      ← 이미지 pull
+DEV 노드 ──5000──▶ Nexus                                           ← 앱 이미지 pull
+MGMT(Rancher Pod) ──8081──▶ Nexus                                  ← 앱 Helm 차트 목록
 ```
 
 | 항목 | 값 | 비고 |
 | --- | --- | --- |
 | OS | Rocky Linux 9.8, 3대 + 3대 | hostname, 계정, 디스크는 인프라팀이 설정 완료 |
 | 내 권한 | 일반 계정 + 설치 기간 sudo, `/app`(500GB) 소유 | `/etc`, `/var` 변경은 sudo |
-| Rancher 접점 | 인프라팀 L4가 443을 세 노드로 분산 | kube-vip 불필요. 6443·9345는 L4를 거치지 않음 |
+| Rancher 접점 | 인프라팀 L4가 443을 세 노드로 분산 | kube-vip는 쓰지 않습니다. 9345·6443 listener는 2-3장 참고 |
 | dev 접점 | L4 없음. MetalLB L2 VIP `10.0.1.20` | 인프라팀에 IP 1개 예약 요청 |
 | 아웃바운드 | 기본 차단 | 도메인 단위로 허용 요청 |
-| 버전 | RKE2 v1.36.4+rke2r1, Rancher 2.15.2 | Rancher 2.15가 RKE2 1.34~1.36과 Rocky 9.8을 지원 |
+| 버전 | MGMT RKE2 v1.36.4+rke2r1, DEV RKE2 v1.36.5+rke2r1, Rancher 2.15.2 | 두 클러스터 버전은 독립. DEV는 Rancher 화면이 제시하는 버전 중에서 고릅니다 |
 
 주소는 모두 예시입니다. 실제 값으로 바꿔 읽으세요.
 
@@ -47,7 +50,7 @@ echo "== 기존 rke2 잔재 (없어야 함)"; ls /etc/rancher /var/lib/rancher 2
 판단 기준:
 
 - **hostname**이 겹치면 etcd 멤버 이름이 충돌해 조인이 실패합니다.
-- **Docker**가 있고 컨테이너가 0개면 끕니다. RKE2는 자체 containerd를 쓰므로 Docker는 쓰이지 않습니다. Docker 데몬은 iptables FORWARD 정책을 DROP으로 바꿔 Pod 통신을 간헐적으로 끊을 수 있습니다. 컨테이너가 돌고 있으면 그 서비스를 옮긴 뒤 끕니다.
+- **Docker**가 있고 컨테이너가 0개면 끕니다. RKE2는 자체 containerd를 쓰므로 Docker는 쓰이지 않습니다. Docker 데몬은 iptables FORWARD 정책을 DROP으로 바꿔 Pod 통신을 끊을 수 있습니다. 컨테이너가 돌고 있으면 그 서비스를 옮긴 뒤 끕니다.
 - **nm-cloud-setup**이 enabled면 Canal과 충돌합니다. 비활성화 후 재부팅합니다.
 - **포트** 80·443은 Traefik hostPort가, 6443·9345는 API와 supervisor가 씁니다. 무엇이든 떠 있으면 기동이 실패합니다.
 - **클러스터 내부 대역** 기본값은 Pod 10.42.0.0/16, Service 10.43.0.0/16입니다. 사내에서 이 대역을 쓰는지 인프라팀에 확인합니다. 겹치면 `cluster-cidr`, `service-cidr`를 바꿔야 하고, 설치 후에는 변경할 수 없습니다.
@@ -56,6 +59,17 @@ echo "== 기존 rke2 잔재 (없어야 함)"; ls /etc/rancher /var/lib/rancher 2
 sudo systemctl disable --now docker docker.socket containerd          # Docker 와 Docker 가 깐 containerd
 sudo systemctl disable --now nm-cloud-setup.service nm-cloud-setup.timer
 ```
+
+**Docker를 꺼도 흔적이 남습니다.** `docker0` 브리지, `DOCKER` iptables 체인, `FORWARD DROP` 정책은 서비스를 내려도 그대로입니다. `FORWARD DROP`이 남으면 노드 사이 Pod 통신이 막힙니다. 실서버 MGMT-1도 Docker를 켠 채 설치됐고, 끄고 재부팅한 뒤에 나머지 노드를 조인했습니다.
+
+```bash
+ip -br link | grep docker0             # 출력 없어야 함
+sudo iptables -S FORWARD | head -1     # -P FORWARD ACCEPT 여야 함
+sudo iptables -S | grep -c DOCKER      # 0 이어야 함
+sudo reboot                            # 위 셋 중 하나라도 다르면
+```
+
+이미 RKE2가 돌고 있는 노드는 한 대씩 재부팅합니다. etcd가 2개뿐일 때 한 대를 내리면 과반이 깨지므로 재부팅하지 않습니다.
 
 ## 2. 인프라팀에 요청할 것
 
@@ -89,11 +103,16 @@ sudo systemctl restart systemd-journald
 
 ### 2-3. L4, DNS, VIP
 
+L4는 TCP 패스스루로 두고 TLS는 노드의 Traefik이 처리합니다. L4에서 TLS를 종료하면 Rancher TLS 옵션이 달라지므로 이 절차와 섞지 않습니다.
+
 | 요청 | 내용 | 확인할 답 |
 | --- | --- | --- |
-| L4 | VIP:443 → MGMT-1~3:443 | 헬스체크 방식(TCP 443이면 충분), 6443·9345도 넘기는지 |
+| L4 443 | VIP:443 → MGMT-1~3:443 | 헬스체크는 HTTPS `/ping`이 `pong`을 돌려주는지. TCP 확인만으로는 Rancher 정상 여부를 알 수 없음 |
+| L4 9345, 6443 (권장) | VIP:9345, VIP:6443 → MGMT-1~3 | 노드 조인과 Kubernetes API. 관리망만 허용 |
 | DNS | `rancher.example.internal` → L4 VIP | 노드와 Pod 양쪽에서 풀려야 함 |
 | dev VIP | DEV 대역에서 미사용 IP 1개 예약 | MetalLB가 ARP로 띄움. DHCP 범위 밖이어야 함 |
+
+**443만으로는 RKE2 조인이 안 됩니다.** 새 server 노드는 9345로 기존 노드에 접속합니다. L4에 9345 listener가 없으면 MGMT-2·3의 `server:` 주소로 MGMT-1 IP를 직접 씁니다. 이미 조인한 클러스터는 MGMT-1에 의존하지 않습니다. 다만 MGMT-1이 죽은 동안에는 새 노드나 복구 노드의 첫 접속이 실패하므로, 그때는 살아 있는 server의 IP로 바꿉니다.
 
 ### 2-4. 아웃바운드와 사내 방화벽
 
@@ -109,26 +128,43 @@ sudo systemctl restart systemd-journald
 | --- | --- | --- | --- | --- |
 | 관리자 PC | MGMT-1~3, L4 VIP | TCP/443 | Rancher UI·API | 필수 |
 | 관리자 PC | MGMT-1~3 | TCP/22 | 설치·점검 | 설치 시 |
-| 관리자 PC | MGMT-1~3 | TCP/6443 | 관리 클러스터 kubectl. PC에서 `helm install rancher`를 치려면 필요 | 필수 |
+| 관리자 PC | MGMT-1~3 | TCP/6443 | 관리 클러스터 kubectl | 필수 |
 | 관리자 PC | DEV-1~3 | TCP/22 | 등록 명령 실행 | 설치 시 |
 | 관리자 PC | DEV-1~3, dev VIP | TCP/80, 443 | 배포한 서비스 접속 | 테스트 시 |
 | 관리자 PC | DEV-1~3 | TCP/6443 | dev kubectl 직접 접속 | 선택. Rancher 경유면 불필요 |
 | **DEV-1~3** | **MGMT-1~3, L4 VIP** | **TCP/443** | `rancher-system-agent`, `cattle-cluster-agent`가 Rancher에 접속. WebSocket 상시 연결 | **필수** |
 | Jenkins(운영), Jenkins(개발) | MGMT-1~3, L4 VIP | TCP/443 | Rancher 발급 kubeconfig로 배포. 클러스터가 늘어도 변경 없음 | 배포 자동화 시 |
-| DEV-1~3 | Nexus | TCP/8081, 5000, 5001 | 사내 앱 이미지·Helm 차트 pull. 8081 UI·Helm, 5000 hosted, 5001 proxy/group | 필수 |
+| DEV-1~3 | Nexus | TCP/5000 | 사내 앱 이미지 pull (docker hosted, HTTP) | 필수 |
+| MGMT-1~3 | Nexus | TCP/8081 | Rancher Apps가 Helm 차트 index를 읽음 | Rancher Apps 사용 시 |
+| DEV-1~3 | 앱 백엔드(레거시 WAS, 외부 API) | 앱별 | 앱 Pod가 클러스터 밖 서버를 호출할 때 출발지가 DEV 노드 3대로 바뀜 | 앱 이전 시 |
 
 Rancher → dev 노드 방향은 **필요 없습니다.** 에이전트가 먼저 접속하는 구조라 Rancher가 노드로 들어갈 일이 없습니다. Rancher Node Driver로 VM을 직접 만들 때만 22가 필요합니다.
+
+**Helm 차트 목록은 DEV가 아니라 MGMT가 읽습니다.** Rancher Apps의 Repositories는 MGMT에서 도는 Rancher Pod가 Nexus의 `index.yaml`을 받아 보여 줍니다. 차트 안의 이미지는 DEV 노드가 받으므로, 8081은 MGMT에, 5000은 DEV에 엽니다.
 
 ### 아웃바운드 (443)
 
 | Src | Dst | 용도 |
 | --- | --- | --- |
-| MGMT, DEV | `docker.io`, `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` | 컨테이너 이미지. 설치 후에도 지속 필요 |
-| MGMT, DEV | `ghcr.io`, `quay.io` | kube-vip, cert-manager 등 이미지 |
-| MGMT | `releases.rancher.com`, `charts.jetstack.io` | Rancher·cert-manager Helm 차트 |
-| MGMT | `get.rke2.io`, `github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com` | RKE2 설치 스크립트·바이너리. 수동 반입하면 제외 가능 |
+| MGMT, DEV | `docker.io`, `registry-1.docker.io`, `auth.docker.io` | 컨테이너 이미지 목록과 인증. 설치 후에도 지속 필요 |
+| MGMT, DEV | `production.cloudflare.docker.com`, `production.cloudfront.docker.com` | Docker Hub 이미지 데이터 CDN. **FQDN 허용과 TLS 검사 예외**를 함께 요청 |
+| MGMT, DEV | `ghcr.io`, `quay.io`, `cdn01.quay.io`, `cdn02.quay.io`, `cdn03.quay.io` | MetalLB 등 quay.io 이미지. 레이어는 CDN에서 받음 |
+| MGMT, DEV | `rpm.rancher.io` | RKE2·`rke2-selinux` RPM. Rocky에서 설치 스크립트의 기본 방식 |
+| MGMT | `get.rke2.io`, `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `raw.githubusercontent.com` | RKE2 설치 스크립트·바이너리, GitHub 릴리스, 매니페스트 |
+| MGMT | `get.helm.sh`, `releases.rancher.com` | Helm 바이너리, Rancher Helm 차트 |
 
 dev 노드는 Rancher가 RKE2를 설치해 주므로 `get.rke2.io`와 GitHub가 필요 없습니다. 설치 이미지(`rancher/system-agent-installer-rke2`)를 docker.io에서 받으므로 레지스트리 접근은 있어야 합니다.
+
+실서버 1차 신청에서는 `rpm.rancher.io`, `get.helm.sh`, `release-assets.githubusercontent.com`, `production.cloudfront.docker.com`이 빠져 2차 신청을 했습니다. 두 가지를 배웠습니다.
+
+- **작은 이미지 성공으로 열렸다고 판단하지 않습니다.** `rancher/shell`(114MB)은 받아졌지만 `rancher/rancher`(973MB)는 CloudFront CDN에서 `connection reset`과 timeout으로 반복 실패했습니다. 큰 이미지로 확인합니다.
+- **CDN은 IP가 수시로 바뀝니다.** IP 대신 도메인(FQDN) 기반 허용을 요청하고, 사내 보안 장비의 TLS 검사 예외를 함께 받습니다.
+
+신청 전에는 서버에서 실제로 막혔는지 확인합니다. 응답 코드가 나오면 열려 있는 것입니다.
+
+```bash
+curl -sI --max-time 5 https://rpm.rancher.io -o /dev/null -w '%{http_code}\n' || echo 차단
+```
 
 ### 요청서 작성 팁
 
@@ -137,30 +173,36 @@ dev 노드는 Rancher가 RKE2를 설치해 주므로 `get.rke2.io`와 GitHub가 
 - Jenkins가 운영·개발 두 대면 설명 칸에 구분을 적어 같은 서버가 두 번 나온 것처럼 보이지 않게 합니다.
 - GitLab은 지금 구성에서 필요 없습니다. Jenkins 서버가 소스를 받아 빌드하고 Nexus에 push하며, 클러스터는 Nexus에서 pull만 합니다. Fleet·ArgoCD 같은 GitOps를 쓰거나 Jenkins 빌드 에이전트를 클러스터 Pod로 띄우면 그때 Rancher 또는 dev 노드 → GitLab 행을 추가합니다.
 - DNS(53)·NTP(123)는 서버에서 이미 동작을 확인했으면 요청하지 않습니다.
-- Nexus를 Docker Hub proxy로 쓰면 외부 docker.io 행을 지울 수 있습니다. 다만 proxy 장애 대비로 남겨도 됩니다.
+- `mirrors.fedoraproject.org`(EPEL)는 요청하지 않습니다. RKE2와 Rancher는 EPEL을 쓰지 않습니다. 대신 서버에서 `sudo dnf config-manager --set-disabled epel`로 끕니다. 켜 두면 차단된 EPEL 때문에 `dnf` 전체가 실패합니다.
+- Nexus 5001을 신청하기 전에 Nexus 서버에서 `ss -lntp | grep 5001`로 실제로 열려 있는지 봅니다. 7장에서 설명합니다.
 
 ## 4. RKE2 데이터를 `/app` 아래에 두기: 바인드 마운트
 
 인프라팀이 "RKE2는 `/app` 아래에 설치해 달라"고 요청하는 경우가 있습니다. `data-dir` 옵션으로 경로를 바꾸면 모든 문서의 경로가 달라져 운영이 번거롭습니다. 대신 **정석 경로를 유지하고 디스크만 `/app`을 쓰도록** 바인드 마운트합니다. Rancher가 설치하는 dev 노드도 경로가 같아서 동일하게 적용됩니다.
 
 ```bash
-# 1) 실제 저장 디렉터리 (/app은 계정 권한이라 sudo 불필요)
-mkdir -p /app/rke2/rancher /app/rke2/kubelet /app/rke2/log-pods
+# 0) /app 이 마운트돼 있는지, 이미 등록했는지 확인
+mountpoint -q /app || echo '/app 이 마운트되지 않음'
+grep -q '/app/rke2/rancher' /etc/fstab && echo 'fstab 에 이미 등록됨'
+
+# 1) 실제 저장 디렉터리
+sudo mkdir -p /app/rke2/rancher /app/rke2/kubelet /app/rke2/log-pods
 
 # 2) 마운트 지점
 sudo mkdir -p /var/lib/rancher /var/lib/kubelet /var/log/pods
 
 # 3) fstab 등록. 칸 사이 공백 수는 자유. EOT는 줄 맨 앞에
-sudo tee -a /etc/fstab <<'EOT'
-/app/rke2/rancher    /var/lib/rancher   none  bind  0 0
-/app/rke2/kubelet    /var/lib/kubelet   none  bind  0 0
-/app/rke2/log-pods   /var/log/pods      none  bind  0 0
+sudo tee -a /etc/fstab >/dev/null <<'EOT'
+/app/rke2/rancher   /var/lib/rancher  none  defaults,bind,x-systemd.requires-mounts-for=/app  0 0
+/app/rke2/kubelet   /var/lib/kubelet  none  defaults,bind,x-systemd.requires-mounts-for=/app  0 0
+/app/rke2/log-pods  /var/log/pods     none  defaults,bind,x-systemd.requires-mounts-for=/app  0 0
 EOT
 
 # 4) 마운트와 확인
 sudo systemctl daemon-reload
 sudo mount -a
 findmnt | grep rke2
+df -h /var/lib/rancher          # /app 과 같은 장치, 같은 용량
 ```
 
 | 경로 | 내용 | 용량 |
@@ -171,7 +213,9 @@ findmnt | grep rke2
 
 주의할 점:
 
+- **`x-systemd.requires-mounts-for=/app`** 옵션은 부팅 때 `/app`이 마운트된 뒤에 바인드 마운트하라는 뜻입니다. 없으면 부팅 순서에 따라 빈 디렉터리에 마운트될 수 있습니다.
 - **RKE2 설치 전에** 끝내야 합니다. 설치 후 마운트하면 기존 내용이 가려져 클러스터가 깨집니다.
+- **SELinux가 켜져 있으면** RKE2 설치 직후 `sudo restorecon -RF /var/lib/rancher /var/lib/kubelet /var/log/pods`로 파일 라벨을 맞춥니다.
 - `findmnt`에 인자를 두 개 이상 주면 "장치 + 마운트 지점"으로 해석해 빈 출력이 나옵니다. 하나씩 확인하거나 `findmnt | grep rke2`를 씁니다.
 - 바인드 마운트 아래에 만드는 파일(6장의 kubelet 드롭인 등)은 마운트 **뒤에** 만듭니다.
 
@@ -180,18 +224,32 @@ findmnt | grep rke2
 | 순서 | 작업 | sudo |
 | --- | --- | --- |
 | 0 | 4장 바인드 마운트 | O |
-| 1 | RKE2 설치 스크립트, `/etc/rancher/rke2/config.yaml` | O |
-| 2 | Traefik hostPort 매니페스트 (MGMT-1만) | O |
-| 3 | `systemctl enable --now rke2-server` (MGMT-1 → Ready 확인 → 2 → 3) | O |
-| 4 | kubeconfig 복사 `sudo cat /etc/rancher/rke2/rke2.yaml > ~/.kube/config` | O (한 번) |
-| 5 | PATH 등록, cert-manager·Rancher Helm 설치 | X |
+| 1 | 토큰 파일, `/etc/rancher/rke2/config.yaml` | O |
+| 2 | Traefik HelmChartConfig (MGMT-1만) | O |
+| 3 | RKE2 설치와 `systemctl enable --now rke2-server` (MGMT-1 → Ready 확인 → 2 → 3) | O |
+| 4 | kubeconfig 복사 `sudo cat /etc/rancher/rke2/rke2.yaml > ~/.kube/config && chmod 600 ~/.kube/config` | O (한 번) |
+| 5 | PATH 등록, Rancher Helm 설치 | X |
 
 sudo를 요청할 때 "설치 기간 동안 `/etc/rancher`, `/var/lib/rancher`, `systemctl` 범위"로 좁혀 말하면 받기 쉽습니다. 설치가 끝나면 일상 운영은 kubectl·helm이라 내 계정으로 됩니다.
+
+### 토큰 파일 (MGMT-1)
+
+토큰은 config.yaml에 직접 쓰지 않고 root 전용 파일로 둡니다. 화면에 출력하지 않고 만듭니다.
+
+```bash
+sudo install -d -m 700 /etc/rancher/rke2
+sudo bash -c 'set -e; test ! -e /etc/rancher/rke2/server-token; umask 077; openssl rand -hex 32 > /etc/rancher/rke2/server-token'
+sudo stat -c '%a %U %n' /etc/rancher/rke2/server-token          # 600 root
+```
+
+이 토큰은 첫 기동용입니다. MGMT-1이 뜨면 `/var/lib/rancher/rke2/server/token`에 CA 해시가 붙은 secure token이 생깁니다. MGMT-2·3에는 이 secure token을 같은 경로(`/etc/rancher/rke2/server-token`)에 넣어 전달합니다. 조인하는 노드가 MGMT-1의 CA를 검증할 수 있게 됩니다.
 
 ### config.yaml (MGMT-1)
 
 ```yaml
-token: ${RKE2_TOKEN}            # openssl rand -hex 32 로 생성, 3대 동일
+node-name: mgmt-1
+node-ip: 10.0.0.11
+token-file: /etc/rancher/rke2/server-token
 tls-san:
   - 10.0.0.11
   - 10.0.0.12
@@ -199,17 +257,22 @@ tls-san:
   - 10.0.0.10                   # L4 VIP
   - rancher.example.internal
 cni: canal
-write-kubeconfig-mode: "0640"
-etcd-expose-metrics: true
+ingress-controller: traefik
+selinux: true
+write-kubeconfig-mode: "0600"
 etcd-snapshot-schedule-cron: "0 */6 * * *"
 etcd-snapshot-retention: 20
 ```
 
-MGMT-2·3은 위 내용에 `server: https://10.0.0.11:9345`를 추가합니다. L4가 9345를 넘겨 주면 VIP 주소를 씁니다. `cluster-cidr`, `service-cidr`는 기본값을 쓰면 적지 않습니다. 1장에서 사내 대역과 겹치는 것이 확인됐을 때만 다른 값으로 넣습니다.
+- **`node-name`, `node-ip`를 빠뜨리지 않습니다.** 실서버에서 MGMT-1의 config를 복사하면서 두 줄을 뺐더니 MGMT-2가 OS hostname으로 조인했습니다. 노드 이름은 etcd 멤버 이름과 kubelet 인증서에 들어가므로 config를 고치고 재시작해도 바뀌지 않습니다. 노드를 지우고 다시 조인해야 했습니다.
+- **`write-kubeconfig-mode`는 `"0600"`입니다.** `0640`으로 열어도 일반 계정은 그룹에 속하지 않으면 읽지 못합니다. 원본은 root 전용으로 두고 5장 4번처럼 복사본을 씁니다.
+- **etcd 스냅샷 6시간 간격 20개**는 노드 로컬에 약 5일치를 남길 뿐 외부 백업이 아닙니다.
 
-### Traefik을 L4 뒤에 두는 설정 (MGMT-1, 기동 전)
+MGMT-2·3은 `node-name`, `node-ip`를 자기 값으로 바꾸고 `server: https://10.0.0.11:9345`를 추가합니다. L4가 9345를 넘겨 주면 VIP 주소를 씁니다. `cluster-cidr`, `service-cidr`는 기본값을 쓰면 적지 않습니다. 1장에서 사내 대역과 겹치는 것이 확인됐을 때만 다른 값으로 넣습니다.
 
-RKE2 Traefik 차트 기본값은 Service `LoadBalancer`인데 온프레미스에는 IP를 줄 컨트롤러가 없어 `<pending>`으로 남습니다. L4가 노드 IP의 80·443으로 직접 보내므로 DaemonSet + hostPort로 받고 Service는 내부용 ClusterIP로 둡니다.
+### Traefik 배치를 고정하는 설정 (MGMT-1, 기동 전)
+
+RKE2 1.36 신규 설치의 기본 Ingress는 Traefik이고, 기본값이 이미 DaemonSet + hostPort 80/443입니다. 실서버에서 아래 설정 파일이 깨져 읽히지 않았을 때도 같은 형태로 떴습니다. 그래도 파일을 두는 이유는 차트 기본값이 바뀌어도 "L4가 노드 80·443으로 직접 보낸다"는 구조를 지키기 위해서입니다. Service는 내부용 ClusterIP로 둡니다.
 
 ```yaml
 # /var/lib/rancher/rke2/server/manifests/rke2-traefik-config.yaml
@@ -228,21 +291,83 @@ spec:
       websecure:
         hostPort: 443
     service:
-      type: ClusterIP
+      spec:
+        type: ClusterIP
 ```
 
-`type: ClusterIP`는 실제 값입니다. 자리표시자가 아닙니다. root 디렉터리라 `sudo vi`로 열어야 하고, 일반 vi에서 저장하면 `E212: Can't open file for writing`이 납니다. 이미 열었다면 `:w !sudo tee %`로 저장합니다.
+- **`service.spec.type`입니다.** RKE2의 Traefik 차트는 Service 타입을 `service.spec.type`에서 읽습니다. 일반 Traefik 차트처럼 `service.type`을 쓰면 무시됩니다.
+- **붙여 넣은 뒤 들여쓰기를 확인합니다.** 터미널이 줄 앞에 공백을 덧붙이면 `ParseManifestFailed`가 납니다. `sudo cat -A <파일> | head -3`으로 1~2번째 줄이 공백 없이 시작하는지 봅니다.
+- hostPort는 CNI의 DNAT로 구현되어 `ss -lntp`에 보이지 않을 수 있습니다. 실제 접속으로 확인합니다.
+- RKE2는 `manifests/` 폴더를 감시하므로 나중에 고쳐도 재시작이 필요 없습니다.
+- 실서버 확인 값: 차트 `rke2-traefik-40.1.010`, IngressClass `traefik (default)`.
+
+root 디렉터리라 `sudo vi`로 열어야 하고, 일반 vi에서 저장하면 `E212: Can't open file for writing`이 납니다. 이미 열었다면 `:w !sudo tee %`로 저장합니다.
 
 ### 설치
 
 ```bash
-curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION=v1.36.4+rke2r1 sudo sh -
+curl -fL --retry 3 https://get.rke2.io -o ~/rke2-install.sh
+sudo env INSTALL_RKE2_VERSION='v1.36.4+rke2r1' INSTALL_RKE2_TYPE=server INSTALL_RKE2_METHOD=rpm sh ~/rke2-install.sh
+rpm -q rke2-server rke2-selinux container-selinux
 sudo systemctl enable --now rke2-server.service
 sudo journalctl -u rke2-server -f                     # "rke2 is up and running"
 sudo /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
 ```
 
-아웃바운드가 아직 막혀 있으면 PC에서 `rke2.linux-amd64.tar.gz`, `rke2-images.linux-amd64.tar.zst`, `sha256sum-amd64.txt`, 설치 스크립트를 받아 서버로 옮긴 뒤 `INSTALL_RKE2_ARTIFACT_PATH=/app/rke2-artifacts sudo sh install.sh`로 설치합니다. Rancher·cert-manager 이미지는 여전히 레지스트리 아웃바운드가 필요합니다.
+- **`sudo env VAR=값 sh`로 씁니다.** `VAR=값 sudo sh` 형태는 sudo 정책에 따라 환경변수가 버려져 최신 버전이 설치될 수 있습니다.
+- **RPM 방식**은 `rke2-selinux`와 의존성까지 설치합니다. 그래서 `rpm.rancher.io` 아웃바운드가 필요합니다.
+
+아웃바운드가 아직 막혀 있으면 PC에서 `rke2.linux-amd64.tar.gz`, `rke2-images.linux-amd64.tar.zst`, `sha256sum-amd64.txt`, 설치 스크립트를 받아 22번으로 서버에 옮깁니다. 실서버 MGMT 3대는 이 방법으로 설치했습니다.
+
+```bash
+cd /app/rke2-artifacts && sha256sum --ignore-missing -c sha256sum-amd64.txt
+sudo install -d -m 755 /var/lib/rancher/rke2/agent/images
+sudo install -m 644 rke2-images.linux-amd64.tar.zst /var/lib/rancher/rke2/agent/images/
+sudo env INSTALL_RKE2_VERSION='v1.36.4+rke2r1' INSTALL_RKE2_METHOD=tar INSTALL_RKE2_TYPE=server \
+  INSTALL_RKE2_ARTIFACT_PATH=/app/rke2-artifacts sh /app/rke2-artifacts/install.sh
+```
+
+tar 방식은 `rke2-selinux`를 설치하지 않습니다. SELinux가 켜져 있으면 PC에서 `rke2-selinux` RPM도 받아 함께 반입합니다. SELinux를 끄는 것으로 우회하지 않습니다. 이미지 묶음은 `rke2-server`를 시작하기 **전에** `images/` 폴더에 있어야 읽힙니다.
+
+### Rancher 설치
+
+인증서는 두 가지 중 하나를 고릅니다. 실서버에서는 다른 서비스에 쓰던 공인 와일드카드 인증서를 썼고, cert-manager는 설치하지 않았습니다.
+
+| | 사내 CA 인증서 | 공인 인증서 (실서버 적용) |
+| --- | --- | --- |
+| Secret | `tls-rancher-ingress` + CA bundle `tls-ca` | `tls-rancher-ingress`만 |
+| values `privateCA` | `true` | 줄 삭제 |
+| values `agentTLSMode` | `strict` | `system-store` |
+
+`agentTLSMode`는 dev 노드 에이전트가 Rancher 인증서를 무엇으로 검증할지 정합니다. `strict`는 Rancher에 등록한 CA만 믿습니다. 공인 인증서에 `strict`를 쓰면 에이전트가 연결을 거부할 수 있습니다. `system-store`는 OS 기본 CA 목록을 믿습니다.
+
+```bash
+kubectl create namespace cattle-system
+kubectl -n cattle-system create secret tls tls-rancher-ingress --cert=tls.crt --key=tls.key
+```
+
+`tls.crt`에는 서버 인증서와 중간 CA가 함께 들어 있어야 합니다(`grep -c 'BEGIN CERTIFICATE' tls.crt`가 2 이상). 브라우저는 빠진 중간 CA를 스스로 찾지만 에이전트와 curl은 실패합니다.
+
+MGMT-1 한 대만 있을 때 먼저 설치하는 values입니다.
+
+```yaml
+hostname: rancher.example.internal
+replicas: 1
+antiAffinity: preferred
+networkExposure:
+  type: ingress
+ingress:
+  ingressClassName: traefik
+  tls:
+    source: secret
+agentTLSMode: system-store
+```
+
+MGMT-2·3이 조인하면 `replicas: 3`, `antiAffinity: required`로 바꿔 `helm upgrade`합니다. `replicas: 3`만으로는 Pod가 노드마다 하나씩 배치된다는 보장이 없습니다. `required`가 있어야 세 노드에 나뉩니다. 처음부터 `replicas: 3` + `required`로 설치하면 Pod 2개가 Pending으로 남아 `helm install --wait`가 실패합니다.
+
+- **`bootstrapPassword`는 지정하지 않습니다.** 명령줄에 넣으면 셸 history에 남습니다. 차트가 임의 생성한 값을 첫 로그인 때 Secret에서 꺼내 씁니다.
+- **`helm template`으로 미리 확인할 때는 `--kube-version 1.36.4`를 붙입니다.** 클러스터에 접속하지 않는 `helm template`은 Helm 기본값(1.37)으로 검사하고, Rancher 2.15.2 차트가 1.37을 허용하지 않아 실패합니다.
+- **실패한 첫 설치는 `helm uninstall` 하지 않습니다.** Helm이 실패해도 Rancher Pod는 뜰 수 있고, 뜨자마자 CRD와 `cattle-*` 네임스페이스를 만듭니다. values를 고쳐 같은 차트로 `helm upgrade`합니다.
 
 ## 6. dev 노드 준비: 관리 서버와 무엇이 다른가
 
@@ -250,23 +375,24 @@ dev 노드는 RKE2를 **Rancher가 설치**합니다. OS 준비까지만 하고 
 
 ### 같은 것
 
-1장 점검, Docker 중지, nm-cloud-setup, 포트 점검, NetworkManager conf 요청, 4장 바인드 마운트. 모두 동일합니다.
+1장 점검, Docker 중지와 흔적 확인, nm-cloud-setup, 포트 점검, NetworkManager conf 요청, 4장 바인드 마운트. 모두 동일합니다.
 
 ### 하지 않는 것
 
 - 설치 스크립트를 직접 실행하지 않습니다. 미리 깔면 등록이 꼬입니다.
 - `/etc/rancher/rke2/config.yaml`을 만들지 않습니다. Rancher가 `config.yaml.d/50-rancher.yaml`을 생성합니다.
-- 매니페스트 파일을 서버에 두지 않습니다.
+- MGMT의 config, 토큰, Traefik 설정 파일을 복사하지 않습니다. 복사하면 DEV가 MGMT 클러스터에 붙으려 합니다.
 
 관리 서버에서 파일로 했던 것은 Rancher UI의 클러스터 생성 화면으로 갑니다.
 
 | 관리 서버 (파일) | dev 클러스터 (Rancher UI) |
 | --- | --- |
 | `token`, `server` | 등록 명령에 포함 |
+| `node-name` | Registration 탭 → Show Advanced → Node Name |
 | `tls-san` | Advanced → Additional Server Args |
-| `cni`, `cluster-cidr`, `service-cidr` | Networking |
+| `cni`, `cluster-cidr`, `service-cidr` | Basics(Container Network), Networking |
 | etcd 스냅샷 주기 | etcd |
-| Traefik hostPort 매니페스트 | Add-On Config → Additional Manifest |
+| Traefik HelmChartConfig | Edit Config → Additional Manifest |
 | `registries.yaml` | Registries 탭 |
 | kubelet 인자 | Advanced → Additional Kubelet Args |
 
@@ -276,8 +402,12 @@ dev 노드는 RKE2를 **Rancher가 설치**합니다. OS 준비까지만 하고 
 
 ```bash
 getent hosts rancher.example.internal
-curl -sk https://rancher.example.internal/ping      # Rancher 설치 후 pong
+curl -s https://rancher.example.internal/ping       # Rancher 설치 후 pong
 ```
+
+**RKE2 이미지 묶음 미리 넣기.** RKE2는 기동할 때 `/var/lib/rancher/rke2/agent/images/`의 묶음을 먼저 불러옵니다. 묶음을 넣어 두면 Docker Hub CDN이 불안정해도 RKE2 구성요소를 받지 않습니다. **묶음 버전은 Rancher 화면에서 고를 Kubernetes Version과 같아야 합니다.** 실서버에서는 Rancher 2.15.2가 제시한 최저 버전이 `v1.36.5+rke2r1`이라 MGMT용 1.36.4 묶음을 쓸 수 없었습니다.
+
+**Container Network는 canal로 바꿉니다.** Rancher의 Custom 클러스터 기본값은 Calico입니다. MGMT와 같은 canal로 맞추면 점검 항목(UDP 8472)이 같아집니다. Calico로 두면 노드 사이 UDP 4789가 필요합니다.
 
 **스토리지 패키지.** RKE2에는 k3s와 달리 local-path 스토리지가 없습니다. PVC를 쓰려면 Longhorn이나 NFS가 필요하고 OS 패키지가 선행됩니다. sudo가 있을 때 미리 깝니다.
 
@@ -287,9 +417,9 @@ sudo systemctl enable --now iscsid
 sudo modprobe iscsi_tcp && echo iscsi_tcp | sudo tee /etc/modules-load.d/iscsi_tcp.conf
 ```
 
-**MetalLB VIP.** L4가 없으니 dev 서비스 접점은 MetalLB가 ARP로 띄우는 VIP입니다. 2-3장의 예약 요청이 끝나야 합니다.
+**MetalLB VIP.** L4가 없으니 dev 서비스 접점은 MetalLB가 ARP로 띄우는 VIP입니다. 2-3장의 예약 요청이 끝나야 합니다. Traefik을 이 VIP에 연결하는 설정은 [18 DEV 클러스터 외부 접속](18-dev-cluster-metallb-traefik-tls.md)에 있습니다.
 
-**등록 명령.** Rancher UI에서 Custom 클러스터를 만들면 나오는 한 줄을 각 노드에서 sudo로 실행합니다. 세 대 모두 `--etcd --controlplane --worker`로 겸임시킵니다.
+**등록 명령.** Rancher UI에서 Custom 클러스터를 만들면 나오는 한 줄을 각 노드에서 sudo로 실행합니다. 세 대 모두 `--etcd --controlplane --worker`로 겸임시키고, Node Name은 `dev-1`처럼 노드마다 지정합니다. 첫 노드는 Rancher가 etcd와 API 서버를 확인한 뒤 나머지 control plane을 내려보내므로 15분쯤 걸립니다.
 
 ### swap을 끄지 않고 쓰기 (dev만)
 
@@ -312,7 +442,7 @@ memorySwap:
 EOT
 ```
 
-Rancher UI에서 Additional Kubelet Args에 `fail-swap-on=false`를 넣습니다. 이게 없으면 swap이 켜진 노드에서 kubelet이 기동을 거부합니다. `swapBehavior`는 kubelet 플래그가 없어 설정 파일 드롭인으로만 넣을 수 있습니다.
+Rancher UI에서 Additional Kubelet Args에 `fail-swap-on=false`를 넣습니다. 앞에 `--`를 붙이지 않고, Machine Selector 안이 아니라 맨 위 기본 항목에 넣습니다. 이게 없으면 swap이 켜진 노드에서 kubelet이 기동을 거부합니다. `swapBehavior`는 kubelet 플래그가 없어 설정 파일 드롭인으로만 넣을 수 있습니다.
 
 클러스터가 뜬 뒤 확인:
 
@@ -330,54 +460,61 @@ sudo ls /var/lib/rancher/rke2/agent/etc/kubelet.conf.d/     # RKE2가 만든 00-
 노드의 containerd는 레지스트리 주소를 기본으로 HTTPS로 접근합니다. Nexus가 HTTP면 "server gave HTTP response to HTTPS client"로 pull이 실패합니다. 기존 Docker의 `insecure-registries`에 해당하는 설정이 `registries.yaml`입니다.
 
 ```yaml
-# Nexus 가 HTTP 인 경우
+# Nexus docker hosted 가 HTTP 5000 인 경우
 mirrors:
   "nexus.example.internal:5000":
     endpoint:
       - "http://nexus.example.internal:5000"
-  docker.io:                                   # Docker Hub proxy 로 돌릴 때만
-    endpoint:
-      - "http://nexus.example.internal:5001"
 configs:
   "nexus.example.internal:5000":
     auth:
-      username: ${NEXUS_USER}
-      password: ${NEXUS_PASSWORD}
+      username: ${NEXUS_READ_USER}
+      password: ${NEXUS_READ_PASSWORD}
 ```
 
 | 블록 | 역할 |
 | --- | --- |
-| `mirrors` | 어느 주소로 받을지. HTTP 지정, docker.io를 Nexus proxy로 우회 |
+| `mirrors` | 어느 주소로 받을지. `http://`를 명시해 HTTP로 접속 |
 | `configs` | 인증과 TLS. 익명 pull 허용 저장소면 생략 |
 
-docker.io mirror는 endpoint가 실패하면 원래 docker.io로 자동 재시도합니다. Nexus가 죽어도 아웃바운드만 열려 있으면 공개 이미지는 받아 옵니다.
-
-- **관리 서버**: 사내 앱이 올라가지 않으므로 생략해도 됩니다.
-- **dev 클러스터**: 필요합니다. 서버에 파일을 만들지 않고 Rancher UI의 Registries 탭에 입력하면 모든 노드에 내려갑니다.
+- **dev 클러스터**: 서버에 파일을 만들지 않고 Rancher UI의 Registries 탭에 입력합니다. Save하면 Rancher가 노드마다 `registries.yaml`을 쓰고 `rke2-server`를 한 대씩 재시작합니다.
+- **관리 서버**: 사내 앱이 올라가지 않으므로 생략합니다. 실서버 MGMT는 docker.io에서 직접 받아 mirror 없이 설치했습니다.
+- **docker.io는 mirror에 넣지 않습니다.** Nexus에 Docker Hub proxy 저장소가 없으면 시스템 이미지를 받을 곳이 없어집니다. Registries 탭 맨 위의 "Enable cluster scoped container registry for Rancher system container images"도 체크하지 않습니다. 켜면 Rancher 시스템 이미지까지 Nexus에서 받으려 해 업그레이드와 노드 추가가 실패합니다.
+- **계정은 읽기 전용으로 분리합니다.** Jenkins push 계정을 노드에 넣지 않습니다.
 - 네임스페이스마다 `imagePullSecret`을 두는 방법도 있지만 HTTP 문제는 해결하지 못하므로 어차피 `registries.yaml`이 필요합니다.
+
+**Nexus 5000과 5001은 같은 저장소의 다른 connector일 수 있습니다.** 실서버 Nexus에서는 `docker-hosted` 저장소가 HTTP 5000과 HTTPS 5001을 함께 갖고 있었고, Docker Hub proxy 저장소는 없었습니다. HTTPS connector는 Nexus에 keystore와 jetty 설정이 있어야 실제로 열립니다. UI에 포트만 적어서는 열리지 않습니다. `curl -sI http://nexus.example.internal:5000/v2/`가 `401`이면 서비스와 접속은 정상이고 로그인만 필요한 상태입니다.
+
+**Docker Hub pull 횟수 제한.** mirror 없이 docker.io에서 받으면 익명 pull이 IP 기준으로 제한됩니다. 사내 서버는 공인 IP 하나를 NAT로 함께 쓰는 경우가 많아 MGMT, DEV, Jenkins가 한도를 나눠 씁니다. `429 Too Many Requests`가 나면 `configs."registry-1.docker.io".auth`에 Docker Hub 계정을 넣거나 Nexus에 Docker Hub proxy 저장소를 만듭니다.
 
 ## 8. 체크리스트
 
 관리 서버 (MGMT-1~3):
 
-- [ ] 1장 점검 결과가 모두 기대값인가
-- [ ] NetworkManager conf, journald, L4, DNS, 아웃바운드, sudo를 인프라팀에 요청했고 답을 받았는가
+- [ ] 1장 점검 결과가 모두 기대값인가. Docker 흔적(`docker0`, `FORWARD DROP`)이 없는가
+- [ ] NetworkManager conf, journald, L4(443, 9345·6443), DNS, 아웃바운드, sudo를 인프라팀에 요청했고 답을 받았는가
+- [ ] 큰 이미지(`rancher/rancher`) pull로 Docker Hub CDN 허용을 확인했는가
 - [ ] 10.42/10.43 대역이 사내와 겹치지 않는가
 - [ ] 바인드 마운트 3개가 `findmnt | grep rke2`에 보이는가
-- [ ] config.yaml 3개에 같은 token, MGMT-2·3에 `server:`가 있는가
-- [ ] MGMT-1에 Traefik HelmChartConfig가 있고 네 최상위 키가 같은 열에서 시작하는가
+- [ ] 토큰이 config가 아니라 root 전용 `server-token` 파일에 있는가
+- [ ] config.yaml 3개에 노드별 `node-name`, `node-ip`가 있고 MGMT-2·3에 `server:`가 있는가
+- [ ] MGMT-1에 Traefik HelmChartConfig가 있고 `cat -A`로 들여쓰기를 확인했는가
+- [ ] Rancher를 `replicas: 3`, `antiAffinity: required`로 올렸는가
 
 dev 노드 (DEV-1~3):
 
 - [ ] 1장 점검, Docker 중지, 바인드 마운트
 - [ ] `rancher.example.internal`이 노드에서 풀리는가
+- [ ] Rancher가 제시하는 버전과 같은 RKE2 이미지 묶음을 미리 넣었는가
 - [ ] 스토리지 패키지, swap 드롭인, swappiness
 - [ ] MetalLB VIP를 예약받았는가
-- [ ] 방화벽: DEV → Rancher 443, DEV → Nexus, DEV → 레지스트리 아웃바운드
+- [ ] 방화벽: DEV → Rancher 443, DEV → Nexus 5000, MGMT → Nexus 8081, DEV → 레지스트리 아웃바운드
 - [ ] RKE2 설치 스크립트와 config.yaml을 **만들지 않았는가**
 
 ## 관련 문서
 
+- 실서버 설치에서 막힌 사례: [Rancher·RKE2 실서버 설치 실패 사례](../troubleshooting/rancher-rke2-onprem-install-failures.md)
+- dev 클러스터의 VIP, Traefik, 인증서: [18 DEV 클러스터 외부 접속](18-dev-cluster-metallb-traefik-tls.md)
 - 권한이 있는 서버에서의 전체 설치 절차: [15 RKE2 3대 클러스터 구축](15-rke2-three-node-build.md)
 - Rancher 설계와 에이전트 동작, dev/stage/prod 배치: [16 Rancher로 여러 클러스터 중앙 관리](16-rancher-multi-cluster-management.md)
 - RKE2 설정 키 의미: [14 RKE2](14-rke2-distribution.md)
@@ -386,7 +523,8 @@ dev 노드 (DEV-1~3):
 
 ## 참고한 공식 문서
 
-- RKE2 Documentation — Requirements(Known Issues: NetworkManager, nm-cloud-setup, firewalld), Air-Gap Install(`INSTALL_RKE2_ARTIFACT_PATH`), Private Registry Configuration, Networking(Traefik HelmChartConfig) (2026-10-12 확인, v1.36 기준)
-- Rancher Manager Documentation — Installation Requirements(Rocky 9.8, RKE2 1.34~1.36), Port Requirements, Custom Clusters (Rancher v2.15 기준)
+- RKE2 Documentation — Requirements(Known Issues: NetworkManager, nm-cloud-setup, firewalld), High Availability(고정 등록 주소, 9345), Air-Gap Install(`INSTALL_RKE2_ARTIFACT_PATH`), SELinux, Private Registry Configuration, Networking(Traefik HelmChartConfig) (2026-10-21 확인, v1.36 기준)
+- Rancher Manager Documentation — Installation Requirements, Port Requirements, Custom Clusters, Helm chart options(`agentTLSMode`, `antiAffinity`, `privateCA`) (Rancher v2.15 기준)
+- Helm Documentation — Version Skew Policy
 - Kubernetes Documentation — Swap memory management(NodeSwap, LimitedSwap), Kubelet Configuration drop-in directory
 - Red Hat — journald.conf `Storage`, `SystemMaxUse`

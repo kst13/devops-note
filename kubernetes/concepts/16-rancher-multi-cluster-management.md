@@ -35,9 +35,11 @@ Rancher를 워크로드 클러스터 안에 같이 넣지 않고 전용 클러�
 | 계층 | 구성 |
 | --- | --- |
 | control plane / etcd | server 노드 3대. etcd quorum 때문에 홀수 |
-| Rancher Pod | Helm `replicas=3`. 노드마다 하나씩 분산 |
+| Rancher Pod | Helm `replicas=3` + `antiAffinity: required`. `replicas`만으로는 노드별 분산이 보장되지 않음 |
 | 진입점 | 3노드 앞에 **외부 L4 LB**(HAProxy, 장비 LB)를 두고 443 분산. Rancher hostname의 DNS가 이 LB를 가리킨다 |
-| 인증서 | cert-manager 자체 서명, 사내 CA, 또는 공인 인증서 |
+| 인증서 | cert-manager 자체 서명, 사내 CA, 또는 공인 인증서. 공인 인증서면 cert-manager 없이 Secret 하나로 충분하고 `agentTLSMode: system-store`를 씀 |
+
+관리 클러스터 노드가 1대일 때 `replicas=3` + `required`로 설치하면 Pod 2개가 Pending으로 남아 `helm install --wait`가 실패합니다. 1대에서는 `replicas=1`, `antiAffinity: preferred`로 설치하고 3대가 되면 `helm upgrade`로 올립니다.
 
 L4 LB는 Rancher가 제공하지 않으므로 직접 준비합니다. 처음에는 LB를 TCP 패스스루로 두고 TLS를 Rancher가 처리하게 하는 것이 단순합니다. LB에서 TLS를 종료하면 `tls=external` 설정과 websocket 통과 설정이 추가로 필요합니다.
 
@@ -130,6 +132,8 @@ Custom 방식에서 Rancher가 하는 노드 제어는 Kubernetes 노드 객체 
 | 재시작 | Redeploy | `kubectl rollout restart deploy/was-order` |
 | 이미지 교체 | Edit Config | `kubectl set image ...` |
 | 롤백 | Rollback → 리비전 선택 | `kubectl rollout undo` |
+
+Rancher Apps(Helm)로 설치한 앱은 예외입니다. 워크로드 화면에서 Scale하면 `spec.replicas`의 주인이 Rancher로 기록되고, 다음 Helm Upgrade가 `conflict with "agent" ... .spec.replicas`로 실패합니다. Helm 앱의 복제 수는 차트 values를 바꿔 Upgrade로만 조정합니다.
 | 로그 / 셸 | View Logs / Execute Shell | `kubectl logs`, `kubectl exec` |
 
 WAS마다 Deployment를 따로 만들면 각각 독립적으로 내리고 올립니다. 같은 Deployment의 Pod 중 "특정 인스턴스 하나"만 내리는 것은 안 됩니다. Deployment의 Pod는 구별되지 않는 복제본이라 하나를 지우면 바로 새 Pod가 뜹니다. 인스턴스를 구별해야 하면 인스턴스별 Deployment 또는 StatefulSet을 씁니다. 그 전에 구별이 정말 필요한지 따져보는 것이 먼저입니다.

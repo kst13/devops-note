@@ -142,13 +142,14 @@ ARP 모드는 VIP가 한 노드에 "붙어 있는" 방식입니다. 그 노드�
 
 ```yaml
 # /etc/rancher/rke2/config.yaml  (server-1)
-token: ${RKE2_TOKEN}
+node-name: server-1                        # 빠뜨리면 OS hostname 으로 등록되고, 조인 후에는 바꿀 수 없음
+token-file: /etc/rancher/rke2/server-token # 토큰은 root 전용 파일에. config 에 직접 쓰지 않음
 tls-san:
   - k8s-api.example.internal
   - 10.0.0.10                              # VIP. 인증서 SAN에 없으면 VIP 접속이 TLS 오류
 cni: canal
 ingress-controller: traefik
-write-kubeconfig-mode: "0640"
+write-kubeconfig-mode: "0600"               # 0640 으로 열어도 일반 계정은 못 읽음. 복사본을 씀
 etcd-expose-metrics: true                  # Prometheus 수집용
 etcd-snapshot-schedule-cron: "0 */6 * * *"
 etcd-snapshot-retention: 20
@@ -161,10 +162,20 @@ etcd-s3-secret-key: ${S3_SECRET_KEY}
 # etcd-s3-insecure: true                   # MinIO 가 HTTP 라면
 ```
 
+토큰 파일은 config보다 먼저 만듭니다. 화면에 출력하지 않습니다.
+
+```bash
+sudo install -d -m 700 /etc/rancher/rke2
+sudo bash -c 'umask 077; openssl rand -hex 32 > /etc/rancher/rke2/server-token'
+```
+
+server-1이 뜨면 `/var/lib/rancher/rke2/server/token`에 CA 해시가 붙은 secure token이 생깁니다. server-2·3에는 이 값을 같은 경로의 `server-token` 파일로 전달합니다. 조인하는 노드가 server-1의 CA를 검증할 수 있습니다.
+
 `etcd-s3-config-secret` 키를 쓰면 접근 키를 config 파일 대신 Kubernetes Secret에서 읽습니다. config 파일에 키를 두면 파일 권한을 `600`으로 잠급니다.
 
 ```bash
-curl -sfL https://get.rke2.io | sh -
+curl -fL https://get.rke2.io -o ~/rke2-install.sh
+sudo env INSTALL_RKE2_VERSION='v1.36.4+rke2r1' INSTALL_RKE2_TYPE=server sh ~/rke2-install.sh
 sudo systemctl enable --now rke2-server.service
 sudo journalctl -u rke2-server -f          # "rke2 is up and running" 까지 1~3분
 
@@ -182,13 +193,14 @@ config는 server-1과 같고 `server:` 한 줄만 추가됩니다. kube-vip 매�
 ```yaml
 # /etc/rancher/rke2/config.yaml  (server-2, server-3)
 server: https://10.0.0.10:9345             # VIP. server-1 IP를 적으면 server-1 장애 시 재조인 실패
-token: ${RKE2_TOKEN}
+node-name: server-2                        # server-3 은 server-3
+token-file: /etc/rancher/rke2/server-token # server-1 의 secure token
 tls-san:
   - k8s-api.example.internal
   - 10.0.0.10
 cni: canal
 ingress-controller: traefik
-write-kubeconfig-mode: "0640"
+write-kubeconfig-mode: "0600"
 etcd-expose-metrics: true
 etcd-snapshot-schedule-cron: "0 */6 * * *"
 etcd-snapshot-retention: 20
@@ -201,9 +213,12 @@ etcd-s3-secret-key: ${S3_SECRET_KEY}
 ```
 
 ```bash
-curl -sfL https://get.rke2.io | sh -
+curl -fL https://get.rke2.io -o ~/rke2-install.sh
+sudo env INSTALL_RKE2_VERSION='v1.36.4+rke2r1' INSTALL_RKE2_TYPE=server sh ~/rke2-install.sh
 sudo systemctl enable --now rke2-server.service
 ```
+
+`VAR=값 sudo sh` 형태는 sudo 정책에 따라 환경변수가 버려져 최신 버전이 설치될 수 있습니다. 그래서 `sudo env VAR=값 sh`로 씁니다.
 
 **한 대씩** 올립니다. server-2가 Ready가 된 뒤 server-3을 시작합니다. 두 대를 동시에 조인하면 etcd 멤버 추가가 충돌할 수 있습니다.
 
@@ -372,7 +387,8 @@ sudo systemctl start rke2-server
 
 ```bash
 # 한 대씩. 다음 대로 넘어가기 전에 Ready 확인
-sudo curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION=v1.36.4+rke2r1 sh -
+curl -fL https://get.rke2.io -o ~/rke2-install.sh
+sudo env INSTALL_RKE2_VERSION='v1.36.5+rke2r1' INSTALL_RKE2_TYPE=server sh ~/rke2-install.sh
 sudo systemctl restart rke2-server
 kubectl get nodes                            # VERSION 갱신, Ready
 ```
