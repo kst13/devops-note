@@ -1,0 +1,1139 @@
+<title>쿠버네티스 기본 용어</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F4F6F9;
+    --surface: #FFFFFF;
+    --surface-2: #EBEFF4;
+    --ink: #172033;
+    --muted: #5B6B7F;
+    --line: #D3DAE3;
+    --accent: #1D6E8C;
+    --accent-ink: #145268;
+    --accent-soft: #E1EFF4;
+    --warm: #B8741F;
+    --warm-soft: #FBF0DF;
+    --good: #2E7D4F;
+    --shadow: 0 10px 30px rgba(23, 32, 51, 0.08);
+    --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F161E;
+      --surface: #17212C;
+      --surface-2: #1F2B38;
+      --ink: #E6ECF2;
+      --muted: #9AABBD;
+      --line: #2C3B4A;
+      --accent: #5FB3D1;
+      --accent-ink: #8CCBE0;
+      --accent-soft: #16303C;
+      --warm: #E0A050;
+      --warm-soft: #3A2B14;
+      --good: #6CC493;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F161E;
+    --surface: #17212C;
+    --surface-2: #1F2B38;
+    --ink: #E6ECF2;
+    --muted: #9AABBD;
+    --line: #2C3B4A;
+    --accent: #5FB3D1;
+    --accent-ink: #8CCBE0;
+    --accent-soft: #16303C;
+    --warm: #E0A050;
+    --warm-soft: #3A2B14;
+    --good: #6CC493;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.55;
+    overflow: hidden;
+  }
+
+  .deck {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 24px 24px 0;
+  }
+  .slide {
+    display: none;
+    width: 100%;
+    max-width: 1280px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 40px 56px 44px;
+    overflow: auto;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .slide.active { display: flex; }
+
+  .sh {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    color: var(--muted);
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .sh .num { font-family: var(--mono); letter-spacing: 0; }
+  .slide h2 {
+    margin: 0;
+    font-size: clamp(24px, 2.6vw, 34px);
+    font-weight: 600;
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+  .lead {
+    margin: 0;
+    max-width: 68ch;
+    color: var(--muted);
+    font-size: 16px;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 36px;
+    align-items: start;
+    flex: 1;
+  }
+  .cols.even { grid-template-columns: 1fr 1fr; }
+  .cols.wide { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+  .cols.single { grid-template-columns: 1fr; }
+
+  .slide h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent-ink);
+    letter-spacing: 0.02em;
+  }
+  .slide p { margin: 0 0 10px; }
+  .slide ul, .slide ol { margin: 0; padding-left: 20px; }
+  .slide li { margin: 0 0 7px; }
+  .slide li strong { font-weight: 600; }
+  .slide li::marker { color: var(--muted); }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 14.5px;
+    margin-top: 6px;
+  }
+  .note.warm { border-left-color: var(--warm); background: var(--warm-soft); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 12.5px;
+    letter-spacing: 0.04em;
+    background: var(--surface-2);
+  }
+  td.k { font-weight: 600; white-space: nowrap; }
+  .tablewrap { overflow-x: auto; }
+
+  pre {
+    margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    overflow-x: auto;
+  }
+  code { font-family: var(--mono); font-size: 0.92em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+
+  figure { margin: 0; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figure.full { width: 100%; }
+  figcaption { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+
+  /* diagram vocabulary */
+  .d { color: var(--ink); font-family: var(--font); }
+  .d .node { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+  .d .node.hi { fill: var(--accent-soft); stroke: var(--accent); }
+  .d .node.warm { fill: var(--warm-soft); stroke: var(--warm); }
+  .d .node.dim { fill: var(--surface-2); stroke: var(--line); }
+  .d .zone { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  .d .zone.plain { stroke: var(--line); }
+  .d text { fill: currentColor; font-size: 12px; }
+  .d text.s { font-size: 10.5px; fill: var(--muted); }
+  .d text.b { font-weight: 600; }
+  .d text.z { font-size: 11px; fill: var(--accent); font-weight: 600; letter-spacing: 0.04em; }
+  .d text.m { font-family: var(--mono); font-size: 10.5px; }
+  .d .ln { stroke: currentColor; stroke-width: 1.3; fill: none; }
+  .d .ln.hi { stroke: var(--accent); }
+  .d .ln.warm { stroke: var(--warm); }
+  .d .ln.dash { stroke-dasharray: 4 4; }
+  .d .bar { fill: var(--accent); }
+  .d .bar.warm { fill: var(--warm); }
+  .d .bar.dim { fill: var(--line); }
+
+  /* title slide */
+  .slide.title { justify-content: center; gap: 22px; padding: 64px 72px; }
+  .slide.title .kicker { color: var(--accent); font-weight: 600; letter-spacing: 0.12em; font-size: 13px; text-transform: uppercase; }
+  .slide.title h1 { margin: 0; font-size: clamp(30px, 4vw, 52px); line-height: 1.15; font-weight: 700; text-wrap: balance; max-width: 22ch; }
+  .slide.title .sub { font-size: 20px; color: var(--muted); max-width: 40ch; }
+  .slide.title .meta { display: flex; gap: 28px; color: var(--muted); font-size: 14px; margin-top: 12px; font-family: var(--mono); }
+
+  /* toc */
+  .toc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; list-style: none; padding: 0; margin: 0; }
+  .toc .part {
+    margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .toc .part::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: var(--part-color, var(--accent));
+  }
+  .toc .part.appx { grid-column: 1 / -1; --part-color: var(--muted); }
+  .toc .part-head { display: flex; align-items: baseline; gap: 10px; padding-left: 6px; }
+  .toc .part-no {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--part-color, var(--accent)); font-weight: 600;
+  }
+  .toc .part-title { font-size: 15px; font-weight: 600; }
+  .toc .part-range { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .toc .items { list-style: none; padding: 0 0 0 6px; margin: 0; display: grid; gap: 2px; }
+  .toc .part.appx .items { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 18px; }
+  .toc .items li { margin: 0; }
+  .toc button {
+    all: unset;
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    gap: 8px;
+    align-items: baseline;
+    width: 100%;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13.5px;
+    line-height: 1.35;
+  }
+  .toc button:hover, .toc button:focus-visible { background: var(--surface); outline: 2px solid var(--part-color, var(--accent)); outline-offset: -2px; }
+  .toc .n { font-family: var(--mono); color: var(--part-color, var(--accent)); font-size: 12px; font-weight: 600; }
+  .toc .sub-n { color: var(--muted); font-weight: 400; }
+
+  /* nav */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1280px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 12px 24px 18px;
+    gap: 16px;
+  }
+  .nav .left { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+  .nav .left .deckname { font-weight: 600; color: var(--ink); }
+  .nav .right { display: flex; align-items: center; gap: 10px; }
+  .nav .counter { font-family: var(--mono); font-size: 13px; color: var(--muted); min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+  .btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px; height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    user-select: none;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn[disabled] { opacity: 0.35; cursor: default; }
+  .btn.text { width: auto; padding: 0 12px; font-size: 13px; border-radius: 8px; }
+  .progress { height: 3px; background: var(--line); }
+  .progress > div { height: 100%; background: var(--accent); width: 0; transition: width 0.25s ease; }
+  @media (prefers-reduced-motion: reduce) { .progress > div { transition: none; } }
+  .kbd { font-family: var(--mono); font-size: 11.5px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--muted); }
+
+  /* bottleneck cards (13장) */
+  .bottlenecks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .bn { display: grid; grid-template-columns: 28px 1fr; gap: 8px; background: var(--surface-2); border-radius: 8px; padding: 12px 14px; }
+  .bn.hint { background: var(--accent-soft); }
+  .bn-no { font-family: var(--mono); font-weight: 700; color: var(--accent); font-size: 16px; line-height: 1.2; }
+  .bn-t { font-weight: 600; margin-bottom: 4px; }
+  .bn-d { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  .scenario { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; font-size: 13.5px; margin: 4px 0 2px; }
+  .steps-table td { vertical-align: top; padding: 10px 10px 10px 0; font-size: 13.5px; line-height: 1.5; }
+  .steps-table td.mono { font-size: 12px; color: var(--muted); }
+  .bn-ex { font-size: 12.5px; color: var(--ink); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); line-height: 1.5; }
+
+  /* small components */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; margin: 0; }
+  .steps .i { width: 26px; height: 26px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono); }
+  .pill { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); margin-left: 6px; vertical-align: middle; }
+  .pill.hi { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+  .pill.warm { background: var(--warm-soft); color: var(--warm); border-color: var(--warm); }
+  a { color: var(--accent-ink); }
+  /* 16:9 고정 캔버스: 1280×720 기준으로 그리고, 화면 크기에 맞춰 통째로 확대·축소 */
+  .stage { padding: 16px 16px 0; align-items: center; overflow: hidden; }
+  .slide {
+    flex: none;
+    width: 1280px;
+    height: 720px;
+    max-width: none;
+    padding: 44px 64px 40px;
+    overflow: hidden;
+    gap: 16px;
+    font-size: 19px;
+    transform: scale(var(--fit, 1));
+    transform-origin: center center;
+  }
+  .slide h2 { font-size: 38px; }
+  .lead { font-size: 20px; max-width: 62em; }
+  .sh { font-size: 13px; }
+  .slide h3 { font-size: 17.5px; }
+  .slide li { margin-bottom: 9px; }
+  .slide li .lb { font-weight: 600; color: var(--accent-ink); margin-right: 10px; }
+  table { font-size: 16.5px; }
+  th { font-size: 14.5px; }
+  th, td { padding: 9px 12px; }
+  pre { font-size: 14.5px; }
+  .note { font-size: 17px; padding: 12px 16px; }
+  figcaption { font-size: 14.5px; }
+  .slide.title { padding: 80px 96px; gap: 26px; }
+  .slide.title h1 { font-size: 56px; max-width: 20ch; }
+  .slide.title .sub { font-size: 24px; max-width: none; }
+  .slide.title .meta { font-size: 15px; }
+  .bn { padding: 16px 18px; }
+  .bn-t { font-size: 19px; }
+  .bn-d { font-size: 16.5px; }
+  .bn-ex { font-size: 16px; }
+  .toc .part-title { font-size: 16px; }
+  .toc button { font-size: 16px; padding: 6px 8px; }
+  .nav { max-width: none; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+    <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" style="color: var(--accent)">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+    <marker id="arrW" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" style="color: var(--warm)">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+  </defs>
+</svg>
+
+<div class="deck">
+  <div class="progress"><div id="bar"></div></div>
+  <div class="stage">
+
+<!-- 0. 표지 -->
+<section class="slide title active">
+  <div class="kicker">배포 체계 전환 · 부록</div>
+  <h1>쿠버네티스 기본 용어</h1>
+  <div class="sub">Docker 운영 경험에서 출발하는 클러스터·워크로드·네트워크 용어 정리</div>
+  <div class="meta"><span>Kubernetes · RKE2 · Rancher · Helm</span><span>2026-10</span></div>
+  <p class="lead" style="margin-top: 18px"><span class="kbd">←</span> <span class="kbd">→</span> 키로 이동, 목차에서 장 단위 이동</p>
+</section>
+
+<!-- 1. 목차 -->
+<section class="slide">
+  <header class="sh"><span>목차</span><span class="num"></span></header>
+  <h2>자료 구성</h2>
+  <p class="lead">용어마다 한 줄 정의와 이번 구축에서의 예시를 함께 표기</p>
+  <div class="toc" id="toc"></div>
+</section>
+
+<!-- ch1 -->
+<section class="slide" data-ch="1">
+  <header class="sh"><span>01 · Docker와의 대응</span><span class="num"></span></header>
+  <h2>Docker 용어와 쿠버네티스 용어</h2>
+  <p class="lead">대부분의 Docker 개념에 대응하는 쿠버네티스 리소스가 존재. 차이는 "명령 실행"에서 "원하는 상태 선언"으로 바뀐 점</p>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:28%">Docker</th><th style="width:30%">쿠버네티스</th><th>차이</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><code>docker run</code></td><td>Pod, Deployment</td><td>Deployment가 개수를 유지하고 죽은 Pod를 다시 생성</td></tr>
+          <tr><td class="k"><code>docker-compose.yml</code></td><td>매니페스트(YAML), Helm 차트</td><td>환경별 값은 Helm values로 분리</td></tr>
+          <tr><td class="k"><code>-p 8080:8080</code></td><td>Service</td><td>Pod가 바뀌어도 고정된 이름과 IP 제공</td></tr>
+          <tr><td class="k">proxy nginx 컨테이너</td><td>Ingress + Ingress Controller(Traefik)</td><td>클러스터 공용 진입점에서 도메인별 분기</td></tr>
+          <tr><td class="k"><code>-e KEY=VAL</code>, <code>--env-file</code></td><td>env, ConfigMap, Secret</td><td>설정과 비밀값을 이미지 밖에서 주입</td></tr>
+          <tr><td class="k"><code>--add-host</code></td><td><code>hostAliases</code></td><td>Pod의 <code>/etc/hosts</code>에 기록</td></tr>
+          <tr><td class="k"><code>-v /data:/data</code></td><td>Volume, PVC</td><td>노드가 아니라 스토리지에 묶여 Pod 이동 가능</td></tr>
+          <tr><td class="k"><code>docker logs</code>, <code>exec</code></td><td><code>kubectl logs</code>, <code>exec</code></td><td>노드 접속 없이 API로 조회</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ch2 -->
+<section class="slide" data-ch="2">
+  <header class="sh"><span>02 · 클러스터 구성</span><span class="num"></span></header>
+  <h2>클러스터, 노드, 컨트롤 플레인</h2>
+  <p class="lead">클러스터는 여러 서버(노드)를 하나의 실행 환경으로 묶은 단위. 컨트롤 플레인이 결정하고 각 노드가 실행</p>
+  <div class="cols">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:36%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">노드 (Node)</td><td>컨테이너가 실제로 실행되는 서버 1대</td></tr>
+          <tr><td class="k">kube-apiserver</td><td>모든 요청의 입구. kubectl, Rancher 모두 이곳에 요청</td></tr>
+          <tr><td class="k">etcd</td><td>클러스터 상태를 저장하는 DB. 과반 합의로 홀수 대 운영</td></tr>
+          <tr><td class="k">scheduler</td><td>새 Pod를 어느 노드에 둘지 결정</td></tr>
+          <tr><td class="k">controller-manager</td><td>선언한 상태와 실제 상태를 맞추는 반복 작업 수행</td></tr>
+          <tr><td class="k">kubelet</td><td>각 노드에서 Pod를 실제로 띄우고 상태 보고</td></tr>
+          <tr><td class="k">containerd</td><td>컨테이너 런타임. Docker 엔진 대신 사용</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="컨트롤 플레인 구성요소와 노드 구성요소의 관계">
+        <rect class="zone" x="10" y="10" width="540" height="110" rx="8"></rect><text x="22" y="28" class="z">컨트롤 플레인</text>
+        <rect class="node hi" x="24" y="40" width="150" height="66" rx="6"></rect><text x="99" y="68" text-anchor="middle" class="b">kube-apiserver</text><text x="99" y="86" text-anchor="middle" class="s">모든 요청의 입구</text>
+        <rect class="node" x="200" y="40" width="100" height="66" rx="6"></rect><text x="250" y="68" text-anchor="middle" class="b">etcd</text><text x="250" y="86" text-anchor="middle" class="s">상태 저장</text>
+        <rect class="node" x="316" y="40" width="100" height="66" rx="6"></rect><text x="366" y="68" text-anchor="middle" class="b">scheduler</text><text x="366" y="86" text-anchor="middle" class="s">배치 결정</text>
+        <rect class="node" x="432" y="40" width="106" height="66" rx="6"></rect><text x="485" y="68" text-anchor="middle" class="b">controller</text><text x="485" y="86" text-anchor="middle" class="s">상태 맞추기</text>
+        <path class="ln" d="M174,73 L198,73" marker-end="url(#arr)"></path>
+        <rect class="zone plain" x="10" y="150" width="262" height="140" rx="8"></rect><text x="22" y="168" class="z" style="fill: var(--muted)">노드 1</text>
+        <rect class="node" x="24" y="178" width="110" height="36" rx="5"></rect><text x="79" y="201" text-anchor="middle" class="b">kubelet</text>
+        <rect class="node" x="148" y="178" width="110" height="36" rx="5"></rect><text x="203" y="201" text-anchor="middle" class="b">containerd</text>
+        <rect class="node dim" x="24" y="226" width="70" height="50" rx="5"></rect><text x="59" y="256" text-anchor="middle" class="s">Pod</text>
+        <rect class="node dim" x="104" y="226" width="70" height="50" rx="5"></rect><text x="139" y="256" text-anchor="middle" class="s">Pod</text>
+        <rect class="zone plain" x="288" y="150" width="262" height="140" rx="8"></rect><text x="300" y="168" class="z" style="fill: var(--muted)">노드 2</text>
+        <rect class="node" x="302" y="178" width="110" height="36" rx="5"></rect><text x="357" y="201" text-anchor="middle" class="b">kubelet</text>
+        <rect class="node" x="426" y="178" width="110" height="36" rx="5"></rect><text x="481" y="201" text-anchor="middle" class="b">containerd</text>
+        <rect class="node dim" x="302" y="226" width="70" height="50" rx="5"></rect><text x="337" y="256" text-anchor="middle" class="s">Pod</text>
+        <path class="ln hi" d="M79,106 L79,176" marker-end="url(#arrA)"></path>
+        <path class="ln hi" d="M130,106 L130,132 L380,132 L380,176" marker-end="url(#arrA)"></path>
+        <text x="140" y="146" class="s">kubelet이 apiserver를 감시하며 할 일 수신</text>
+      </svg>
+      <figcaption>RKE2 3대 겸임 구성에서는 노드 3대가 컨트롤 플레인과 Pod 실행을 함께 담당</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ch3 -->
+<section class="slide" data-ch="3">
+  <header class="sh"><span>03 · 동작 방식</span><span class="num"></span></header>
+  <h2>선언형 동작 방식과 매니페스트</h2>
+  <p class="lead">"컨테이너를 띄워라"가 아니라 "이 상태여야 한다"를 저장. 컨트롤러가 실제 상태를 계속 그쪽으로 맞춤</p>
+  <div class="cols even">
+    <div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th style="width:34%">용어</th><th>정의</th></tr></thead>
+          <tbody>
+            <tr><td class="k">리소스 (Resource)</td><td>API로 관리하는 대상 하나. Pod, Service, Deployment 등</td></tr>
+            <tr><td class="k">매니페스트</td><td>리소스의 원하는 상태를 적은 YAML 파일</td></tr>
+            <tr><td class="k">spec / status</td><td>spec은 원하는 상태, status는 현재 상태</td></tr>
+            <tr><td class="k">컨트롤러</td><td>spec과 status의 차이를 감지해 메우는 반복 작업</td></tr>
+            <tr><td class="k">kubectl</td><td>apiserver에 요청을 보내는 명령줄 도구</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin-top: 12px">Pod를 직접 지워도 다시 생기는 이유: Deployment의 spec(replicas 2)과 실제(1)가 달라 컨트롤러가 새 Pod 생성</div>
+    </div>
+    <div>
+      <pre>apiVersion: apps/v1          # API 그룹과 버전
+kind: Deployment             # 리소스 종류
+metadata:
+  name: was-order            # 이름
+  namespace: webwas          # 소속 네임스페이스
+  labels:
+    app: was-order           # 분류용 라벨
+spec:                        # 원하는 상태
+  replicas: 2
+  selector:
+    matchLabels:
+      app: was-order
+  template:                  # 만들 Pod의 틀
+    metadata:
+      labels:
+        app: was-order
+    spec:
+      containers:
+        - name: was
+          image: &lt;NEXUS&gt;:5000/was-order:1.0.58</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ch4 -->
+<section class="slide" data-ch="4">
+  <header class="sh"><span>04 · 워크로드</span><span class="num"></span></header>
+  <h2>Pod</h2>
+  <p class="lead">쿠버네티스가 배치하는 최소 단위. 컨테이너 1개 이상과 네트워크·저장공간을 함께 묶은 실행 단위</p>
+  <div class="cols even">
+    <div>
+      <h3>특징</h3>
+      <ul>
+        <li><b class="lb">IP</b>Pod마다 고유 IP. 다시 만들어지면 IP 변경</li>
+        <li><b class="lb">일회성</b>죽으면 고치지 않고 새 Pod로 교체. 이름도 바뀜</li>
+        <li><b class="lb">공유</b>같은 Pod의 컨테이너는 <code>localhost</code>와 볼륨을 공유</li>
+        <li><b class="lb">직접 생성 안 함</b>보통 Deployment가 대신 생성·관리</li>
+      </ul>
+      <div class="note" style="margin-top: 12px">Pod IP가 계속 바뀌기 때문에 다른 앱은 Pod가 아니라 Service 이름으로 접속</div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:38%">관련 용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">컨테이너</td><td>이미지로 실행한 프로세스. Pod 안에 위치</td></tr>
+          <tr><td class="k">사이드카</td><td>본 컨테이너를 돕는 같은 Pod의 보조 컨테이너. 로그 전송 등</td></tr>
+          <tr><td class="k">init 컨테이너</td><td>본 컨테이너보다 먼저 실행되고 끝나는 준비 작업</td></tr>
+          <tr><td class="k">이미지</td><td>컨테이너 실행 파일 묶음. 레지스트리(Nexus)에 보관</td></tr>
+          <tr><td class="k">imagePullPolicy</td><td>이미지를 언제 다시 받을지. 태그 고정 시 <code>IfNotPresent</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ch5 -->
+<section class="slide" data-ch="5">
+  <header class="sh"><span>05 · 워크로드</span><span class="num"></span></header>
+  <h2>Deployment와 ReplicaSet</h2>
+  <p class="lead">Deployment는 앱의 버전과 개수를 관리하고, ReplicaSet은 특정 버전의 Pod 개수를 유지</p>
+  <div class="cols">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:30%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Deployment</td><td>앱 하나의 원하는 상태(이미지, 개수, 교체 방식) 선언</td></tr>
+          <tr><td class="k">ReplicaSet</td><td>같은 Pod 틀로 정해진 개수를 유지. 버전마다 하나씩 생성</td></tr>
+          <tr><td class="k">replicas</td><td>유지할 Pod 개수</td></tr>
+          <tr><td class="k">rollout</td><td>새 버전으로 교체하는 진행 과정</td></tr>
+          <tr><td class="k">RollingUpdate</td><td>새 Pod를 추가하고 준비되면 기존 Pod를 줄이는 기본 교체 방식</td></tr>
+          <tr><td class="k">revision</td><td>교체 이력 번호. 이전 ReplicaSet이 0개로 남아 롤백 대상</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 270" role="img" aria-label="Deployment 아래 버전별 ReplicaSet과 그 아래 Pod가 있는 계층">
+        <rect class="node hi" x="180" y="14" width="200" height="50" rx="8"></rect><text x="280" y="36" text-anchor="middle" class="b">Deployment was-order</text><text x="280" y="54" text-anchor="middle" class="s">replicas 2 · image 1.0.58</text>
+        <rect class="node dim" x="40" y="110" width="200" height="50" rx="6"></rect><text x="140" y="132" text-anchor="middle" class="b">ReplicaSet (1.0.57)</text><text x="140" y="150" text-anchor="middle" class="s">0개 유지 · 롤백 대상</text>
+        <rect class="node hi" x="320" y="110" width="200" height="50" rx="6"></rect><text x="420" y="132" text-anchor="middle" class="b">ReplicaSet (1.0.58)</text><text x="420" y="150" text-anchor="middle" class="s">2개 유지</text>
+        <path class="ln" d="M240,64 L160,108" marker-end="url(#arr)"></path>
+        <path class="ln hi" d="M320,64 L400,108" marker-end="url(#arrA)"></path>
+        <rect class="node" x="320" y="200" width="90" height="44" rx="6"></rect><text x="365" y="227" text-anchor="middle" class="s m">pod-7f9c</text>
+        <rect class="node" x="430" y="200" width="90" height="44" rx="6"></rect><text x="475" y="227" text-anchor="middle" class="s m">pod-k2lq</text>
+        <path class="ln" d="M400,160 L370,198" marker-end="url(#arr)"></path>
+        <path class="ln" d="M440,160 L470,198" marker-end="url(#arr)"></path>
+        <text x="140" y="226" text-anchor="middle" class="s">Pod 없음</text>
+      </svg>
+      <figcaption>Rancher Apps의 Rollback은 Helm revision 단위, <code>kubectl rollout undo</code>는 ReplicaSet 단위</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ch6 -->
+<section class="slide" data-ch="6">
+  <header class="sh"><span>06 · 워크로드</span><span class="num"></span></header>
+  <h2>그 밖의 워크로드 종류</h2>
+  <p class="lead">Pod를 어떤 규칙으로 띄우는지에 따라 리소스 종류가 나뉨</p>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:18%">종류</th><th style="width:40%">규칙</th><th>예시</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Deployment</td><td>개수만 맞추면 되는 동일한 복제본</td><td>web-portal, was-order</td></tr>
+          <tr><td class="k">DaemonSet</td><td>노드마다 1개씩</td><td>Traefik(RKE2), MetalLB speaker, 로그 수집기</td></tr>
+          <tr><td class="k">StatefulSet</td><td>순서와 고정 이름(<code>db-0</code>, <code>db-1</code>), Pod별 디스크</td><td>DB, Kafka 같은 상태 보존 서비스</td></tr>
+          <tr><td class="k">Job</td><td>끝날 때까지 1회 실행. 실패 시 재시도</td><td>데이터 이관, Helm 설치 Job(<code>helm-install-rke2-traefik</code>)</td></tr>
+          <tr><td class="k">CronJob</td><td>정해진 일정마다 Job 생성</td><td>야간 배치, 정리 작업</td></tr>
+          <tr><td class="k">static Pod</td><td>apiserver가 아닌 노드 파일로 kubelet이 직접 실행</td><td>RKE2의 etcd, kube-apiserver</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="note">Deployment의 Pod는 구별되지 않는 복제본. 특정 Pod 하나만 내리는 개념이 없고, 지우면 바로 새 Pod 생성</div>
+</section>
+
+<!-- ch7 -->
+<section class="slide" data-ch="7">
+  <header class="sh"><span>07 · 상태 확인</span><span class="num"></span></header>
+  <h2>Probe: 살아 있는지, 받을 준비가 됐는지</h2>
+  <p class="lead">kubelet이 컨테이너 상태를 주기적으로 검사하는 규칙. 종류마다 실패 시 동작이 다름</p>
+  <div class="cols wide">
+    <div>
+      <h3>검사 방법</h3>
+      <ul>
+        <li><b class="lb">httpGet</b>지정 경로가 200~399 응답이면 성공</li>
+        <li><b class="lb">tcpSocket</b>포트가 열려 있으면 성공</li>
+        <li><b class="lb">exec</b>명령의 종료 코드가 0이면 성공</li>
+      </ul>
+      <div class="note" style="margin-top: 12px">tcpSocket은 앱 초기화 완료 여부를 모름. 가능하면 앱의 헬스 엔드포인트를 httpGet으로 검사</div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:20%">종류</th><th style="width:34%">질문</th><th>실패 시</th></tr></thead>
+        <tbody>
+          <tr><td class="k">startup</td><td>기동이 끝났는가</td><td>통과 전까지 나머지 검사 보류. 제한 시간 초과 시 재시작</td></tr>
+          <tr><td class="k">readiness</td><td>요청을 받아도 되는가</td><td>Service 대상에서 제외. 재시작하지 않음</td></tr>
+          <tr><td class="k">liveness</td><td>멈추지 않고 살아 있는가</td><td>컨테이너 재시작</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 12px">예: WAS는 Spring 기동이 길어 startupProbe로 최대 3분(5초 × 36) 대기</p>
+    </div>
+  </div>
+</section>
+
+<!-- ch7b -->
+<section class="slide" data-ch="7b">
+  <header class="sh"><span>07 · 상태 확인</span><span class="num"></span></header>
+  <h2>자원: requests, limits, QoS</h2>
+  <p class="lead">스케줄러는 실제 사용량이 아니라 requests 합계로 배치를 결정. limits는 넘을 수 없는 상한</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:30%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">requests</td><td>보장받을 최소량. 노드 합계가 차면 새 Pod는 Pending</td></tr>
+          <tr><td class="k">limits</td><td>상한. 메모리 초과 시 OOMKilled, CPU 초과 시 지연</td></tr>
+          <tr><td class="k">m (밀리코어)</td><td>CPU 단위. <code>250m</code> = 0.25 코어</td></tr>
+          <tr><td class="k">Mi, Gi</td><td>메모리 단위. 1Mi = 1024 × 1024 바이트</td></tr>
+          <tr><td class="k">OOMKilled</td><td>메모리 limit을 넘어 커널이 강제 종료한 상태</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>QoS 등급</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>등급</th><th>조건</th></tr></thead>
+          <tbody>
+            <tr><td class="k">Guaranteed</td><td>requests = limits</td></tr>
+            <tr><td class="k">Burstable</td><td>requests &lt; limits</td></tr>
+            <tr><td class="k">BestEffort</td><td>둘 다 없음. 자원 부족 시 가장 먼저 퇴출</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin-top: 12px">JVM은 힙을 limit의 75%로 제한(<code>MaxRAMPercentage=75</code>)해 OOMKilled 여유 확보</div>
+    </div>
+  </div>
+</section>
+
+<!-- ch8 -->
+<section class="slide" data-ch="8">
+  <header class="sh"><span>08 · 네트워크</span><span class="num"></span></header>
+  <h2>Service와 Endpoints</h2>
+  <p class="lead">Service는 바뀌는 Pod들 앞에 고정된 이름과 IP를 두는 리소스. 라벨로 대상 Pod를 고름</p>
+  <div class="cols even">
+    <div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th style="width:30%">용어</th><th>정의</th></tr></thead>
+          <tbody>
+            <tr><td class="k">selector</td><td>대상 Pod를 고르는 라벨 조건</td></tr>
+            <tr><td class="k">Endpoints</td><td>selector에 맞고 readiness를 통과한 Pod IP 목록</td></tr>
+            <tr><td class="k">ClusterIP</td><td>클러스터 안에서만 쓰는 가상 IP. 기본 타입</td></tr>
+            <tr><td class="k">NodePort</td><td>모든 노드의 같은 포트(30000~32767)로 노출</td></tr>
+            <tr><td class="k">LoadBalancer</td><td>외부 IP를 받아 노출. 온프레미스는 MetalLB가 IP 제공</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h3>Service 이름 해석</h3>
+      <pre>was-order                               # 같은 네임스페이스
+was-order.webwas                        # 다른 네임스페이스
+was-order.webwas.svc.cluster.local      # 전체 이름(FQDN)</pre>
+      <ul style="margin-top: 14px">
+        <li>CoreDNS가 Service 이름을 ClusterIP로 응답</li>
+        <li>nginx 변수 <code>proxy_pass</code>는 짧은 이름을 못 풀어 FQDN 필요</li>
+        <li>Service에는 Pod IP가 아닌 이름으로 접속</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ch9 -->
+<section class="slide" data-ch="9">
+  <header class="sh"><span>09 · 네트워크</span><span class="num"></span></header>
+  <h2>Ingress와 Ingress Controller</h2>
+  <p class="lead">Ingress는 "이 도메인·경로는 이 Service로" 규칙. 규칙을 실제로 처리하는 프로그램이 Ingress Controller</p>
+  <div class="cols">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:38%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Ingress</td><td>도메인·경로별 라우팅 규칙. 앱 차트에 포함</td></tr>
+          <tr><td class="k">Ingress Controller</td><td>규칙을 읽어 요청을 전달하는 프록시. RKE2 1.36은 Traefik</td></tr>
+          <tr><td class="k">IngressClass</td><td>어느 컨트롤러가 처리할지 지정. <code>traefik (default)</code></td></tr>
+          <tr><td class="k">TLS Secret</td><td>인증서와 개인키를 담은 Secret. Traefik 기본 인증서로 등록</td></tr>
+          <tr><td class="k">hostPort</td><td>노드의 포트를 Pod 포트에 직접 연결. MGMT Traefik 방식</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 560 290" role="img" aria-label="사용자 요청이 VIP, Traefik, Service를 거쳐 Pod에 도착하는 경로">
+        <rect class="node" x="190" y="10" width="180" height="36" rx="6"></rect><text x="280" y="33" text-anchor="middle" class="b">사용자 https://app.dev…</text>
+        <rect class="node warm" x="190" y="66" width="180" height="36" rx="6"></rect><text x="280" y="89" text-anchor="middle" class="b">VIP (LoadBalancer)</text>
+        <rect class="node hi" x="190" y="122" width="180" height="44" rx="6"></rect><text x="280" y="141" text-anchor="middle" class="b">Traefik</text><text x="280" y="157" text-anchor="middle" class="s">TLS 해제 · Host로 분기</text>
+        <rect class="node" x="40" y="190" width="180" height="36" rx="6"></rect><text x="130" y="213" text-anchor="middle" class="b">Service web-portal</text>
+        <rect class="node" x="340" y="190" width="180" height="36" rx="6"></rect><text x="430" y="213" text-anchor="middle" class="b">Service 다른 앱</text>
+        <rect class="node dim" x="40" y="244" width="84" height="36" rx="5"></rect><text x="82" y="267" text-anchor="middle" class="s">Pod</text>
+        <rect class="node dim" x="136" y="244" width="84" height="36" rx="5"></rect><text x="178" y="267" text-anchor="middle" class="s">Pod</text>
+        <rect class="node dim" x="388" y="244" width="84" height="36" rx="5"></rect><text x="430" y="267" text-anchor="middle" class="s">Pod</text>
+        <path class="ln" d="M280,46 L280,64" marker-end="url(#arr)"></path>
+        <path class="ln" d="M280,102 L280,120" marker-end="url(#arr)"></path>
+        <path class="ln hi" d="M240,166 L150,188" marker-end="url(#arrA)"></path>
+        <path class="ln hi" d="M320,166 L410,188" marker-end="url(#arrA)"></path>
+        <path class="ln" d="M110,226 L88,242" marker-end="url(#arr)"></path>
+        <path class="ln" d="M150,226 L172,242" marker-end="url(#arr)"></path>
+        <path class="ln" d="M430,226 L430,242" marker-end="url(#arr)"></path>
+        <text x="380" y="149" class="s">Ingress 규칙</text>
+      </svg>
+      <figcaption>Traefik은 Service의 Endpoints(준비된 Pod 목록)로 요청을 전달</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ch10 -->
+<section class="slide" data-ch="10">
+  <header class="sh"><span>10 · 네트워크</span><span class="num"></span></header>
+  <h2>CNI, CoreDNS, kube-proxy</h2>
+  <p class="lead">Pod끼리 노드를 넘어 통신하게 만드는 클러스터 내부 네트워크 구성요소</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:32%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">CNI</td><td>Pod에 IP를 주고 노드 간 Pod 통신을 연결하는 네트워크 플러그인</td></tr>
+          <tr><td class="k">canal</td><td>RKE2 기본 CNI. flannel(통신) + Calico(정책)</td></tr>
+          <tr><td class="k">CoreDNS</td><td>Service 이름을 IP로 응답하는 클러스터 DNS</td></tr>
+          <tr><td class="k">kube-proxy</td><td>Service IP로 온 요청을 Pod로 보내는 규칙을 노드에 설정</td></tr>
+          <tr><td class="k">NetworkPolicy</td><td>Pod 간 허용·차단 규칙. 방화벽 역할</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>RKE2 기본 대역</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>대역</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td class="k"><code>10.42.0.0/16</code></td><td>Pod IP (cluster-cidr)</td></tr>
+            <tr><td class="k"><code>10.43.0.0/16</code></td><td>Service IP (service-cidr)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note warm" style="margin-top: 12px">사내 대역과 겹치면 안 되고 설치 후 변경 불가. NetworkManager가 CNI 인터페이스(<code>flannel*</code>, <code>cali*</code>)를 건드리지 않도록 설정 필요</div>
+    </div>
+  </div>
+</section>
+
+<!-- ch11 -->
+<section class="slide" data-ch="11">
+  <header class="sh"><span>11 · 구분과 설정</span><span class="num"></span></header>
+  <h2>Namespace, Label, Annotation</h2>
+  <p class="lead">리소스를 나누고(Namespace), 고르고(Label), 부가 정보를 붙이는(Annotation) 방법</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:28%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Namespace</td><td>클러스터 안의 논리 구획. 이름 중복 허용, 권한·쿼터 단위</td></tr>
+          <tr><td class="k">Label</td><td>리소스에 붙이는 키·값 표식. selector의 검색 대상</td></tr>
+          <tr><td class="k">selector</td><td>라벨 조건으로 리소스를 고르는 식</td></tr>
+          <tr><td class="k">Annotation</td><td>검색에 쓰지 않는 부가 정보. 도구 설정 전달용</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="margin-top: 12px">Helm release는 네임스페이스 이동 불가. 앱 네임스페이스를 먼저 정하고 설치</div>
+    </div>
+    <div>
+      <h3>예시</h3>
+      <pre>metadata:
+  namespace: webwas
+  labels:
+    app.kubernetes.io/name: web-portal
+    app.kubernetes.io/version: 1.0.41
+  annotations:
+    metallb.io/loadBalancerIPs: &lt;DEV VIP&gt;</pre>
+      <ul style="margin-top: 14px">
+        <li><code>kube-system</code>: 클러스터 시스템 구성요소</li>
+        <li><code>cattle-system</code>: Rancher와 에이전트</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ch12 -->
+<section class="slide" data-ch="12">
+  <header class="sh"><span>12 · 구분과 설정</span><span class="num"></span></header>
+  <h2>ConfigMap, Secret, 환경변수</h2>
+  <p class="lead">설정값을 이미지 밖에 두는 리소스. 같은 이미지를 환경마다 다른 값으로 실행</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:28%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">ConfigMap</td><td>일반 설정값 묶음. 환경변수나 파일로 주입</td></tr>
+          <tr><td class="k">Secret</td><td>비밀번호·키·인증서 묶음. base64 저장, 접근 권한 분리</td></tr>
+          <tr><td class="k">env</td><td>컨테이너 환경변수. 직접 값 또는 ConfigMap·Secret 참조</td></tr>
+          <tr><td class="k">hostAliases</td><td>Pod의 <code>/etc/hosts</code>에 이름·IP 추가</td></tr>
+          <tr><td class="k">imagePullSecret</td><td>비공개 레지스트리 인증 정보. RKE2는 <code>registries.yaml</code>로 대체 가능</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <ul>
+        <li><b class="lb">base64는 암호화 아님</b>Secret을 읽을 권한이 있으면 원문 확인 가능. 권한 관리가 핵심</li>
+        <li><b class="lb">Spring 연결</b><code>txm.url</code> → <code>TXM_URL</code>처럼 환경변수로 application.yml 값 대체</li>
+        <li><b class="lb">변경 반영</b>환경변수로 주입한 값은 Pod 재시작 후 반영</li>
+      </ul>
+      <div class="note warm" style="margin-top: 12px">개인키를 Rancher Additional Manifest에 넣으면 클러스터 설정에 평문으로 남음. Secret은 <code>kubectl create secret</code>으로 생성</div>
+    </div>
+  </div>
+</section>
+
+<!-- ch13 -->
+<section class="slide" data-ch="13">
+  <header class="sh"><span>13 · 저장공간</span><span class="num"></span></header>
+  <h2>Volume, PV, PVC, StorageClass</h2>
+  <p class="lead">Pod는 일회성이라 컨테이너 안 파일은 교체 시 사라짐. 남겨야 할 데이터는 볼륨에 저장</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:30%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Volume</td><td>Pod에 붙이는 저장공간</td></tr>
+          <tr><td class="k">emptyDir</td><td>Pod와 수명이 같은 임시 공간. Pod 삭제 시 함께 삭제</td></tr>
+          <tr><td class="k">PV</td><td>PersistentVolume. 실제 스토리지 조각</td></tr>
+          <tr><td class="k">PVC</td><td>PersistentVolumeClaim. Pod가 "이만큼 필요"라고 요청하는 신청서</td></tr>
+          <tr><td class="k">StorageClass</td><td>PVC 요청 시 PV를 자동으로 만드는 방식 정의</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <pre>Pod ─ volumeMounts ─▶ PVC (10Gi 요청)
+                          │  StorageClass가 자동 생성
+                          ▼
+                         PV ─▶ Longhorn / NFS</pre>
+      <ul style="margin-top: 14px">
+        <li>RKE2에는 기본 StorageClass 없음. Longhorn이나 NFS 별도 구성</li>
+        <li>현재 WAS 로그(<code>/app/logs</code>)는 emptyDir. 장기 보관은 로그 수집으로 해결</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ch14 -->
+<section class="slide" data-ch="14">
+  <header class="sh"><span>14 · 권한</span><span class="num"></span></header>
+  <h2>RBAC와 ServiceAccount</h2>
+  <p class="lead">누가(주체) 무엇을(리소스) 어떻게(동작) 할 수 있는지 정하는 권한 체계</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:36%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">RBAC</td><td>역할 기반 접근 제어</td></tr>
+          <tr><td class="k">Role / ClusterRole</td><td>허용 동작 목록. 네임스페이스 범위 / 클러스터 전체</td></tr>
+          <tr><td class="k">RoleBinding</td><td>역할을 사용자나 ServiceAccount에 연결</td></tr>
+          <tr><td class="k">ServiceAccount</td><td>Pod가 API를 호출할 때 쓰는 계정</td></tr>
+          <tr><td class="k">kubeconfig</td><td>클러스터 주소와 인증 정보를 담은 접속 파일</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Rancher에서의 권한</h3>
+      <ul>
+        <li><b class="lb">Project</b>여러 네임스페이스를 묶은 Rancher 전용 단위. 팀별 권한·쿼터 부여</li>
+        <li><b class="lb">kubeconfig 발급</b>Rancher 사용자 권한 범위 그대로 적용</li>
+        <li><b class="lb">개발팀</b>자기 Project의 로그 조회·재시작만 허용, 서버 계정 미발급</li>
+      </ul>
+      <div class="note warm" style="margin-top: 12px">kubeconfig에는 토큰이 포함. git이나 메신저에 공유 금지, 파일 권한 600</div>
+    </div>
+  </div>
+</section>
+
+<!-- ch15 -->
+<section class="slide" data-ch="15">
+  <header class="sh"><span>15 · 도구</span><span class="num"></span></header>
+  <h2>Helm 용어</h2>
+  <p class="lead">Helm은 쿠버네티스용 패키지 관리자. 매니페스트 묶음을 버전 단위로 설치·업그레이드·롤백</p>
+  <div class="cols even">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:28%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Chart</td><td>템플릿과 기본값을 묶은 패키지 (<code>.tgz</code>)</td></tr>
+          <tr><td class="k">values</td><td>템플릿 빈칸에 넣을 값</td></tr>
+          <tr><td class="k">Release</td><td>차트를 클러스터에 설치한 실체 하나</td></tr>
+          <tr><td class="k">revision</td><td>설치·업그레이드·롤백마다 1씩 증가하는 이력</td></tr>
+          <tr><td class="k">Repository</td><td>차트와 <code>index.yaml</code> 보관소. Nexus helm hosted</td></tr>
+          <tr><td class="k">version / appVersion</td><td>차트 버전 / 앱 버전. 이번 구축에서는 동일 값</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <pre>Chart + values ─▶ 렌더링된 YAML ─▶ Release
+                                      revision 1, 2, 3 ...</pre>
+      <ul style="margin-top: 14px">
+        <li>롤백도 새 revision. 3에서 1로 롤백하면 4가 생성</li>
+        <li>revision 기록은 네임스페이스의 Secret(<code>sh.helm.release.v1.*</code>)에 저장</li>
+        <li>Rancher Apps 화면은 Helm 명령의 화면판</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ch16 -->
+<section class="slide" data-ch="16">
+  <header class="sh"><span>16 · 도구</span><span class="num"></span></header>
+  <h2>RKE2와 Rancher 용어</h2>
+  <p class="lead">이번 구축에서 쓰는 배포판과 관리 도구에 등장하는 용어</p>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:28%">용어</th><th>정의</th></tr></thead>
+        <tbody>
+          <tr><td class="k">RKE2</td><td>Rancher가 만든 온프레미스용 Kubernetes 배포판. systemd 서비스로 설치</td></tr>
+          <tr><td class="k">server / agent 노드</td><td>server는 컨트롤 플레인 포함, agent는 워크로드만 실행</td></tr>
+          <tr><td class="k">관리(local) 클러스터</td><td>Rancher가 설치된 클러스터. 이번 구축의 MGMT</td></tr>
+          <tr><td class="k">downstream 클러스터</td><td>Rancher가 관리하는 나머지 클러스터. 이번 구축의 DEV</td></tr>
+          <tr><td class="k">Custom 등록</td><td>노드에서 등록 명령을 실행하면 에이전트가 RKE2를 설치하는 방식</td></tr>
+          <tr><td class="k">rancher-system-agent</td><td>노드의 systemd 에이전트. Rancher에서 설치 계획(plan)을 받아 실행</td></tr>
+          <tr><td class="k">cattle-cluster-agent</td><td>downstream 클러스터 안의 Pod. Rancher와 클러스터 API를 연결</td></tr>
+          <tr><td class="k">HelmChartConfig</td><td>RKE2 기본 차트(Traefik 등)에 values를 덧붙이는 리소스</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ch17 -->
+<section class="slide" data-ch="17">
+  <header class="sh"><span>17 · 상태값</span><span class="num"></span></header>
+  <h2>자주 보는 Pod 상태와 첫 확인</h2>
+  <p class="lead">상태값마다 원인 범위가 다름. 첫 확인은 대부분 <code>describe</code>의 Events와 <code>logs</code></p>
+  <div class="cols single">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:20%">상태</th><th style="width:38%">의미</th><th>첫 확인</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Pending</td><td>배치할 노드 없음. 자원 부족, PVC 미연결</td><td><code>kubectl describe pod</code> Events</td></tr>
+          <tr><td class="k">ContainerCreating</td><td>이미지 다운로드·볼륨 연결 중</td><td>몇 분 이상이면 Events</td></tr>
+          <tr><td class="k">ImagePullBackOff</td><td>이미지를 받지 못함. 태그 오타, 인증, 방화벽</td><td>Events의 pull 오류 메시지</td></tr>
+          <tr><td class="k">CrashLoopBackOff</td><td>기동 직후 종료를 반복. 설정 누락, 외부 접속 실패</td><td><code>kubectl logs --previous</code></td></tr>
+          <tr><td class="k">OOMKilled</td><td>메모리 limit 초과로 강제 종료</td><td><code>describe</code>의 Last State, limits 조정</td></tr>
+          <tr><td class="k">Running · 0/1 Ready</td><td>실행 중이지만 readiness 실패. 트래픽 제외 상태</td><td>probe 설정과 앱 로그</td></tr>
+          <tr><td class="k">Terminating</td><td>종료 진행 중. 오래 남으면 finalizer나 노드 문제</td><td><code>kubectl get pod -o yaml</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+  </div>
+
+  <nav class="nav" aria-label="슬라이드 이동">
+    <div class="left">
+      <span class="deckname">쿠버네티스 기본 용어</span>
+      <span id="chlabel"></span>
+    </div>
+    <div class="right">
+      <button class="btn text" id="tocBtn" type="button" title="목차로">목차</button>
+      <button class="btn" id="prev" type="button" aria-label="이전 슬라이드">‹</button>
+      <span class="counter" id="counter">1 / 1</span>
+      <button class="btn" id="next" type="button" aria-label="다음 슬라이드">›</button>
+    </div>
+  </nav>
+</div>
+
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var total = slides.length;
+  var idx = 0;
+  var bar = document.getElementById('bar');
+  var counter = document.getElementById('counter');
+  var chlabel = document.getElementById('chlabel');
+  var prev = document.getElementById('prev');
+  var next = document.getElementById('next');
+
+  var tocParts = [
+    { no: 'Part 1', title: '구성과 동작 방식', range: '1~3장', color: '#B8741F', items: [
+      ['1', 'Docker 용어와 쿠버네티스 용어'],
+      ['2', '클러스터, 노드, 컨트롤 플레인'],
+      ['3', '선언형 동작 방식과 매니페스트']
+    ]},
+    { no: 'Part 2', title: '워크로드', range: '4~7장', color: '#1D6E8C', items: [
+      ['4', 'Pod'],
+      ['5', 'Deployment와 ReplicaSet'],
+      ['6', '그 밖의 워크로드 종류'],
+      ['7', 'Probe'],
+      ['7b', '자원: requests, limits, QoS', '7']
+    ]},
+    { no: 'Part 3', title: '네트워크', range: '8~10장', color: '#2E7D4F', items: [
+      ['8', 'Service와 Endpoints'],
+      ['9', 'Ingress와 Ingress Controller'],
+      ['10', 'CNI, CoreDNS, kube-proxy']
+    ]},
+    { no: 'Part 4', title: '설정·권한·도구', range: '11~17장', color: '#5B53C6', items: [
+      ['11', 'Namespace, Label, Annotation'],
+      ['12', 'ConfigMap, Secret, 환경변수'],
+      ['13', 'Volume, PV, PVC, StorageClass'],
+      ['14', 'RBAC와 ServiceAccount'],
+      ['15', 'Helm 용어'],
+      ['16', 'RKE2와 Rancher 용어'],
+      ['17', '자주 보는 Pod 상태와 첫 확인']
+    ]}
+  ];
+  var toc = document.getElementById('toc');
+  tocParts.forEach(function (part) {
+    var box = document.createElement('section');
+    box.className = 'part' + (part.appx ? ' appx' : '');
+    if (part.color) box.style.setProperty('--part-color', part.color);
+    var head = document.createElement('div');
+    head.className = 'part-head';
+    var no = document.createElement('span'); no.className = 'part-no'; no.textContent = part.no;
+    var title = document.createElement('span'); title.className = 'part-title'; title.textContent = part.title;
+    var range = document.createElement('span'); range.className = 'part-range'; range.textContent = part.range;
+    head.appendChild(no); head.appendChild(title); head.appendChild(range);
+    box.appendChild(head);
+    var ul = document.createElement('ul');
+    ul.className = 'items';
+    part.items.forEach(function (item) {
+      var id = item[0], label = item[1], parentNo = item[2];
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.type = 'button';
+      var n = document.createElement('span');
+      n.className = 'n' + (parentNo ? ' sub-n' : '');
+      if (part.appx) n.textContent = id;
+      else if (parentNo) n.textContent = '└';
+      else n.textContent = String(parseInt(id, 10)).padStart(2, '0');
+      var t = document.createElement('span');
+      t.textContent = label;
+      b.appendChild(n); b.appendChild(t);
+      b.addEventListener('click', function () {
+        var target = slides.findIndex(function (s) { return s.getAttribute('data-ch') === id; });
+        if (target >= 0) go(target);
+      });
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    toc.appendChild(box);
+  });
+
+  function labelFor(slide) {
+    var ch = slide.getAttribute('data-ch');
+    if (!ch) return '';
+    var n = parseInt(ch, 10);
+    return isNaN(n) ? '부록 ' + ch : n + '장';
+  }
+
+  function go(n) {
+    if (n < 0 || n >= total) return;
+    slides[idx].classList.remove('active');
+    idx = n;
+    slides[idx].classList.add('active');
+    slides[idx].scrollTop = 0;
+    counter.textContent = (idx + 1) + ' / ' + total;
+    bar.style.width = ((idx + 1) / total * 100) + '%';
+    chlabel.textContent = labelFor(slides[idx]);
+    prev.disabled = idx === 0;
+    next.disabled = idx === total - 1;
+    var numEl = slides[idx].querySelector('.num');
+    if (numEl) numEl.textContent = (idx + 1) + ' / ' + total;
+    try { history.replaceState(null, '', '#' + (idx + 1)); } catch (e) {}
+  }
+
+  prev.addEventListener('click', function () { go(idx - 1); });
+  next.addEventListener('click', function () { go(idx + 1); });
+  document.getElementById('tocBtn').addEventListener('click', function () { go(1); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(idx + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(idx - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); go(0); }
+    else if (e.key === 'End') { e.preventDefault(); go(total - 1); }
+  });
+
+  var touchX = null;
+  document.addEventListener('touchstart', function (e) { touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 60) go(dx < 0 ? idx + 1 : idx - 1);
+    touchX = null;
+  }, { passive: true });
+
+  function fit() {
+    var stage = document.querySelector('.stage');
+    var k = Math.min((stage.clientWidth - 32) / 1280, (stage.clientHeight - 16) / 720);
+    document.documentElement.style.setProperty('--fit', String(Math.max(k, 0.1)));
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  var start = parseInt((location.hash || '#1').slice(1), 10);
+  if (isNaN(start) || start < 1 || start > total) start = 1;
+  slides[0].classList.remove('active');
+  idx = 0;
+  slides[0].classList.add('active');
+  go(start - 1);
+})();
+</script>
