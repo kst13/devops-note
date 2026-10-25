@@ -2,7 +2,7 @@
 
 - 작성일: 2026-10-23
 - 대상: 사내 웹/WAS 애플리케이션 배포 체계
-- 현황: 로컬 실습 환경에서 전체 경로(Jenkins → Nexus → Rancher → 클러스터) 검증 완료. 실서버는 관리 3대·개발 3대 OS 준비 완료, 인프라 요청 대기 중
+- 현황 (2026-10-25 갱신): 실서버 관리 클러스터 3대와 Rancher 설치 완료(10-19~20). 개발 클러스터 3대를 Rancher로 생성(10-21)하고 웹·WAS 앱 배포 확인(10-23)
 
 ## 1. 전환 요약
 
@@ -71,7 +71,7 @@ Jenkins 빌드 단계는 그대로 유지합니다. 마지막 "복사 + docker r
 
 | 항목 | 내용 | 비고 |
 | --- | --- | --- |
-| 초기 구축 | 관리 클러스터 3대, 개발 클러스터 3대, Rancher·RKE2 설치, 방화벽 신청 | 1회성. 로컬 실습 환경에서 절차 검증 완료 |
+| 초기 구축 | 관리 클러스터 3대, 개발 클러스터 3대, Rancher·RKE2 설치, 방화벽 신청 | 1회성. 실서버 설치 완료. 방화벽은 1차 누락 항목으로 2차 신청 |
 | 학습 | Dockerfile, Helm 차트, kubectl 기초 | 샘플 프로젝트(web/was)와 설치 매뉴얼 작성 완료 |
 | 시스템 오버헤드 | 노드당 RKE2 구성 요소 약 2GB 메모리 | 앱 3개 이상부터 자원 효율 이득이 오버헤드를 상회 |
 | 파이프라인 변경 | Jenkins 마지막 단계만 교체 | 빌드 단계는 그대로 |
@@ -82,10 +82,11 @@ Jenkins 빌드 단계는 그대로 유지합니다. 마지막 "복사 + docker r
 | --- | --- |
 | 로컬 실습: Jenkins → Nexus → Rancher → 클러스터 배포 | 완료 (web-portal 배포·버전 확인) |
 | 실서버 OS 준비 (관리 3대, 개발 3대) | 완료 |
-| 인프라 요청 (방화벽, L4, DNS, NetworkManager) | 대기 |
-| 관리 클러스터·Rancher 설치 | 인프라 요청 처리 후 |
-| 개발 클러스터 등록, 샘플 앱 배포 | 관리 클러스터 설치 후 |
-| Upgrade·Rollback 리허설, WAS 샘플 추가 | 개발 클러스터 등록 후 |
+| 인프라 요청 (방화벽, L4, DNS, NetworkManager) | 완료. Docker Hub CDN·quay CDN 허용은 추가 신청 진행 |
+| 관리 클러스터·Rancher 설치 | 완료 (RKE2 v1.36.4, Rancher 2.15.2, 3대 이중화) |
+| 개발 클러스터 등록 | 완료 (RKE2 v1.36.5, MetalLB VIP, Traefik, 와일드카드 인증서) |
+| 웹·WAS 앱 배포 | 완료 (Rancher Apps로 설치·업그레이드 확인) |
+| 나머지 앱 이전, 로그 수집(Loki) 구성 | 진행 예정 |
 
 ## 5. 한 줄 요약
 
@@ -95,5 +96,7 @@ Jenkins가 서버에 들어가 컨테이너를 교체하던 방식에서, Jenkin
 
 - [16 Rancher로 여러 클러스터 중앙 관리](../kubernetes/concepts/16-rancher-multi-cluster-management.md)
 - [17 온프레미스 Rancher·RKE2 준비](../kubernetes/concepts/17-onprem-rancher-rke2-preparation.md)
+- [18 DEV 클러스터 외부 접속](../kubernetes/concepts/18-dev-cluster-metallb-traefik-tls.md)
+- [Rancher·RKE2 실서버 설치 실패 사례](../kubernetes/troubleshooting/rancher-rke2-onprem-install-failures.md)
 - [web/WAS 릴리즈 예제](../kubernetes/examples/web-was-release/README.md)
 - [Lima 실습 매뉴얼](../kubernetes/commands/lima-rancher-rke2-lab.md)
