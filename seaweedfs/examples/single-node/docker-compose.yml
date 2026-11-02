@@ -1,0 +1,27 @@
+# SeaweedFS 단일 노드 (weed mini) — 로컬 PC·개발 VM용
+# 자격증명은 같은 디렉터리의 .env 에서 읽는다 (.env.example 참고, .env 는 커밋 금지)
+name: seaweedfs
+
+services:
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.50          # 태그 고정. latest 는 기본값이 바뀔 수 있다
+    container_name: seaweedfs
+    restart: unless-stopped
+    # 이미지의 ENTRYPOINT 가 weed 이므로 하위 명령부터 적는다
+    command: >
+      mini -dir=/data
+      -master.defaultReplication=000
+      -master.telemetry=false
+      -admin.password=${SEAWEEDFS_ADMIN_PASSWORD}
+      -bucket=lakehouse
+    environment:
+      # 첫 관리자 계정. 이 값이 있으면 S3 게이트웨이가 인증 필수 모드로 시작한다
+      AWS_ACCESS_KEY_ID: ${SEAWEEDFS_ROOT_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${SEAWEEDFS_ROOT_SECRET_KEY}
+    ports:
+      - "8333:8333"     # S3 API — 앱·Trino·Connect 가 쓰는 유일한 포트
+      - "8888:8888"     # Filer UI — 파일 트리 확인 (사내망 한정)
+      - "9333:9333"     # Master UI — 볼륨·토폴로지 확인 (사내망 한정)
+      - "12535:12535"   # Admin UI — 계정·정책·유지보수 (admin 비밀번호)
+    volumes:
+      - ./data:/data    # 메타데이터 + 볼륨 파일. 이 디렉터리 하나가 백업 단위

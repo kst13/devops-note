@@ -16,3 +16,6 @@ lakehouse/examples/**/node_modules/
 lakehouse/examples/**/dist/
 lakehouse/examples/**/build/
 lakehouse/examples/**/.gradle/
+
+seaweedfs/examples/**/.env
+seaweedfs/examples/**/data/
