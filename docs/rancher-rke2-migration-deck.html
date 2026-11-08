@@ -387,7 +387,7 @@
 <section class="slide title active">
   <div class="kicker">배포 체계 전환 · 1편</div>
   <h1>Jenkins 스크립트 배포에서 Rancher 릴리즈로</h1>
-  <div class="sub">Rancher + RKE2 전환 설계와 로컬 검증 결과</div>
+  <div class="sub">Rancher + RKE2 전환 설계와 배포 절차</div>
   <div class="meta"><span>Jenkins · Nexus · Helm · Rancher · RKE2</span><span>2026-10</span></div>
   <p class="lead" style="margin-top: 18px"><span class="kbd">←</span> <span class="kbd">→</span> 키로 이동, 목차에서 장 단위 이동</p>
 </section>
@@ -396,8 +396,8 @@
 <section class="slide">
   <header class="sh"><span>목차</span><span class="num"></span></header>
   <h2>자료 구성</h2>
-  <p class="lead">1편 범위는 설계와 로컬 검증. 실서버 구축과 운영 결과는 2편에서 정리</p>
-  <div class="toc" id="toc"></div>
+  <p class="lead">1편 범위는 전환 설계와 배포 절차. 실서버 구축과 운영 결과는 2편에서 정리</p>
+  <div class="toc" id="toc" style="grid-template-columns: repeat(3, minmax(0, 1fr))"></div>
 </section>
 
 <!-- ch1 -->
@@ -485,20 +485,43 @@ ssh deploy@${APP_SERVER} \
   </div>
 </section>
 
+<!-- ch3b -->
+<section class="slide" data-ch="3b">
+  <header class="sh"><span>03 · 선택 이유</span><span class="num"></span></header>
+  <h2>이미지 배포만 도입한 경우와 비교</h2>
+  <p class="lead">기존 방식에 Dockerfile 이미지 빌드만 추가한 경우와 비교. 이미지로 해결되는 한계는 4번 서버별 환경 차이</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th style="width:17%">남는 한계</th><th style="width:39%">이미지 배포만 도입</th><th>Rancher + RKE2</th></tr></thead>
+      <tbody>
+        <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">1</b>배포 중단</td><td>같은 서버에서 stop 후 run. 기동 시간만큼 중단</td><td>새 컨테이너 준비 후 기존 컨테이너 종료</td></tr>
+        <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">2</b>롤백</td><td>이미지만 되돌림. 포트·환경변수는 스크립트 이력에서 추적</td><td>이미지와 설정을 배포 이력 단위로 함께 복원</td></tr>
+        <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">3</b>장애 복구</td><td>같은 서버 안에서만 재시작</td><td>자동 재시작. 서버 장애 시 다른 노드로 재배치</td></tr>
+        <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">5</b>SSH 권한</td><td>Jenkins가 서버마다 접속해 <code>docker run</code></td><td>Jenkins는 Nexus push까지. 노드가 Rancher 443으로 접속</td></tr>
+        <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">6</b>수동 배치</td><td>앱별 서버·포트 지정, 앱 간 주소는 IP:포트 고정</td><td>여유 노드 자동 선택, 앱 간 연결은 이름 기반</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="grid2">
+    <div class="note">자동 복구·롤백은 RKE2 기본 동작. 이미지 방식에서는 앱별 스크립트로 직접 구현·유지</div>
+    <div class="note warm">이미지 방식 우위: 노드당 메모리 약 2GB 절감, 관리 클러스터 불필요, 점검 계층 단순. 앱 1~2개·서버 1~2대 규모에 적합</div>
+  </div>
+</section>
+
 <!-- ch4 -->
 <section class="slide" data-ch="4">
   <header class="sh"><span>04 · 목표 아키텍처</span><span class="num"></span></header>
   <h2>목표 아키텍처</h2>
   <p class="lead">빌드는 Jenkins, 보관은 Nexus, 배포·복구·롤백은 Rancher가 담당하는 역할 분리 구조</p>
-  <div class="cols">
+  <div class="cols" style="grid-template-columns: 290px minmax(0, 1fr); gap: 32px">
     <div>
       <ul>
-        <li><b class="lb">Jenkins</b>이미지와 Helm 차트를 동일 버전으로 생성해 Nexus에 push. 배포는 수행하지 않음</li>
-        <li><b class="lb">Nexus</b>이미지는 docker hosted(5000), 차트는 helm hosted(8081)에 버전별 보관</li>
-        <li><b class="lb">Rancher</b>관리 클러스터 3대에서 운영. Nexus 차트 목록을 읽어 선택한 버전을 dev 클러스터에 설치</li>
-        <li><b class="lb">dev 클러스터</b>노드 3대가 Nexus에서 이미지를 pull해 실행</li>
+        <li><b class="lb">Jenkins</b>이미지·차트를 같은 버전으로 만들어 Nexus에 push</li>
+        <li><b class="lb">Nexus</b>이미지 5000, 차트 8081에 버전별 보관</li>
+        <li><b class="lb">Rancher</b>선택한 차트 버전을 dev 클러스터에 설치</li>
+        <li><b class="lb">dev 클러스터</b>노드 3대가 이미지 pull 후 실행</li>
       </ul>
-      <div class="note">Helm 차트: 포트, 환경변수, 자원, 헬스체크, 복제 수를 담은 배포 명세. 앱 소스 저장소에서 함께 관리</div>
+      <div class="note">Pod: 쿠버네티스의 실행 단위, 컨테이너 1개 이상의 묶음<br>Helm 차트: 포트, 환경변수, 자원, 헬스체크, 복제 수를 담은 배포 명세</div>
     </div>
     <figure>
       <svg class="d" viewBox="0 0 560 300" role="img" aria-label="GitLab에서 Jenkins, Nexus를 거쳐 Rancher가 dev 클러스터에 설치하는 목표 구성">
@@ -512,7 +535,7 @@ ssh deploy@${APP_SERVER} \
         <path class="ln" d="M110,170 L148,198" marker-end="url(#arr)"></path>
         <rect class="node hi" x="320" y="20" width="220" height="70" rx="8"></rect><text x="336" y="46" class="b">Rancher · 관리 클러스터</text><text x="336" y="66" class="s">RKE2 server 3대 · Rancher Pod 3개</text><text x="336" y="81" class="s">앞단 L4가 443을 3대로 분산</text>
         <path class="ln hi" d="M270,142 L296,142 L296,55 L318,55" marker-end="url(#arrA)"></path>
-        <text x="236" y="76" class="s">차트 목록 조회</text>
+        <text x="290" y="76" text-anchor="end" class="s">차트 목록 조회</text>
         <rect class="zone" x="320" y="150" width="220" height="130" rx="8"></rect><text x="332" y="168" class="z">DEV 클러스터</text>
         <rect class="node dim" x="332" y="180" width="62" height="36" rx="5"></rect><text x="363" y="203" text-anchor="middle" class="s">노드 1</text>
         <rect class="node dim" x="400" y="180" width="62" height="36" rx="5"></rect><text x="431" y="203" text-anchor="middle" class="s">노드 2</text>
@@ -520,7 +543,7 @@ ssh deploy@${APP_SERVER} \
         <text x="430" y="240" text-anchor="middle" class="m">web-portal · was-order</text>
         <text x="430" y="260" text-anchor="middle" class="s">여유 노드 자동 배치 · 장애 시 재배치</text>
         <path class="ln hi" d="M430,90 L430,148" marker-end="url(#arrA)"></path>
-        <text x="438" y="118" class="s">Install · Upgrade · Rollback</text>
+        <text x="438" y="114" class="s">Install · Upgrade</text><text x="438" y="128" class="s">Rollback</text>
         <path class="ln" d="M270,200 L318,200" marker-end="url(#arr)"></path>
         <text x="278" y="192" class="s">pull</text>
       </svg>
@@ -683,116 +706,7 @@ curl -fsS -u "$U:$P" --upload-file \
 
 <!-- ch7 -->
 <section class="slide" data-ch="7">
-  <header class="sh"><span>07 · 로컬 실습 환경</span><span class="num"></span></header>
-  <h2>로컬 실습 환경 구성</h2>
-  <p class="lead">실서버 작업 전 Mac에 동일 구조 구성. 온프레미스 구축 순서와 1:1로 대응하도록 절차 설계</p>
-  <div class="cols">
-    <div>
-      <ul>
-        <li><b class="lb">VM 사용</b>RKE2는 systemd 기반 Linux 호스트 전제. k3d 등 컨테이너 클러스터는 Import만 가능, Custom 등록 불가</li>
-        <li><b class="lb">VM 2대</b>mgmt VM은 관리 클러스터, dev1 VM은 dev 클러스터</li>
-        <li><b class="lb">hostname</b>sslip.io로 사내 DNS 대체. IP를 포함한 이름을 해당 IP로 응답하는 공개 DNS</li>
-      </ul>
-      <div class="tablewrap" style="margin-top: 6px">
-        <table>
-          <thead><tr><th>항목</th><th>값</th><th>근거</th></tr></thead>
-          <tbody>
-            <tr><td class="k">mgmt VM</td><td>3 vCPU · 6GB</td><td>Rancher와 webhook 안정 동작 기준</td></tr>
-            <tr><td class="k">dev1 VM</td><td>2 vCPU · 5GB</td><td>RKE2와 에이전트만 2.4GB 사용</td></tr>
-            <tr><td class="k">RKE2</td><td>v1.36.4</td><td>기본 Ingress Traefik</td></tr>
-            <tr><td class="k">Rancher</td><td>v2.15.2</td><td>실습 <code>replicas=1</code>, 실서버 3</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <div>
-      <pre>Mac (Apple Silicon, Lima)
- ├─ Safari ─────────────────────────────┐
- ├─ :8443 (포트포워드, static) ─────────┼─▶ mgmt :443
- │                                      │   (Traefik → Rancher)
- ├─ mgmt VM  192.168.64.2               │
- │    RKE2 server + Rancher             │
- │    + cert-manager                    │
- │                                      │
- └─ dev1 VM  192.168.64.3 ──────────────┘
-      rancher-system-agent → RKE2
-      (Rancher가 설치)</pre>
-    </div>
-  </div>
-</section>
-
-<!-- ch7b -->
-<section class="slide" data-ch="7b">
-  <header class="sh"><span>07 · 로컬 실습 환경</span><span class="num"></span></header>
-  <h2>실습과 실서버의 대응</h2>
-  <p class="lead">실서버 전환 시 변경 대상은 주소와 규모. 구조와 절차는 동일</p>
-  <div class="cols single">
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th style="width:24%">구성 요소</th><th style="width:36%">로컬 실습</th><th>실서버</th></tr></thead>
-        <tbody>
-          <tr><td class="k">관리 클러스터</td><td>mgmt VM 1대, Rancher Pod 1개</td><td>서버 3대, Rancher Pod 3개, 앞단 L4</td></tr>
-          <tr><td class="k">dev 클러스터</td><td>dev1 VM 1대 (arm64)</td><td>서버 3대 (x86)</td></tr>
-          <tr><td class="k">빌드</td><td><code>build.sh</code>가 Job 2개를 대신 실행</td><td>web, was Jenkinsfile. 앱 저장소 루트에 배치</td></tr>
-          <tr><td class="k">이미지 저장소</td><td>dev1 내부 registry Pod (5050)</td><td>Nexus docker hosted (5000)</td></tr>
-          <tr><td class="k">차트 저장소</td><td>mgmt 내부 ChartMuseum (8085)</td><td>Nexus helm hosted (8081)</td></tr>
-          <tr><td class="k">노드 레지스트리 설정</td><td>Rancher Registries에 mirror 등록</td><td>같은 화면에 Nexus 주소와 계정 등록</td></tr>
-          <tr><td class="k">앱 도메인</td><td><code>app.dev.192-168-64-3.sslip.io</code></td><td>사내 DNS → dev 클러스터 VIP</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <div class="note">실습 저장소는 VM 내부에 배치. 실서버에서는 Nexus 하나로 이미지와 차트를 모두 제공</div>
-</section>
-
-<!-- ch8 -->
-<section class="slide" data-ch="8">
-  <header class="sh"><span>08 · 전체 경로 검증</span><span class="num"></span></header>
-  <h2>사내 Jenkins·Nexus에서 로컬 클러스터까지</h2>
-  <p class="lead">최종 검증에 사내 Jenkins와 Nexus 사용. 사내 Jenkins가 빌드한 web-portal 1.0.9를 Rancher Apps로 dev1에 설치</p>
-  <div class="cols">
-    <div>
-      <ul>
-        <li><b class="lb">차트</b>Rancher Apps 저장소에 Nexus helm hosted 등록 후 Charts 목록에 web-portal 표시</li>
-        <li><b class="lb">이미지</b>Rancher Registries에 Nexus 주소와 읽기 계정 등록. 노드가 Nexus에서 직접 pull</li>
-        <li><b class="lb">버전</b>Jenkins 빌드 번호 9번이 이미지 태그·차트 버전 1.0.9로 그대로 반영</li>
-      </ul>
-      <pre style="margin-top: 8px">web-portal-…-fcv82  Running  0 restarts
-web-portal-…-rt2ks  Running  0 restarts
-  image: &lt;NEXUS&gt;:5000/web-portal:1.0.9
-sh.helm.release.v1.web-portal.v1  deployed
-/api/hello → 502  (WAS 미설치 상태의 정상 응답)</pre>
-    </div>
-    <figure>
-      <svg class="d" viewBox="0 0 560 300" role="img" aria-label="사내망의 GitLab, Jenkins, Nexus에서 Mac 안의 mgmt VM과 dev1 VM으로 이어지는 검증 경로">
-        <rect class="zone plain" x="8" y="8" width="404" height="120" rx="8"></rect><text x="20" y="26" class="z" style="fill: var(--muted)">사내망</text>
-        <rect class="node" x="20" y="44" width="80" height="44" rx="6"></rect><text x="60" y="71" text-anchor="middle" class="b">GitLab</text>
-        <rect class="node hi" x="124" y="44" width="110" height="44" rx="6"></rect><text x="179" y="63" text-anchor="middle" class="b">Jenkins</text><text x="179" y="79" text-anchor="middle" class="s">x86 빌드</text>
-        <rect class="node" x="262" y="20" width="138" height="40" rx="6"></rect><text x="331" y="45" text-anchor="middle" class="b">Nexus helm :8081</text>
-        <rect class="node" x="262" y="74" width="138" height="40" rx="6"></rect><text x="331" y="99" text-anchor="middle" class="b">Nexus docker :5000</text>
-        <path class="ln" d="M100,66 L122,66" marker-end="url(#arr)"></path>
-        <path class="ln" d="M234,58 L260,42" marker-end="url(#arr)"></path>
-        <path class="ln" d="M234,74 L260,92" marker-end="url(#arr)"></path>
-        <rect class="zone" x="8" y="150" width="544" height="142" rx="8"></rect><text x="20" y="168" class="z">MAC · LIMA VM</text>
-        <rect class="node hi" x="390" y="172" width="150" height="44" rx="6"></rect><text x="465" y="191" text-anchor="middle" class="b">mgmt VM</text><text x="465" y="207" text-anchor="middle" class="s">Rancher</text>
-        <rect class="node" x="200" y="232" width="150" height="48" rx="6"></rect><text x="275" y="252" text-anchor="middle" class="b">dev1 VM (arm64)</text><text x="275" y="270" text-anchor="middle" class="s">RKE2 · Rancher가 설치</text>
-        <rect class="node hi" x="390" y="232" width="150" height="48" rx="6"></rect><text x="465" y="252" text-anchor="middle" class="b">web-portal ×2</text><text x="465" y="270" text-anchor="middle" class="s m">1.0.9 Running</text>
-        <path class="ln hi" d="M400,40 L470,40 L470,170" marker-end="url(#arrA)"></path>
-        <text x="478" y="100" class="s">차트 조회</text>
-        <path class="ln" d="M331,114 L331,140 L275,140 L275,230" marker-end="url(#arr)"></path>
-        <text x="283" y="200" class="s">이미지 pull</text>
-        <path class="ln hi" d="M410,216 L352,240" marker-end="url(#arrA)"></path>
-        <text x="352" y="226" class="s">install</text>
-        <path class="ln" d="M350,256 L388,256" marker-end="url(#arr)"></path>
-      </svg>
-      <figcaption>사내 Jenkins가 만든 이미지와 차트를 로컬 클러스터에서 Rancher Apps로 설치</figcaption>
-    </figure>
-  </div>
-</section>
-
-<!-- ch8b -->
-<section class="slide" data-ch="8b">
-  <header class="sh"><span>08 · 전체 경로 검증</span><span class="num"></span></header>
+  <header class="sh"><span>07 · 배포 절차</span><span class="num"></span></header>
   <h2>Rancher 배포 절차</h2>
   <p class="lead">서버 접속 없이 Rancher 화면에서 앱과 버전을 선택해 배포</p>
   <div class="cols even">
@@ -808,98 +722,32 @@ sh.helm.release.v1.web-portal.v1  deployed
     <div>
       <h3>롤링 업데이트 동작</h3>
       <ul>
-        <li>새 Pod가 헬스체크를 통과한 뒤 기존 Pod 종료. 배포 중 서비스 유지</li>
-        <li>존재하지 않는 태그 지정 시 새 Pod는 <code>ImagePullBackOff</code>, 기존 Pod는 서비스 지속</li>
+        <li>새 Pod의 헬스체크 통과 후 기존 Pod 종료. 가용 Pod 0 구간 없음</li>
+        <li>새 버전 기동 실패 시 새 Pod만 재시작 반복. 기존 Pod는 서비스 지속</li>
+        <li>없는 태그 지정 시 새 Pod는 <code>ImagePullBackOff</code>. 기존 Pod 유지</li>
+        <li>실패 확인 후 Rollback으로 이전 리비전 복원</li>
       </ul>
-      <div class="tablewrap" style="margin-top: 10px">
-        <table>
-          <thead><tr><th>항목</th><th>상태</th></tr></thead>
-          <tbody>
-            <tr><td class="k">사내 Nexus 경로로 Install</td><td><span class="pill hi">완료</span> web-portal 1.0.9</td></tr>
-            <tr><td class="k">실서버 DEV 웹·WAS 배포</td><td><span class="pill hi">완료</span> Install·Upgrade</td></tr>
-            <tr><td class="k">Rollback 리허설</td><td><span class="pill warm">예정</span></td></tr>
-          </tbody>
-        </table>
-      </div>
+      <div class="note">요청 실패 0 여부는 preStop·graceful shutdown 설정 후 2편에서 실측</div>
     </div>
   </div>
 </section>
 
-<!-- ch9 -->
-<section class="slide" data-ch="9">
-  <header class="sh"><span>09 · 트러블슈팅</span><span class="num"></span></header>
-  <h2>Jenkins Job 오류 4건</h2>
-  <p class="lead">파이프라인 첫 실행에서 4회 중단. 4건 모두 인증, 도구, 주소 설정 문제</p>
-  <div class="cols single">
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th style="width:34%">로그</th><th style="width:34%">원인</th><th>조치</th></tr></thead>
-        <tbody>
-          <tr><td class="k"><code>git fetch … HTTP code = 404</code></td><td>Job에 Git credential 미지정</td><td>Job에 GitLab 배포용 credential 지정</td></tr>
-          <tr><td class="k"><code>Could not find credentials entry with ID 'nexus'</code></td><td>Nexus용 credential 미생성</td><td>Username/password credential 생성 후 Jenkinsfile <code>credentialsId</code> 수정</td></tr>
-          <tr><td class="k"><code>HTTP response to HTTPS client</code></td><td>로그인 주소가 Docker <code>insecure-registries</code> 목록과 불일치</td><td>허용된 주소 형식으로 <code>NEXUS_DOCKER</code> 변경</td></tr>
-          <tr><td class="k"><code>helm: command not found</code></td><td>Jenkins 서버에 helm 미설치</td><td>helm 3 설치</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <div class="note">GitLab의 404는 권한 부족일 수 있음. 비공개 저장소는 권한 없는 요청에 존재 여부를 드러내지 않음</div>
-</section>
-
-<!-- ch10 -->
-<section class="slide" data-ch="10">
-  <header class="sh"><span>10 · 트러블슈팅</span><span class="num"></span></header>
-  <h2>nginx 기동 실패: WAS 주소 조회</h2>
-  <p class="lead">web Pod 재시작 반복. nginx가 기동 시점에 WAS 주소를 조회하는 설정이 원인</p>
-  <div class="cols even">
-    <div>
-      <div class="tablewrap">
-        <table>
-          <tbody>
-            <tr><td class="k">증상</td><td><code>CrashLoopBackOff</code>, 로그 <code>host not found in upstream "was-order"</code></td></tr>
-            <tr><td class="k">원인</td><td>고정 주소 <code>proxy_pass</code>는 기동 시 DNS 조회 필요. WAS Service가 없으면 기동 실패</td></tr>
-            <tr><td class="k">확인</td><td>공식 nginx 이미지와 ConfigMap으로 테스트 Pod 구성. <code>/healthz</code> 200, <code>/api/hello</code> 502, 기동 정상</td></tr>
-            <tr><td class="k">해결</td><td>주소를 변수로 바꾸고 <code>resolver</code> 지정. 요청 시점에 이름 해석</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="note warm">운영 원칙: WAS 장애가 web 기동 실패로 번지지 않도록 web은 WAS 없이 기동, <code>/api</code>만 502 응답</div>
-    </div>
-    <div>
-      <pre># default.conf.template (기동 시 envsubst로 치환)
-resolver ${DNS_SERVER} valid=10s ipv6=off;
-
-# 변수 proxy_pass는 search 도메인 미적용 → FQDN 사용
-set $was_upstream http://${WAS_HOST}:8080;
-
-location /api/ {
-    proxy_pass $was_upstream;
-    proxy_connect_timeout 2s;
-}</pre>
-      <ul style="margin-top: 14px">
-        <li><code>05-dns.envsh</code>: <code>/etc/resolv.conf</code>의 첫 nameserver를 <code>DNS_SERVER</code>로 export</li>
-        <li><code>WAS_HOST</code>: 차트 values로 주입. 기본값 <code>was-order.&lt;ns&gt;.svc.cluster.local</code></li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<!-- ch11 -->
-<section class="slide" data-ch="11">
-  <header class="sh"><span>11 · 기대 효과</span><span class="num"></span></header>
+<!-- ch8 -->
+<section class="slide" data-ch="8">
+  <header class="sh"><span>08 · 기대 효과</span><span class="num"></span></header>
   <h2>기대 효과와 비용</h2>
-  <p class="lead">로컬 검증 구조 기준의 기대 효과. 실서버 배포 중단 시간과 롤백 소요 시간 실측은 2편에서 정리</p>
-  <div class="cols wide">
+  <p class="lead">2장 한계 1~6번 기준의 기대 효과. 배포 중 요청 실패 수와 롤백 소요 시간 실측은 2편에서 정리</p>
+  <div class="cols" style="grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 32px">
     <div class="tablewrap">
       <table>
-        <thead><tr><th style="width:16%">항목</th><th style="width:38%">기존</th><th>변경</th></tr></thead>
+        <thead><tr><th style="width:21%">한계</th><th style="width:34%">기존</th><th>변경</th></tr></thead>
         <tbody>
-          <tr><td class="k">배포</td><td>stop 후 run. 기동 시간만큼 중단</td><td>RollingUpdate. 헬스체크 통과 후 교체</td></tr>
-          <tr><td class="k">롤백</td><td>이전 파일을 찾아 재배포</td><td>Rollback에서 이전 리비전 선택</td></tr>
-          <tr><td class="k">장애</td><td>담당자가 발견 후 재기동</td><td>자동 재시작, 노드 장애 시 다른 노드로 이동</td></tr>
-          <tr><td class="k">배치</td><td>앱별 서버·포트 지정</td><td>노드 3대를 자원 풀로 운영, 복제 수 조정</td></tr>
-          <tr><td class="k">환경</td><td>서버마다 JDK·설정 상이</td><td>동일 이미지로 모든 노드에서 같은 환경</td></tr>
-          <tr><td class="k">권한</td><td>Jenkins → 전체 서버 22</td><td>Jenkins → Rancher 443, 작업 이력은 Rancher에 기록</td></tr>
+          <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">1</b>배포 중단</td><td>stop 후 run. 기동 시간만큼 중단</td><td>RollingUpdate. 새 Pod 준비 후 교체, 가용 Pod 0 구간 없음</td></tr>
+          <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">2</b>롤백</td><td>이전 파일을 찾아 재배포</td><td>Rollback에서 이전 리비전 선택</td></tr>
+          <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">3</b>장애 복구</td><td>담당자가 발견 후 재기동</td><td>자동 재시작, 노드 장애 시 다른 노드로 이동</td></tr>
+          <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">4</b>환경 차이</td><td>서버마다 JDK·설정 상이</td><td>동일 이미지로 모든 노드에서 같은 환경</td></tr>
+          <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">5</b>SSH 권한</td><td>Jenkins → 전체 서버 22</td><td>Jenkins → Nexus push, 노드 → Rancher 443</td></tr>
+          <tr><td class="k"><b style="font-family: var(--mono); color: var(--accent); margin-right: 8px">6</b>수동 배치</td><td>앱별 서버·포트 지정</td><td>노드 3대를 자원 풀로 운영, 복제 수 조정</td></tr>
         </tbody>
       </table>
     </div>
@@ -916,18 +764,17 @@ location /api/ {
   </div>
 </section>
 
-<!-- ch12 -->
-<section class="slide" data-ch="12">
-  <header class="sh"><span>12 · 다음 단계</span><span class="num"></span></header>
+<!-- ch9 -->
+<section class="slide" data-ch="9">
+  <header class="sh"><span>09 · 다음 단계</span><span class="num"></span></header>
   <h2>진행 상태와 2편 예고</h2>
-  <p class="lead">로컬 검증 이후 실서버 MGMT·DEV 구축과 웹·WAS 배포까지 완료 (2026-10-23 기준)</p>
+  <p class="lead">실서버 MGMT·DEV 구축과 웹·WAS 배포까지 완료 (2026-10-23 기준)</p>
   <div class="cols even">
     <div class="tablewrap">
       <table>
         <thead><tr><th>단계</th><th>상태</th></tr></thead>
         <tbody>
-          <tr><td class="k">로컬: Jenkins → Nexus → Rancher → 클러스터</td><td><span class="pill hi">완료</span></td></tr>
-          <tr><td class="k">인프라 요청: 방화벽, L4, DNS, NetworkManager</td><td><span class="pill hi">완료</span> CDN 허용 추가 신청</td></tr>
+          <tr><td class="k">인프라 요청: 방화벽, L4, DNS, NetworkManager</td><td><span class="pill hi">완료</span></td></tr>
           <tr><td class="k">MGMT 3대 + Rancher 2.15.2</td><td><span class="pill hi">완료</span> 10-20</td></tr>
           <tr><td class="k">DEV 3대 Custom 등록, MetalLB·Traefik·인증서</td><td><span class="pill hi">완료</span> 10-21</td></tr>
           <tr><td class="k">웹·WAS 앱 배포</td><td><span class="pill hi">완료</span> 10-23</td></tr>
@@ -938,10 +785,9 @@ location /api/ {
     <div>
       <h3>2편 주제</h3>
       <ul>
-        <li>MGMT 3대 tar 반입 설치와 Rancher 이중화 (replicas 1 → 3)</li>
-        <li>방화벽 2차 신청: 큰 이미지만 실패하는 Docker Hub CDN 함정</li>
+        <li>MGMT 3대 구축과 Rancher 이중화 (replicas 1 → 3)</li>
         <li>DEV 외부 접속: MetalLB VIP, Traefik, 와일드카드 인증서 2개 도메인</li>
-        <li>앱 배포 표준과 배포 중단 시간·롤백 소요 시간 실측</li>
+        <li>앱 배포 표준과 배포 중 요청 실패 수·롤백 소요 시간 실측</li>
       </ul>
       <div class="note">정리: Jenkins는 산출물을 저장소에 올리고, 배포·복구·롤백은 Rancher가 담당</div>
     </div>
@@ -979,26 +825,20 @@ location /api/ {
     { no: 'Part 1', title: '기존 방식과 전환 이유', range: '1~3장', color: '#B8741F', items: [
       ['1', '기존 배포 방식'],
       ['2', '기존 방식의 한계'],
-      ['3', 'Rancher + RKE2 선택 이유']
+      ['3', 'Rancher + RKE2 선택 이유'],
+      ['3b', '이미지 배포만 도입한 경우와 비교', '3']
     ]},
-    { no: 'Part 2', title: '전환 설계', range: '4~6장', color: '#1D6E8C', items: [
+    { no: 'Part 2', title: '전환 설계와 배포 절차', range: '4~7장', color: '#1D6E8C', items: [
       ['4', '목표 아키텍처'],
       ['4b', '관리 클러스터 분리', '4'],
       ['4c', '접속 방향과 방화벽', '4'],
       ['5', '릴리즈 단위와 버전 규칙'],
-      ['6', 'Jenkins 파이프라인 변경']
+      ['6', 'Jenkins 파이프라인 변경'],
+      ['7', 'Rancher 배포 절차']
     ]},
-    { no: 'Part 3', title: '로컬 검증과 트러블슈팅', range: '7~10장', color: '#2E7D4F', items: [
-      ['7', '로컬 실습 환경 구성'],
-      ['7b', '실습과 실서버의 대응', '7'],
-      ['8', '사내 Jenkins·Nexus에서 로컬 클러스터까지'],
-      ['8b', 'Rancher 배포 절차', '8'],
-      ['9', 'Jenkins Job 오류 4건'],
-      ['10', 'nginx 기동 실패: WAS 주소 조회']
-    ]},
-    { no: 'Part 4', title: '효과와 다음 단계', range: '11~12장', color: '#5B53C6', items: [
-      ['11', '기대 효과와 비용'],
-      ['12', '진행 상태와 2편 예고']
+    { no: 'Part 3', title: '효과와 다음 단계', range: '8~9장', color: '#5B53C6', items: [
+      ['8', '기대 효과와 비용'],
+      ['9', '진행 상태와 2편 예고']
     ]}
   ];
   var toc = document.getElementById('toc');

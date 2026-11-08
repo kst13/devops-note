@@ -396,7 +396,8 @@
 <section class="slide">
   <header class="sh"><span>목차</span><span class="num"></span></header>
   <h2>자료 구성</h2>
-  <p class="lead">1편(설계와 로컬 검증)에 이어 실서버 구축 과정, 막힌 지점, 앱 이전 표준을 정리</p>
+  <p class="lead">1편(전환 설계와 배포 절차)에 이어 실서버 구축 과정, 막힌 지점, 앱 이전 표준을 정리</p>
+  <style>#toc button { padding-top: 3px; padding-bottom: 3px; }</style>
   <div class="toc" id="toc"></div>
 </section>
 
@@ -410,9 +411,9 @@
       <table>
         <thead><tr><th style="width:24%">날짜</th><th>작업</th></tr></thead>
         <tbody>
-          <tr><td class="k">10-02 ~ 10-12</td><td>서버 점검, 인프라 요청, 방화벽 1차 신청</td></tr>
+          <tr><td class="k">10-02 ~ 10-12</td><td>서버 점검, 인프라 요청, 방화벽 신청</td></tr>
           <tr><td class="k">10-16 ~ 10-18</td><td>설치 절차 작성, Lima VM으로 리허설</td></tr>
-          <tr><td class="k">10-19 ~ 10-20</td><td>MGMT 3대 RKE2, Rancher 설치. 방화벽 2차 신청</td></tr>
+          <tr><td class="k">10-19 ~ 10-20</td><td>MGMT 3대 RKE2, Rancher 설치</td></tr>
           <tr><td class="k">10-21</td><td>DEV 3대 Custom 등록, MetalLB·Traefik·인증서</td></tr>
           <tr><td class="k">10-23</td><td>웹·WAS 1세트 배포, 앱 배포 표준 확정</td></tr>
         </tbody>
@@ -510,109 +511,7 @@
 
 <!-- ch4 -->
 <section class="slide" data-ch="4">
-  <header class="sh"><span>04 · 방화벽</span><span class="num"></span></header>
-  <h2>방화벽 2차 신청과 CDN 함정</h2>
-  <p class="lead">1차 신청 목록에서 4건 누락. 그중 Docker Hub CDN은 작은 이미지가 받아져 열린 것으로 오판</p>
-  <div class="cols">
-    <div>
-      <div class="tablewrap">
-        <table>
-          <thead><tr><th>누락 주소</th><th>용도</th></tr></thead>
-          <tbody>
-            <tr><td class="k"><code>rpm.rancher.io</code></td><td>RKE2·<code>rke2-selinux</code> RPM</td></tr>
-            <tr><td class="k"><code>get.helm.sh</code></td><td>Helm 바이너리</td></tr>
-            <tr><td class="k"><code>release-assets.githubusercontent.com</code></td><td>GitHub 릴리스 다운로드</td></tr>
-            <tr><td class="k"><code>production.cloudfront.docker.com</code></td><td>Docker Hub 이미지 데이터 CDN</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="note" style="margin-top: 12px">CDN은 IP가 수시로 바뀜. FQDN 기반 허용과 TLS 검사 예외를 함께 요청</div>
-    </div>
-    <div>
-      <h3>큰 이미지만 실패</h3>
-      <div class="tablewrap">
-        <table>
-          <thead><tr><th>이미지</th><th>크기</th><th>결과</th></tr></thead>
-          <tbody>
-            <tr><td class="k"><code>rancher/shell</code></td><td>114MB</td><td><span class="pill hi">성공</span></td></tr>
-            <tr><td class="k"><code>rancher/rancher</code></td><td>973MB</td><td><span class="pill warm">실패</span> connection reset</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <ul style="margin-top: 14px">
-        <li>목록은 레지스트리에서, 레이어는 CDN에서 받는 구조</li>
-        <li>열림 확인은 큰 이미지로 수행</li>
-        <li>허용 전까지는 받은 노드에서 <code>ctr images export/import</code>로 복사</li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<!-- ch5 -->
-<section class="slide" data-ch="5">
-  <header class="sh"><span>05 · RKE2 설치</span><span class="num"></span></header>
-  <h2>MGMT RKE2 설치: tar 반입</h2>
-  <p class="lead">온라인 설치가 <code>rpm.rancher.io</code> 차단으로 실패. PC에서 받은 tar 묶음을 SSH로 옮겨 3대 설치</p>
-  <div class="cols even">
-    <div>
-      <h3>설치 순서</h3>
-      <ol class="steps">
-        <li><span class="i">1</span><span>PC에서 바이너리·이미지 묶음·체크섬·설치 스크립트 다운로드 후 <code>scp</code></span></li>
-        <li><span class="i">2</span><span>체크섬 확인, 이미지 묶음을 <code>agent/images/</code>에 배치</span></li>
-        <li><span class="i">3</span><span>토큰을 root 전용 파일로 생성, config에는 <code>token-file</code>만 기재</span></li>
-        <li><span class="i">4</span><span><code>sudo env INSTALL_RKE2_METHOD=tar ... sh install.sh</code></span></li>
-        <li><span class="i">5</span><span>MGMT-1 Ready 확인 후 MGMT-2, 3 순서로 조인</span></li>
-      </ol>
-    </div>
-    <div>
-      <h3>설치 중 막힌 지점</h3>
-      <ul>
-        <li><b class="lb">SSH 끊김</b>차단된 EPEL로 <code>dnf</code> 실패, <code>|| exit 1</code>이 셸 종료</li>
-        <li><b class="lb">환경변수 유실</b><code>VAR=값 sudo sh</code> 형태는 sudo 정책에 따라 변수 누락. <code>sudo env</code>로 변경</li>
-        <li><b class="lb">YAML 깨짐</b>붙여 넣기 시 들여쓰기 추가로 Traefik 설정 <code>ParseManifestFailed</code>. <code>cat -A</code>로 확인</li>
-        <li><b class="lb">kubeconfig</b><code>0640</code>으로는 일반 계정 접근 불가. <code>0600</code> 원본 + 계정별 복사본</li>
-      </ul>
-      <div class="note warm">L4 443만으로는 조인 불가. 9345 listener가 없어 MGMT-1 IP로 직접 조인</div>
-    </div>
-  </div>
-</section>
-
-<!-- ch5b -->
-<section class="slide" data-ch="5b">
-  <header class="sh"><span>05 · RKE2 설치</span><span class="num"></span></header>
-  <h2>노드 이름 사고와 재조인</h2>
-  <p class="lead">MGMT-1 config를 복사하며 <code>node-name</code>, <code>node-ip</code> 누락. MGMT-2가 OS hostname으로 조인</p>
-  <div class="cols even">
-    <div class="tablewrap">
-      <table>
-        <tbody>
-          <tr><td class="k">증상</td><td><code>kubectl get nodes</code>에 <code>mgmt-2</code> 대신 OS hostname 표시</td></tr>
-          <tr><td class="k">원인</td><td>노드 이름이 etcd 멤버 이름과 kubelet 인증서에 기록. config 수정과 재시작으로 변경 불가</td></tr>
-          <tr><td class="k">조건</td><td>etcd 3개일 때만 한 대씩 처리. 2개에서 제거하면 과반 상실로 API 정지</td></tr>
-          <tr><td class="k">보존</td><td>이미지 묶음, config, 토큰 파일은 삭제하지 않음</td></tr>
-        </tbody>
-      </table>
-      <div class="note" style="margin-top: 12px">config 복사 시 <code>token:</code> 줄을 주석으로 남기면 화면 공유 때 토큰 노출. 노출 시 <code>rke2 token rotate</code></div>
-    </div>
-    <div>
-      <pre># MGMT-1: 잘못된 노드 삭제 (etcd 멤버도 제거)
-kubectl delete node &lt;잘못된 이름&gt;
-
-# 해당 노드: server 데이터와 노드 인증서만 삭제
-sudo systemctl stop rke2-server
-sudo /usr/local/bin/rke2-killall.sh
-sudo rm -rf /var/lib/rancher/rke2/server \
-            /etc/rancher/node
-
-# config.yaml에 node-name, node-ip 추가 후
-sudo systemctl start rke2-server</pre>
-    </div>
-  </div>
-</section>
-
-<!-- ch6 -->
-<section class="slide" data-ch="6">
-  <header class="sh"><span>06 · Rancher 설치</span><span class="num"></span></header>
+  <header class="sh"><span>04 · Rancher 설치</span><span class="num"></span></header>
   <h2>Rancher 설치와 이중화</h2>
   <p class="lead">기존 서비스의 공인 와일드카드 인증서를 그대로 사용. MGMT-1 한 대로 먼저 설치하고 3대 조인 후 확장</p>
   <div class="cols even">
@@ -647,9 +546,9 @@ sudo systemctl start rke2-server</pre>
   </div>
 </section>
 
-<!-- ch7 -->
-<section class="slide" data-ch="7">
-  <header class="sh"><span>07 · DEV 클러스터</span><span class="num"></span></header>
+<!-- ch5 -->
+<section class="slide" data-ch="5">
+  <header class="sh"><span>05 · DEV 클러스터</span><span class="num"></span></header>
   <h2>DEV 클러스터 Custom 등록</h2>
   <p class="lead">DEV에는 RKE2를 직접 설치하지 않음. Rancher 화면에서 정의하고 노드에서 등록 명령만 실행</p>
   <div class="cols even">
@@ -666,7 +565,7 @@ sudo systemctl start rke2-server</pre>
           </tbody>
         </table>
       </div>
-      <div class="note" style="margin-top: 12px">등록 전 1.36.5 이미지 묶음을 노드에 미리 배치. CDN 불안정과 무관하게 구성요소 16개를 로컬에서 로드</div>
+      <div class="note" style="margin-top: 12px">등록 전 1.36.5 이미지 묶음을 노드에 미리 배치. 외부 다운로드 없이 구성요소 16개를 로컬에서 로드</div>
     </div>
     <div>
       <h3>첫 노드 진행 (약 15분)</h3>
@@ -686,9 +585,9 @@ sudo systemctl start rke2-server</pre>
   </div>
 </section>
 
-<!-- ch7b -->
-<section class="slide" data-ch="7b">
-  <header class="sh"><span>07 · DEV 클러스터</span><span class="num"></span></header>
+<!-- ch5b -->
+<section class="slide" data-ch="5b">
+  <header class="sh"><span>05 · DEV 클러스터</span><span class="num"></span></header>
   <h2>Nexus 연결과 이미지 우회</h2>
   <p class="lead">DEV 노드가 사내 앱 이미지를 Nexus에서 받도록 Rancher Registries 탭에 등록</p>
   <div class="cols even">
@@ -707,7 +606,7 @@ sudo systemctl start rke2-server</pre>
     <div>
       <h3>quay.io·GitHub 차단 우회</h3>
       <ul>
-        <li>MetalLB 이미지(quay.io)는 CDN 단계에서 차단</li>
+        <li>MetalLB 이미지(quay.io) 다운로드 차단</li>
         <li>Jenkins 서버에서 받아 Nexus에 push, 매니페스트의 이미지 주소 교체</li>
         <li>매니페스트 파일은 PC에서 받아 <code>scp</code></li>
       </ul>
@@ -720,9 +619,9 @@ sudo systemctl start rke2-server</pre>
   </div>
 </section>
 
-<!-- ch8 -->
-<section class="slide" data-ch="8">
-  <header class="sh"><span>08 · DEV 외부 접속</span><span class="num"></span></header>
+<!-- ch6 -->
+<section class="slide" data-ch="6">
+  <header class="sh"><span>06 · DEV 외부 접속</span><span class="num"></span></header>
   <h2>MetalLB VIP, Traefik, 와일드카드 인증서</h2>
   <p class="lead">L4가 없는 DEV에 VIP 1개를 만들어 Traefik에만 할당. 모든 앱 도메인이 같은 VIP 사용</p>
   <div class="cols even">
@@ -756,28 +655,49 @@ spec:
   </div>
 </section>
 
-<!-- ch9 -->
-<section class="slide" data-ch="9">
-  <header class="sh"><span>09 · 앱 이전</span><span class="num"></span></header>
+<!-- ch7 -->
+<section class="slide" data-ch="7">
+  <header class="sh"><span>07 · 앱 이전</span><span class="num"></span></header>
   <h2>Docker 운영 구조와의 비교</h2>
   <p class="lead">서버 한 대의 proxy·web·WAS 컨테이너 구조를 Traefik + 앱별 Pod 구조로 전환</p>
-  <div class="cols even">
-    <div>
-      <pre>기존: Docker 서버 한 대
-사용자 ─https─▶ proxy 컨테이너 (443)
-                  인증서, 80→443, 경로 분기
-                  └─▶ :81 web 컨테이너
-                        화면 파일 + API 전달
-                WAS 컨테이너
-                  docker run --add-host</pre>
-      <pre style="margin-top: 12px">변경: DEV 클러스터
-사용자 ─https─▶ VIP ─▶ Traefik (3대)
-                  인증서, 도메인 분기
-                  ▼
-                웹 Pod: nginx 하나로 통합
-                  ├─▶ WAS Service (클러스터 안)
-                  └─▶ 레거시 서버 (클러스터 밖)</pre>
-    </div>
+  <div class="cols" style="grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px">
+    <figure>
+      <svg class="d" viewBox="0 0 560 440" role="img" aria-label="기존에는 Docker 서버 한 대에서 proxy, web, WAS 컨테이너가 요청을 처리하고, 변경 후에는 MetalLB VIP와 Traefik을 거쳐 웹 Pod가 WAS Service와 클러스터 밖 레거시 서버로 요청을 보내는 비교">
+        <rect class="zone plain" x="96" y="8" width="456" height="186" rx="8"></rect><text x="108" y="27" class="z" style="fill: var(--warm)">기존 · DOCKER 서버 1대</text>
+        <rect class="node" x="8" y="76" width="72" height="44" rx="6"></rect><text x="44" y="96" text-anchor="middle" class="b">사용자</text><text x="44" y="111" text-anchor="middle" class="s">https</text>
+        <rect class="node warm" x="108" y="48" width="180" height="100" rx="6"></rect>
+        <text x="198" y="72" text-anchor="middle" class="b">proxy 컨테이너 :443</text>
+        <text x="198" y="94" text-anchor="middle" class="s">이미지 안의 인증서 파일</text>
+        <text x="198" y="112" text-anchor="middle" class="s">80 → 443 전환</text>
+        <text x="198" y="130" text-anchor="middle" class="s">경로 분기</text>
+        <path class="ln" d="M80,98 L106,98" marker-end="url(#arr)"></path>
+        <rect class="node" x="330" y="44" width="210" height="52" rx="6"></rect><text x="435" y="66" text-anchor="middle" class="b">web 컨테이너 :81</text><text x="435" y="84" text-anchor="middle" class="s">화면 파일 + API 전달</text>
+        <path class="ln" d="M288,70 L328,70" marker-end="url(#arr)"></path>
+        <rect class="node" x="330" y="122" width="210" height="56" rx="6"></rect><text x="435" y="144" text-anchor="middle" class="b">WAS 컨테이너</text><text x="435" y="163" text-anchor="middle" class="s m">docker run -e · --add-host</text>
+        <path class="ln" d="M435,96 L435,120" marker-end="url(#arr)"></path>
+        <text x="443" y="113" class="s">/api</text>
+
+        <g transform="translate(0,-12)">
+        <rect class="zone" x="96" y="216" width="456" height="186" rx="8"></rect><text x="108" y="235" class="z">변경 · DEV 클러스터</text>
+        <rect class="node" x="8" y="300" width="72" height="44" rx="6"></rect><text x="44" y="320" text-anchor="middle" class="b">사용자</text><text x="44" y="335" text-anchor="middle" class="s">https</text>
+        <rect class="node warm" x="108" y="294" width="84" height="56" rx="6"></rect><text x="150" y="317" text-anchor="middle" class="b">MetalLB</text><text x="150" y="334" text-anchor="middle" class="s">VIP :443</text>
+        <path class="ln" d="M80,322 L106,322" marker-end="url(#arr)"></path>
+        <rect class="node hi" x="212" y="282" width="128" height="80" rx="6"></rect>
+        <text x="276" y="304" text-anchor="middle" class="b">Traefik ×3</text>
+        <text x="276" y="324" text-anchor="middle" class="s">TLS Secret 한 곳</text>
+        <text x="276" y="341" text-anchor="middle" class="s">도메인 분기</text>
+        <path class="ln" d="M192,322 L210,322" marker-end="url(#arr)"></path>
+        <rect class="node hi" x="368" y="294" width="172" height="56" rx="6"></rect><text x="454" y="316" text-anchor="middle" class="b">웹 Pod (nginx 통합)</text><text x="454" y="334" text-anchor="middle" class="s">화면 파일 + 경로 분기</text>
+        <path class="ln" d="M340,322 L366,322" marker-end="url(#arr)"></path>
+        <rect class="node hi" x="368" y="232" width="172" height="44" rx="6"></rect><text x="454" y="251" text-anchor="middle" class="b">WAS Service → Pod</text><text x="454" y="267" text-anchor="middle" class="s m">values env · hostAliases</text>
+        <path class="ln hi" d="M454,294 L454,278" marker-end="url(#arrA)"></path>
+        <text x="462" y="290" class="s">/api</text>
+        <rect class="node dim" x="368" y="414" width="172" height="34" rx="6"></rect><text x="454" y="436" text-anchor="middle">레거시 서버 (클러스터 밖)</text>
+        <path class="ln dash" d="M454,350 L454,412" marker-end="url(#arr)"></path>
+        <text x="462" y="384" class="s">기존 API 경로</text>
+        </g>
+      </svg>
+    </figure>
     <div class="tablewrap">
       <table>
         <thead><tr><th style="width:42%">기존</th><th>변경</th></tr></thead>
@@ -789,14 +709,63 @@ spec:
           <tr><td class="k"><code>docker run</code></td><td>Rancher Apps 설치·업그레이드</td></tr>
         </tbody>
       </table>
-      <div class="note" style="margin-top: 12px">공용 proxy에 모든 앱 규칙을 모으지 않음. 앱별 nginx가 자기 경로 규칙을 소유</div>
+      <div class="note" style="margin-top: 12px">경로 규칙은 앱별 nginx가 소유. 공용 proxy 미사용</div>
     </div>
   </div>
 </section>
 
-<!-- ch10 -->
-<section class="slide" data-ch="10">
-  <header class="sh"><span>10 · 배포 표준</span><span class="num"></span></header>
+<!-- ch7b -->
+<section class="slide" data-ch="7b">
+  <header class="sh"><span>07 · 앱 이전</span><span class="num"></span></header>
+  <h2>MetalLB와 Traefik의 역할 차이</h2>
+  <p class="lead">MetalLB는 클러스터 밖에서 들어올 IP를 담당, Traefik은 그 IP로 들어온 요청을 도메인별 앱으로 분배</p>
+  <div class="cols" style="grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px">
+    <div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th style="width:22%">항목</th><th style="width:37%">MetalLB</th><th>Traefik</th></tr></thead>
+          <tbody>
+            <tr><td class="k">계층</td><td>L2·L4 (IP·포트)</td><td>L7 (HTTP·HTTPS)</td></tr>
+            <tr><td class="k">역할</td><td>LoadBalancer Service에 VIP 부여</td><td>도메인·경로별로 Service에 전달</td></tr>
+            <tr><td class="k">판단 기준</td><td>목적지 IP</td><td>Host 헤더, 경로, SNI</td></tr>
+            <tr><td class="k">TLS</td><td>관여하지 않음</td><td>TLS 종료, 와일드카드 인증서</td></tr>
+            <tr><td class="k">동작</td><td>VIP 보유 노드가 ARP 응답</td><td>노드별 Traefik Pod가 요청 처리</td></tr>
+            <tr><td class="k">장애 시</td><td>다른 노드가 VIP 인계</td><td>남은 Traefik Pod가 처리</td></tr>
+            <tr><td class="k">기존 대응</td><td>MGMT 앞 L4 장비</td><td>proxy 컨테이너</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin-top: 12px">클라우드에서는 LB를 제공자가 만들어 줌. 온프레미스는 LB가 없어 MetalLB로 VIP를 직접 운영</div>
+    </div>
+    <figure>
+      <svg class="d" viewBox="0 0 520 340" role="img" aria-label="사용자 요청이 MetalLB VIP를 통해 VIP를 가진 노드로 들어오고, 그 노드의 Traefik이 Host 헤더를 보고 앱별 Service로 나누는 흐름">
+        <rect class="node" x="170" y="6" width="180" height="36" rx="6"></rect><text x="260" y="29" text-anchor="middle" class="b">사용자 · https</text>
+        <path class="ln" d="M260,42 L260,66" marker-end="url(#arr)"></path>
+        <rect class="node warm" x="10" y="68" width="500" height="50" rx="6"></rect>
+        <text x="26" y="89" class="b">MetalLB · VIP :443</text><text x="26" y="106" class="s">목적지 IP만 확인. VIP 보유 노드가 ARP 응답</text>
+        <text x="496" y="89" text-anchor="end" class="z" style="fill: var(--warm)">L2 · L4</text>
+        <text x="98" y="140" class="s">VIP 보유 노드</text>
+        <text x="510" y="144" text-anchor="end" class="z">L7</text>
+        <rect class="node dim" x="10" y="150" width="160" height="84" rx="6"></rect><text x="140" y="166" text-anchor="middle" class="s">dev-1</text>
+        <rect class="node dim" x="180" y="150" width="160" height="84" rx="6"></rect><text x="310" y="166" text-anchor="middle" class="s">dev-2</text>
+        <rect class="node dim" x="350" y="150" width="160" height="84" rx="6"></rect><text x="480" y="166" text-anchor="middle" class="s">dev-3</text>
+        <rect class="node hi" x="22" y="174" width="136" height="48" rx="6"></rect><text x="90" y="194" text-anchor="middle" class="b">Traefik</text><text x="90" y="211" text-anchor="middle" class="s">TLS 종료 · Host 분기</text>
+        <rect class="node" x="192" y="174" width="136" height="48" rx="6"></rect><text x="260" y="194" text-anchor="middle" class="b">Traefik</text><text x="260" y="211" text-anchor="middle" class="s">VIP 인계 대비</text>
+        <rect class="node" x="362" y="174" width="136" height="48" rx="6"></rect><text x="430" y="194" text-anchor="middle" class="b">Traefik</text><text x="430" y="211" text-anchor="middle" class="s">VIP 인계 대비</text>
+        <path class="ln warm" d="M90,118 L90,172" marker-end="url(#arrW)"></path>
+        <path class="ln hi" d="M70,222 L70,276" marker-end="url(#arrA)"></path>
+        <path class="ln hi" d="M110,222 L110,252 L390,252 L390,276" marker-end="url(#arrA)"></path>
+        <rect class="node" x="10" y="278" width="240" height="54" rx="6"></rect><text x="130" y="300" text-anchor="middle" class="b">web-portal Service</text><text x="130" y="318" text-anchor="middle" class="s m">Host: portal.dev.example.com</text>
+        <rect class="node" x="270" y="278" width="240" height="54" rx="6"></rect><text x="390" y="300" text-anchor="middle" class="b">admin-web Service</text><text x="390" y="318" text-anchor="middle" class="s m">Host: admin.dev.example.com</text>
+      </svg>
+      <figcaption><code>externalTrafficPolicy: Local</code>로 VIP 보유 노드의 Traefik이 직접 처리, 사용자 IP 보존</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ch8 -->
+<section class="slide" data-ch="8">
+  <header class="sh"><span>08 · 배포 표준</span><span class="num"></span></header>
   <h2>저장소 표준과 환경 분리</h2>
   <p class="lead">기존 stage·운영 배포에 영향이 없도록 쿠버네티스용 파일은 모두 <code>deploy/k8s/</code> 아래에 신규 작성</p>
   <div class="cols even">
@@ -837,9 +806,9 @@ spec:
   </div>
 </section>
 
-<!-- ch10b -->
-<section class="slide" data-ch="10b">
-  <header class="sh"><span>10 · 배포 표준</span><span class="num"></span></header>
+<!-- ch8b -->
+<section class="slide" data-ch="8b">
+  <header class="sh"><span>08 · 배포 표준</span><span class="num"></span></header>
   <h2>웹 nginx 통합</h2>
   <p class="lead">기존 proxy와 web 두 nginx의 규칙을 하나로 합치고, 쿠버네티스 환경에 맞게 일부 설정 변경</p>
   <div class="cols single">
@@ -847,22 +816,22 @@ spec:
       <table>
         <thead><tr><th style="width:20%">항목</th><th style="width:28%">기존</th><th style="width:28%">변경</th><th>이유</th></tr></thead>
         <tbody>
-          <tr><td class="k">백엔드 주소</td><td><code>upstream</code> 블록</td><td><code>set $api ${API}; proxy_pass $api;</code></td><td>upstream은 기동 시 DNS 조회. 하나만 실패해도 기동 불가</td></tr>
+          <tr><td class="k">백엔드 주소</td><td><code>upstream</code> 블록</td><td>변수 <code>proxy_pass $api</code></td><td>upstream은 기동 시 DNS 조회, 실패 시 기동 불가</td></tr>
           <tr><td class="k">DNS</td><td>공용 DNS</td><td><code>resolver ${DNS_SERVER}</code></td><td>CoreDNS로 Service 이름 해석</td></tr>
           <tr><td class="k">클러스터 내 백엔드</td><td>서버 IP</td><td><code>&lt;svc&gt;.&lt;ns&gt;.svc.cluster.local</code></td><td>변수 proxy_pass는 search 도메인 미적용</td></tr>
           <tr><td class="k">TLS</td><td><code>listen 443 ssl</code></td><td><code>listen 80</code></td><td>Traefik이 TLS 처리</td></tr>
           <tr><td class="k">사용자 IP</td><td>직접 확인</td><td><code>set_real_ip_from</code> + X-Forwarded-For</td><td>Traefik 경유 시 Pod IP로 표시</td></tr>
-          <tr><td class="k">외부 HTTPS 백엔드</td><td><code>proxy_pass https://</code></td><td><code>proxy_ssl_server_name on</code> 추가</td><td>SNI 없으면 CDN·클라우드 API가 거절</td></tr>
+          <tr><td class="k">외부 HTTPS 백엔드</td><td><code>proxy_pass https://</code></td><td><code>proxy_ssl_server_name on</code> 추가</td><td>SNI 없으면 외부 API가 거절</td></tr>
         </tbody>
       </table>
     </div>
   </div>
-  <div class="note">location 우선순위(<code>=</code> → <code>^~</code> → 정규식 → 일반 접두사)를 기존 proxy → web 처리 순서와 동일하게 배치</div>
+  <div class="note">location 우선순위를 기존 proxy → web 처리 순서와 동일하게 배치</div>
 </section>
 
-<!-- ch10c -->
-<section class="slide" data-ch="10c">
-  <header class="sh"><span>10 · 배포 표준</span><span class="num"></span></header>
+<!-- ch8c -->
+<section class="slide" data-ch="8c">
+  <header class="sh"><span>08 · 배포 표준</span><span class="num"></span></header>
   <h2>WAS 이미지와 차트</h2>
   <p class="lead">Spring Boot jar를 Dockerfile 안에서 빌드하고, <code>docker run</code> 옵션을 차트 values로 이전</p>
   <div class="cols even">
@@ -891,9 +860,9 @@ spec:
   </div>
 </section>
 
-<!-- ch11 flow -->
-<section class="slide" data-ch="11">
-  <header class="sh"><span>11 · 배포 흐름</span><span class="num"></span></header>
+<!-- ch9 flow -->
+<section class="slide" data-ch="9">
+  <header class="sh"><span>09 · 배포 흐름</span><span class="num"></span></header>
   <h2>차트와 이미지가 만나는 지점</h2>
   <p class="lead">차트에는 이미지가 없고 주소만 존재. Rancher가 렌더링할 때 두 저장소가 연결되고, 실제 이미지는 DEV 노드가 받음</p>
   <div class="cols">
@@ -943,9 +912,9 @@ image: "{{ registry }}/{{ builtFor }}/{{ name }}:
   </div>
 </section>
 
-<!-- ch11b rolling -->
-<section class="slide" data-ch="11b">
-  <header class="sh"><span>11 · 배포 흐름</span><span class="num"></span></header>
+<!-- ch9b rolling -->
+<section class="slide" data-ch="9b">
+  <header class="sh"><span>09 · 배포 흐름</span><span class="num"></span></header>
   <h2>롤링 업데이트 진행 순서</h2>
   <p class="lead">Upgrade 시 Deployment가 새 ReplicaSet을 만들고, 새 Pod가 준비된 만큼만 기존 Pod를 줄이는 방식. 준비된 Pod 수가 replicas 아래로 내려가지 않음</p>
   <div class="cols">
@@ -1003,41 +972,9 @@ image: "{{ registry }}/{{ builtFor }}/{{ name }}:
   </div>
 </section>
 
-<!-- ch11c graceful -->
-<section class="slide" data-ch="11c">
-  <header class="sh"><span>11 · 배포 흐름</span><span class="num"></span></header>
-  <h2>끊김이 생기는 지점과 대응</h2>
-  <p class="lead">교체 순서만으로는 무중단이 보장되지 않음. Pod 시작과 종료 두 지점에서 요청이 실패할 수 있음</p>
-  <div class="cols wide">
-    <div>
-      <h3>Pod 종료 시 동시에 일어나는 일</h3>
-      <pre>Pod 삭제 결정
- ├─ (가) Endpoints에서 제거
- │      → Traefik 목록 갱신
- └─ (나) preStop → SIGTERM
-        → 유예 30초 후 SIGKILL
-
-(나)가 (가)보다 먼저 끝나면
-내려간 Pod로 요청 전달 → 502</pre>
-      <div class="note" style="margin-top: 12px">무중단 여부는 Upgrade 중 0.1초 간격 연속 요청으로 실패 응답 수를 세어 실측 예정</div>
-    </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th style="width:18%">지점</th><th style="width:38%">문제</th><th>대응</th></tr></thead>
-        <tbody>
-          <tr><td class="k">시작</td><td>WAS readiness가 tcpSocket 기준. 포트가 열려도 초기화 미완료 가능</td><td>actuator readiness 같은 HTTP 헬스 체크로 전환 검토</td></tr>
-          <tr><td class="k">종료 경합</td><td>Endpoints 제거 전에 프로세스 종료</td><td><code>preStop</code>에 수 초 대기를 넣어 제거를 먼저 반영</td></tr>
-          <tr><td class="k">진행 중 요청</td><td>SIGTERM 즉시 종료 시 처리 중 요청 실패</td><td><code>exec java</code>로 SIGTERM 수신(적용). Spring graceful shutdown 확인 (Boot 3.4부터 기본)</td></tr>
-          <tr><td class="k">유예 시간</td><td>긴 요청이 30초 안에 미완료 시 강제 종료</td><td><code>terminationGracePeriodSeconds</code>를 preStop + 최장 요청보다 길게</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<!-- ch11 -->
-<section class="slide" data-ch="11d">
-  <header class="sh"><span>11 · 배포 흐름</span><span class="num"></span></header>
+<!-- ch9c -->
+<section class="slide" data-ch="9c">
+  <header class="sh"><span>09 · 배포 흐름</span><span class="num"></span></header>
   <h2>Rancher Apps 배포 규칙</h2>
   <p class="lead">설정 변경은 모두 git과 Jenkins를 거쳐 새 차트 버전으로 반영. Rancher 화면은 버전 선택과 임시 덮어쓰기만 담당</p>
   <div class="cols even">
@@ -1064,9 +1001,9 @@ image: "{{ registry }}/{{ builtFor }}/{{ name }}:
   </div>
 </section>
 
-<!-- ch12 -->
-<section class="slide" data-ch="12">
-  <header class="sh"><span>12 · 운영</span><span class="num"></span></header>
+<!-- ch10 -->
+<section class="slide" data-ch="10">
+  <header class="sh"><span>10 · 운영</span><span class="num"></span></header>
   <h2>로그와 노드 자원</h2>
   <p class="lead">컨테이너 로그는 Pod가 있는 노드의 파일로 저장. 수집 서버 구성 전까지는 kubectl·stern으로 조회</p>
   <div class="cols even">
@@ -1097,9 +1034,9 @@ image: "{{ registry }}/{{ builtFor }}/{{ name }}:
   </div>
 </section>
 
-<!-- ch13 -->
-<section class="slide" data-ch="13">
-  <header class="sh"><span>13 · 정리</span><span class="num"></span></header>
+<!-- ch11 -->
+<section class="slide" data-ch="11">
+  <header class="sh"><span>11 · 정리</span><span class="num"></span></header>
   <h2>1편 목표 대비 결과와 남은 과제</h2>
   <p class="lead">구조 전환은 DEV에서 완료. 배포 중단 시간·롤백 시간 실측과 stage·prod 확장은 다음 단계</p>
   <div class="cols even">
@@ -1110,21 +1047,90 @@ image: "{{ registry }}/{{ builtFor }}/{{ name }}:
           <tr><td class="k">Jenkins SSH 제거</td><td><span class="pill hi">달성</span> Nexus push까지만 수행</td></tr>
           <tr><td class="k">화면 기반 배포</td><td><span class="pill hi">달성</span> Rancher Apps Install·Upgrade</td></tr>
           <tr><td class="k">관리 클러스터 이중화</td><td><span class="pill hi">달성</span> MGMT 3대, Rancher Pod 3개</td></tr>
-          <tr><td class="k">무중단 배포</td><td><span class="pill warm">미측정</span> RollingUpdate 적용</td></tr>
-          <tr><td class="k">1분 롤백</td><td><span class="pill warm">미측정</span> Rollback 리허설 전</td></tr>
+          <tr><td class="k">무중단 배포</td><td><span class="pill warm">미측정</span> RollingUpdate 적용, 상세 12장</td></tr>
+          <tr><td class="k">화면 롤백</td><td><span class="pill hi">사용 가능</span> 소요 시간 미측정, 상세 13장</td></tr>
         </tbody>
       </table>
     </div>
     <div>
       <h3>남은 과제</h3>
       <ul>
-        <li>Rollback 리허설, 배포 중단 시간 실측</li>
+        <li>Rollback 리허설, 배포 중 요청 실패 수 실측</li>
         <li>MetalLB VIP 인계 시험 (VIP 보유 노드 재부팅)</li>
-        <li>Docker Hub·quay CDN 방화벽 허용 완료</li>
         <li>Loki 수집 구성, 나머지 앱 이전</li>
         <li>stage·prod 클러스터 확장</li>
       </ul>
-      <div class="note" style="margin-top: 12px">정리: 사내망 제약(아웃바운드 차단)이 구축 난이도의 대부분. 큰 이미지 기준 방화벽 확인과 tar 반입 경로가 핵심</div>
+      <div class="note" style="margin-top: 12px">정리: 사내망 제약(아웃바운드 차단)이 구축 난이도의 대부분. 이미지 묶음 사전 배치와 Nexus 경유 이미지 반입이 핵심</div>
+    </div>
+  </div>
+</section>
+
+<!-- ch12 -->
+<section class="slide" data-ch="12">
+  <header class="sh"><span>12 · 무중단 배포</span><span class="num"></span></header>
+  <h2>무중단 배포: 남은 설정과 실측 계획</h2>
+  <p class="lead">11장 "무중단 배포 미측정" 항목의 상세. RollingUpdate는 적용 완료, Pod 시작과 종료 두 지점에서 요청 실패 가능성 잔존</p>
+  <div class="cols wide">
+    <div>
+      <h3>Pod 종료 시 동시에 일어나는 일</h3>
+      <pre>Pod 삭제 결정
+ ├─ (가) Endpoints에서 제거
+ │      → Traefik 목록 갱신
+ └─ (나) preStop → SIGTERM
+        → 유예 30초 후 SIGKILL
+
+(나)가 (가)보다 먼저 끝나면
+내려간 Pod로 요청 전달 → 502</pre>
+      <div class="note" style="margin-top: 12px">무중단 여부는 Upgrade 중 0.1초 간격 연속 요청으로 실패 응답 수를 세어 실측 예정</div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:18%">지점</th><th style="width:38%">문제</th><th>대응</th></tr></thead>
+        <tbody>
+          <tr><td class="k">시작</td><td>WAS readiness가 tcpSocket 기준. 포트가 열려도 초기화 미완료 가능</td><td>actuator readiness 같은 HTTP 헬스 체크로 전환 검토</td></tr>
+          <tr><td class="k">종료 경합</td><td>Endpoints 제거 전에 프로세스 종료</td><td><code>preStop</code>에 수 초 대기를 넣어 제거를 먼저 반영</td></tr>
+          <tr><td class="k">진행 중 요청</td><td>SIGTERM 즉시 종료 시 처리 중 요청 실패</td><td><code>exec java</code>로 SIGTERM 수신(적용). Spring graceful shutdown 확인 (Boot 3.4부터 기본)</td></tr>
+          <tr><td class="k">유예 시간</td><td>긴 요청이 30초 안에 미완료 시 강제 종료</td><td><code>terminationGracePeriodSeconds</code>를 preStop + 최장 요청보다 길게</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ch13 -->
+<section class="slide" data-ch="13">
+  <header class="sh"><span>13 · 롤백</span><span class="num"></span></header>
+  <h2>Rollback: 동작 방식과 리허설 계획</h2>
+  <p class="lead">11장 "화면 롤백" 항목의 상세. Rollback 기능은 사용 가능, 소요 시간과 복원 범위는 리허설 전</p>
+  <div class="cols even">
+    <div>
+      <h3>Rollback 클릭 후 동작</h3>
+      <ol class="steps">
+        <li><span class="i">1</span><span>Installed Apps에서 이전 리비전 선택. Helm이 그 리비전의 이미지 태그와 values로 매니페스트 재적용</span></li>
+        <li><span class="i">2</span><span>Deployment가 보관 중인 이전 ReplicaSet을 다시 늘림. 교체 순서는 Upgrade와 같은 롤링 방식</span></li>
+        <li><span class="i">3</span><span>노드에 이전 이미지가 남아 있으면 pull 생략, 없으면 Nexus에서 다시 받음</span></li>
+        <li><span class="i">4</span><span>리비전 번호는 되돌아가지 않고 1 증가. 이력에 Rollback 기록</span></li>
+      </ol>
+      <h3 style="margin-top: 14px">Rollback으로 복원되지 않는 것</h3>
+      <ul>
+        <li>DB 스키마 변경과 이미 쓰인 데이터</li>
+        <li>차트 밖에서 만든 Secret, 수동 변경한 설정</li>
+        <li>Nexus 정리 정책으로 삭제된 이전 이미지</li>
+      </ul>
+    </div>
+    <div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th style="width:30%">리허설 단계</th><th>확인 항목</th></tr></thead>
+          <tbody>
+            <tr><td class="k">정상 버전 복귀</td><td>1.0.N → N+1 Upgrade 후 N으로 Rollback. 클릭부터 전체 Pod Ready까지 시간</td></tr>
+            <tr><td class="k">기동 실패 버전</td><td>기동하지 않는 버전 배포 후 Rollback. 기존 Pod 유지 여부</td></tr>
+            <tr><td class="k">요청 실패</td><td>Rollback 중 0.1초 간격 연속 요청의 실패 응답 수</td></tr>
+            <tr><td class="k">복원 범위</td><td>이전 리비전의 이미지 태그와 values 일치 여부</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note warm" style="margin-top: 12px">소요 시간 = 조작 시간 + 반영 시간. 조작은 화면 선택 몇 번. 반영은 Pod 기동 시간에 좌우되어 WAS는 분 단위 가능(startupProbe 최대 3분), 리허설에서 앱별 측정</div>
     </div>
   </div>
 </section>
@@ -1157,33 +1163,34 @@ image: "{{ registry }}/{{ builtFor }}/{{ name }}:
   var next = document.getElementById('next');
 
   var tocParts = [
-    { no: 'Part 1', title: '구축 개요와 준비', range: '1~4장', color: '#B8741F', items: [
+    { no: 'Part 1', title: '구축 개요와 준비', range: '1~3장', color: '#B8741F', items: [
       ['1', '구축 결과 요약'],
       ['2', '최종 구성도'],
-      ['3', '서버 준비'],
-      ['4', '방화벽 2차 신청과 CDN 함정']
+      ['3', '서버 준비']
     ]},
-    { no: 'Part 2', title: 'MGMT와 Rancher', range: '5~6장', color: '#1D6E8C', items: [
-      ['5', 'MGMT RKE2 설치: tar 반입'],
-      ['5b', '노드 이름 사고와 재조인', '5'],
-      ['6', 'Rancher 설치와 이중화']
+    { no: 'Part 2', title: 'MGMT와 Rancher', range: '4장', color: '#1D6E8C', items: [
+      ['4', 'Rancher 설치와 이중화']
     ]},
-    { no: 'Part 3', title: 'DEV 클러스터', range: '7~8장', color: '#2E7D4F', items: [
-      ['7', 'DEV 클러스터 Custom 등록'],
-      ['7b', 'Nexus 연결과 이미지 우회', '7'],
-      ['8', 'MetalLB VIP, Traefik, 와일드카드 인증서']
+    { no: 'Part 3', title: 'DEV 클러스터', range: '5~6장', color: '#2E7D4F', items: [
+      ['5', 'DEV 클러스터 Custom 등록'],
+      ['5b', 'Nexus 연결과 이미지 우회', '5'],
+      ['6', 'MetalLB VIP, Traefik, 와일드카드 인증서']
     ]},
-    { no: 'Part 4', title: '앱 이전과 운영', range: '9~13장', color: '#5B53C6', items: [
-      ['9', 'Docker 운영 구조와의 비교'],
-      ['10', '저장소 표준과 환경 분리'],
-      ['10b', '웹 nginx 통합', '10'],
-      ['10c', 'WAS 이미지와 차트', '10'],
-      ['11', '차트와 이미지가 만나는 지점'],
-      ['11b', '롤링 업데이트 진행 순서', '11'],
-      ['11c', '끊김이 생기는 지점과 대응', '11'],
-      ['11d', 'Rancher Apps 배포 규칙', '11'],
-      ['12', '로그와 노드 자원'],
-      ['13', '1편 목표 대비 결과와 남은 과제']
+    { no: 'Part 4', title: '앱 이전과 운영', range: '7~11장', color: '#5B53C6', items: [
+      ['7', 'Docker 운영 구조와의 비교'],
+      ['7b', 'MetalLB와 Traefik의 역할 차이', '7'],
+      ['8', '저장소 표준과 환경 분리'],
+      ['8b', '웹 nginx 통합', '8'],
+      ['8c', 'WAS 이미지와 차트', '8'],
+      ['9', '차트와 이미지가 만나는 지점'],
+      ['9b', '롤링 업데이트 진행 순서', '9'],
+      ['9c', 'Rancher Apps 배포 규칙', '9'],
+      ['10', '로그와 노드 자원'],
+      ['11', '1편 목표 대비 결과와 남은 과제']
+    ]},
+    { no: '부록', title: '미측정 항목 상세', range: '12~13장', appx: true, items: [
+      ['12', '무중단 배포: 남은 설정과 실측 계획'],
+      ['13', 'Rollback: 동작 방식과 리허설 계획']
     ]}
   ];
   var toc = document.getElementById('toc');
